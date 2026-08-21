@@ -1,131 +1,73 @@
 const clubService = require("../services/clubService");
-
-const createClub = async (req, res) => {
-    try {
-        const {
-            name,
-            description,
-            category,
-            president
-        } = req.body;
-       
-        if (!name || !description || !category || !president) {
-            return res.status(400).json({
-                message: "Name, description, category and president are required"
-            });
-        }
-        const club = await clubService.createClub(req.body);
+const asyncHandler = require("../utils/asyncHandler");
+const AppError = require("../utils/AppError");
 
 
-        res.status(201).json({
-            message: "Club created successfully",
-            club
-        });
+const createClub = asyncHandler(async (req, res) => {
+    const { name, description, category, president } = req.body;
 
-    } catch (error) {
-
-        console.error(error);
-
-        res.status(400).json({
-            message: error.message
-        });
-    }
-};
-
-const getAllClubs = async (req, res) => {
-
-    try {
-
-        const result = await clubService.getAllClubs(
-            req.query
+    if (!name || !description || !category || !president) {
+        throw new AppError(
+            "Name, description, category and president are required",
+            400
         );
-
-
-        res.status(200).json({
-            message: "Clubs fetched successfully",
-            ...result
-        });
-
-    } catch (error) {
-
-        console.error(error);
-
-        res.status(500).json({
-            message: error.message
-        });
     }
-};
 
-const getClubById = async (req, res) => {
+    const club = await clubService.createClub(req.body);
 
-    try {
-
-        const club = await clubService.getClubById(
-            req.params.id
-        );
-
-
-        res.status(200).json({
-            club
-        });
-
-    } catch (error) {
-
-        console.error(error);
-
-        res.status(404).json({
-            message: error.message
-        });
-    }
-};
-
-const updateClub = async (req, res) => {
-
-    try {
-
-        const club = await clubService.updateClub(
-            req.params.id,
-            req.body
-        );
+    res.status(201).json({
+        success: true,
+        message: "Club created successfully",
+        data: club
+    });
+});
 
 
-        res.status(200).json({
-            message: "Club updated successfully",
-            club
-        });
+const getAllClubs = asyncHandler(async (req, res) => {
+    const result = await clubService.getAllClubs(req.query);
 
-    } catch (error) {
-
-        console.error(error);
-
-        res.status(400).json({
-            message: error.message
-        });
-    }
-};
-
-const deleteClub = async (req, res) => {
-
-    try {
-
-        await clubService.deleteClub(
-            req.params.id
-        );
+    res.status(200).json({
+        success: true,
+        message: "Clubs fetched successfully",
+        ...result
+    });
+});
 
 
-        res.status(200).json({
-            message: "Club deleted successfully"
-        });
+const getClubById = asyncHandler(async (req, res) => {
+    const club = await clubService.getClubById(req.params.id);
 
-    } catch (error) {
+    res.status(200).json({
+        success: true,
+        data: club
+    });
+});
 
-        console.error(error);
 
-        res.status(404).json({
-            message: error.message
-        });
-    }
-};
+const updateClub = asyncHandler(async (req, res) => {
+    const club = await clubService.updateClub(
+        req.params.id,
+        req.body
+    );
+
+    res.status(200).json({
+        success: true,
+        message: "Club updated successfully",
+        data: club
+    });
+});
+
+
+const deleteClub = asyncHandler(async (req, res) => {
+    await clubService.deleteClub(req.params.id);
+
+    res.status(200).json({
+        success: true,
+        message: "Club deleted successfully"
+    });
+});
+
+
 module.exports = {
     createClub,
     getAllClubs,

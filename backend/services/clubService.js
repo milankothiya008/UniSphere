@@ -1,5 +1,6 @@
 const Club = require("../models/Club");
 const User = require("../models/User");
+const AppError = require("../utils/AppError");
 
 
 // CREATE CLUB
@@ -18,7 +19,7 @@ const createClub = async (clubData) => {
     const user = await User.findById(president);
 
     if (!user) {
-        throw new Error("President user not found");
+        throw new AppError("President user not found", 404);
     }
 
 
@@ -26,7 +27,10 @@ const createClub = async (clubData) => {
     const existingClub = await Club.findOne({ name });
 
     if (existingClub) {
-        throw new Error("Club with this name already exists");
+        throw new AppError(
+            "Club with this name already exists",
+            409
+        );
     }
 
 
@@ -118,7 +122,7 @@ const getClubById = async (clubId) => {
         .populate("president", "name email");
 
     if (!club) {
-        throw new Error("Club not found");
+        throw new AppError("Club not found", 404);
     }
 
     return club;
@@ -132,7 +136,7 @@ const updateClub = async (clubId, clubData) => {
     const club = await Club.findById(clubId);
 
     if (!club) {
-        throw new Error("Club not found");
+        throw new AppError("Club not found", 404);
     }
 
 
@@ -152,7 +156,7 @@ const updateClub = async (clubId, clubData) => {
         const user = await User.findById(president);
 
         if (!user) {
-            throw new Error("President user not found");
+            throw new AppError("President user not found", 404);
         }
 
         club.president = president;
@@ -190,7 +194,7 @@ const deleteClub = async (clubId) => {
     const club = await Club.findById(clubId);
 
     if (!club) {
-        throw new Error("Club not found");
+        throw new AppError("Club not found", 404);
     }
 
     await Club.findByIdAndDelete(clubId);

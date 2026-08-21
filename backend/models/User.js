@@ -13,7 +13,13 @@ const userSchema = new mongoose.Schema(
             required: true,
             unique: true,
             lowercase: true,
-            trim: true
+            trim: true,
+            validate: {
+                validator: function (value) {
+                    return value.endsWith("@ddu.ac.in");
+                },
+                message: "Only @ddu.ac.in email addresses are allowed"
+            }
         },
 
         password: {
