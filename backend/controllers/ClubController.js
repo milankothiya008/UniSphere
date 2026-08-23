@@ -1,5 +1,5 @@
-const clubService = require("../services/clubService");
-const asyncHandler = require("../utils/asyncHandler");
+const clubService = require("../services/ClubService");
+const asyncHandler = require("../utils/AsyncHandler");
 const AppError = require("../utils/AppError");
 
 

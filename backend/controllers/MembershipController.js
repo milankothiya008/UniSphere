@@ -1,8 +1,8 @@
 const membershipService =
-    require("../services/membershipService");
+    require("../services/MembershipService");
 
 const asyncHandler =
-    require("../utils/asyncHandler");
+    require("../utils/AsyncHandler");
 
 
 // JOIN CLUB

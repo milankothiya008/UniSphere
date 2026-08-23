@@ -10,7 +10,7 @@ const {
     registerForEvent,
     unregisterFromEvent,
     getEventsByClub
-} = require("../controllers/eventController");
+} = require("../controllers/EventController");
 
 const router = express.Router();
 

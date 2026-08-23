@@ -1,5 +1,5 @@
-const eventService = require("../services/eventService");
-const asyncHandler = require("../utils/asyncHandler");
+const eventService = require("../services/EventService");
+const asyncHandler = require("../utils/AsyncHandler");
 
 
 // Create event (sends approval request)

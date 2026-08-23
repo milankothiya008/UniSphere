@@ -5,7 +5,7 @@ const {
     getClubMembers,
     leaveClub,
     getUserClubs
-} = require("../controllers/membershipController");
+} = require("../controllers/MembershipController");
 
 const router = express.Router();
 

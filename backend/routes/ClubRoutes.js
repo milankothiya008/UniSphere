@@ -6,7 +6,7 @@ const {
     getClubById,
     updateClub,
     deleteClub
-} = require("../controllers/clubController");
+} = require("../controllers/ClubController");
 
 const router = express.Router();
 

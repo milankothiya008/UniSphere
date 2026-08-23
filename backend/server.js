@@ -1,13 +1,13 @@
 const express = require("express");
 const dotenv = require("dotenv");
-const connectDB = require("./config/database");
-const errorHandler = require("./middleware/errorHandler");
+const connectDB = require("./config/Database");
+const errorHandler = require("./middleware/ErrorHandler");
 const AppError = require("./utils/AppError");
 
-const userRoutes = require("./routes/userRoutes");
-const clubRoutes = require("./routes/clubRoutes");
-const membershipRoutes = require("./routes/membershipRoutes");
-const eventRoutes = require("./routes/eventRoutes");
+const userRoutes = require("./routes/UserRoutes");
+const clubRoutes = require("./routes/ClubRoutes");
+const membershipRoutes = require("./routes/MembershipRoutes");
+const eventRoutes = require("./routes/EventRoutes");
 
 dotenv.config();
 
