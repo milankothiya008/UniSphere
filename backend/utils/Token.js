@@ -1,0 +1,52 @@
+const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
+const { env } = require("../config/env");
+
+const parseExpiryToMs = (value, fallbackMs) => {
+    if (!value) {
+        return fallbackMs;
+    }
+
+    if (/^\d+$/.test(value)) {
+        return Number(value) * 1000;
+    }
+
+    const match = String(value).match(/^(\d+)([smhd])$/);
+    if (!match) {
+        return fallbackMs;
+    }
+
+    const amount = Number(match[1]);
+    const unit = match[2];
+    const multipliers = { s: 1000, m: 60 * 1000, h: 60 * 60 * 1000, d: 24 * 60 * 60 * 1000 };
+
+    return amount * multipliers[unit];
+};
+
+const signAccessToken = (payload) => {
+    return jwt.sign(payload, env.jwtAccessSecret, { expiresIn: env.accessTokenExpiry });
+};
+
+const signRefreshToken = (payload) => {
+    return jwt.sign(payload, env.jwtRefreshSecret, { expiresIn: env.refreshTokenExpiry });
+};
+
+const verifyAccessToken = (token) => jwt.verify(token, env.jwtAccessSecret);
+
+const verifyRefreshToken = (token) => jwt.verify(token, env.jwtRefreshSecret);
+
+const hashToken = (token) => crypto.createHash("sha256").update(token).digest("hex");
+
+const generateRawToken = () => crypto.randomBytes(32).toString("hex");
+
+const refreshTokenTtlMs = () => parseExpiryToMs(env.refreshTokenExpiry, 7 * 24 * 60 * 60 * 1000);
+
+module.exports = {
+    signAccessToken,
+    signRefreshToken,
+    verifyAccessToken,
+    verifyRefreshToken,
+    hashToken,
+    generateRawToken,
+    refreshTokenTtlMs
+};

@@ -1,51 +1,78 @@
 const express = require("express");
-const dotenv = require("dotenv");
+const cors = require("cors");
+const helmet = require("helmet");
+const cookieParser = require("cookie-parser");
+const morgan = require("morgan");
+
+const { env, validateEnv } = require("./config/env");
 const connectDB = require("./config/Database");
 const errorHandler = require("./middleware/ErrorHandler");
+const { apiLimiter } = require("./middleware/RateLimiter");
 const AppError = require("./utils/AppError");
+const logger = require("./utils/Logger");
+const { bootstrapAdminIfNeeded } = require("./services/AdminService");
 
+const authRoutes = require("./routes/AuthRoutes");
 const userRoutes = require("./routes/UserRoutes");
 const clubRoutes = require("./routes/ClubRoutes");
+const clubRequestRoutes = require("./routes/ClubRequestRoutes");
 const membershipRoutes = require("./routes/MembershipRoutes");
 const eventRoutes = require("./routes/EventRoutes");
+const venueRoutes = require("./routes/VenueRoutes");
+const adminRoutes = require("./routes/AdminRoutes");
+const registrationRoutes = require("./routes/RegistrationRoutes");
 
-dotenv.config();
+validateEnv();
 
 const app = express();
 
-app.use(express.json());
+app.set("trust proxy", 1);
+app.use(helmet());
+app.use(
+    cors({
+        origin: env.clientUrl,
+        credentials: true
+    })
+);
+app.use(express.json({ limit: "1mb" }));
+app.use(cookieParser());
+app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
+app.use(apiLimiter);
 
-connectDB();
-
-
-// Routes
+app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/clubs", clubRoutes);
+app.use("/api/club-requests", clubRequestRoutes);
 app.use("/api/memberships", membershipRoutes);
 app.use("/api/events", eventRoutes);
+app.use("/api/venues", venueRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/registrations", registrationRoutes);
 
 app.get("/", (req, res) => {
-    res.send("UniSphere API is running");
+    res.json({
+        success: true,
+        message: "UniSphere API is running"
+    });
 });
 
-
-// Handle undefined routes
-app.all("*", (req, res, next) => {
-    next(
-        new AppError(
-            `Cannot find ${req.method} ${req.originalUrl} on this server`,
-            404
-        )
-    );
+app.use((req, res, next) => {
+    next(new AppError(`Cannot find ${req.method} ${req.originalUrl} on this server`, 404));
 });
 
-
-// Global error handler (must be last middleware)
 app.use(errorHandler);
 
+const start = async () => {
+    await connectDB();
+    await bootstrapAdminIfNeeded();
 
-const PORT = process.env.PORT || 5000;
+    app.listen(env.port, () => {
+        logger.info(`Server running on port ${env.port}`);
+    });
+};
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+if (require.main === module) {
+    start();
+}
+
+module.exports = app;

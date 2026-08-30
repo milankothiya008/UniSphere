@@ -1,43 +1,70 @@
 const mongoose = require("mongoose");
+const { GLOBAL_ROLES, ACCOUNT_TYPES } = require("../constants/Roles");
 
 const userSchema = new mongoose.Schema(
     {
         name: {
             type: String,
-            required: true,
-            trim: true
+            required: [true, "Name is required"],
+            trim: true,
+            minlength: 2,
+            maxlength: 80
         },
-
         email: {
             type: String,
-            required: true,
+            required: [true, "Email is required"],
             unique: true,
             lowercase: true,
-            trim: true,
-            validate: {
-                validator: function (value) {
-                    return value.endsWith("@ddu.ac.in");
-                },
-                message: "Only @ddu.ac.in email addresses are allowed"
-            }
+            trim: true
         },
-
         password: {
             type: String,
+            required: [true, "Password is required"],
+            minlength: 8,
+            select: false
+        },
+        accountType: {
+            type: String,
+            enum: Object.values(ACCOUNT_TYPES),
             required: true
         },
-
-        role: {
+        globalRole: {
             type: String,
-            enum: ["student", "coordinator", "admin"],
-            default: "student"
+            enum: Object.values(GLOBAL_ROLES),
+            default: GLOBAL_ROLES.STUDENT
+        },
+        departmentCode: {
+            type: String,
+            uppercase: true,
+            default: null
+        },
+        batchCode: {
+            type: String,
+            default: null
+        },
+        isEmailVerified: {
+            type: Boolean,
+            default: false
+        },
+        emailVerificationTokenHash: {
+            type: String,
+            select: false,
+            default: null
+        },
+        emailVerificationExpires: {
+            type: Date,
+            select: false,
+            default: null
+        },
+        isActive: {
+            type: Boolean,
+            default: true
         }
     },
-    {
-        timestamps: true
-    }
+    { timestamps: true }
 );
 
-const User = mongoose.model("User", userSchema);
+userSchema.index({ globalRole: 1 });
+userSchema.index({ departmentCode: 1 });
 
-module.exports = User;
+module.exports = mongoose.model("User", userSchema);

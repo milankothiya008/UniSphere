@@ -1,134 +1,94 @@
 const eventService = require("../services/EventService");
 const asyncHandler = require("../utils/AsyncHandler");
+const { sendSuccess } = require("../utils/ApiResponse");
 
-
-// Create event (sends approval request)
 const createEvent = asyncHandler(async (req, res) => {
-    const event = await eventService.createEvent(req.body);
+    const event = await eventService.createDraft(req.user, req.body);
+    sendSuccess(res, 201, "Event draft created", event);
+});
 
-    res.status(201).json({
-        success: true,
-        message: "Event request created. Pending approval.",
-        data: event
+const getFeed = asyncHandler(async (req, res) => {
+    const result = await eventService.getAllEvents(req.query, { publicFeed: true });
+    sendSuccess(res, 200, "Event feed fetched", result.events, {
+        totalEvents: result.totalEvents,
+        currentPage: result.currentPage,
+        totalPages: result.totalPages,
+        limit: result.limit
     });
 });
 
-
-// Get all events
 const getAllEvents = asyncHandler(async (req, res) => {
-    const result = await eventService.getAllEvents(req.query);
-
-    res.status(200).json({
-        success: true,
-        message: "Events fetched successfully",
-        ...result
+    const result = await eventService.getAllEvents(req.query, { publicFeed: false, actor: req.user });
+    sendSuccess(res, 200, "Events fetched", result.events, {
+        totalEvents: result.totalEvents,
+        currentPage: result.currentPage,
+        totalPages: result.totalPages,
+        limit: result.limit
     });
 });
 
-
-// Get event by ID
 const getEventById = asyncHandler(async (req, res) => {
-    const event = await eventService.getEventById(req.params.id);
-
-    res.status(200).json({
-        success: true,
-        data: event
-    });
+    const event = await eventService.getEventById(req.params.id, { actor: req.user });
+    sendSuccess(res, 200, "Event fetched", event);
 });
 
+const getPublicEvent = asyncHandler(async (req, res) => {
+    const event = await eventService.getEventById(req.params.id, { publicOnly: true });
+    sendSuccess(res, 200, "Event fetched", event);
+});
 
-// Update event
 const updateEvent = asyncHandler(async (req, res) => {
-    const event = await eventService.updateEvent(
-        req.params.id,
-        req.body
-    );
-
-    res.status(200).json({
-        success: true,
-        message: "Event updated successfully",
-        data: event
-    });
+    const event = await eventService.updateDraft(req.user, req.params.id, req.body);
+    sendSuccess(res, 200, "Event updated", event);
 });
 
-
-// Approve / Reject / Cancel event
-const updateEventStatus = asyncHandler(async (req, res) => {
-    const event = await eventService.updateEventStatus(
-        req.params.id,
-        req.body.status
-    );
-
-    res.status(200).json({
-        success: true,
-        message: `Event ${req.body.status.toLowerCase()} successfully`,
-        data: event
-    });
+const submitEvent = asyncHandler(async (req, res) => {
+    const event = await eventService.submitEvent(req.user, req.params.id);
+    sendSuccess(res, 200, "Event submitted for approval", event);
 });
 
-
-// Delete event
-const deleteEvent = asyncHandler(async (req, res) => {
-    await eventService.deleteEvent(req.params.id);
-
-    res.status(200).json({
-        success: true,
-        message: "Event deleted successfully"
-    });
+const approveEvent = asyncHandler(async (req, res) => {
+    const event = await eventService.approveEvent(req.user, req.params.id);
+    sendSuccess(res, 200, "Event approved", event);
 });
 
-
-// Register for event
-const registerForEvent = asyncHandler(async (req, res) => {
-    const event = await eventService.registerForEvent(
-        req.params.id,
-        req.body.userId
-    );
-
-    res.status(200).json({
-        success: true,
-        message: "Successfully registered for event",
-        data: event
-    });
+const rejectEvent = asyncHandler(async (req, res) => {
+    const event = await eventService.rejectEvent(req.user, req.params.id, req.body.reason);
+    sendSuccess(res, 200, "Event rejected", event);
 });
 
-
-// Unregister from event
-const unregisterFromEvent = asyncHandler(async (req, res) => {
-    await eventService.unregisterFromEvent(
-        req.params.id,
-        req.body.userId
-    );
-
-    res.status(200).json({
-        success: true,
-        message: "Successfully unregistered from event"
-    });
+const publishEvent = asyncHandler(async (req, res) => {
+    const event = await eventService.publishEvent(req.user, req.params.id);
+    sendSuccess(res, 200, "Event published", event);
 });
 
+const cancelEvent = asyncHandler(async (req, res) => {
+    const event = await eventService.cancelEvent(req.user, req.params.id, req.body.reason);
+    sendSuccess(res, 200, "Event cancelled", event);
+});
 
-// Get events by club
+const completeEvent = asyncHandler(async (req, res) => {
+    const event = await eventService.completeEvent(req.user, req.params.id);
+    sendSuccess(res, 200, "Event marked as completed", event);
+});
+
 const getEventsByClub = asyncHandler(async (req, res) => {
-    const events = await eventService.getEventsByClub(
-        req.params.clubId
-    );
-
-    res.status(200).json({
-        success: true,
-        count: events.length,
-        data: events
-    });
+    const events = await eventService.getEventsByClub(req.params.clubId);
+    sendSuccess(res, 200, "Club events fetched", events, { count: events.length });
 });
-
 
 module.exports = {
     createEvent,
+    getFeed,
     getAllEvents,
     getEventById,
+    getPublicEvent,
     updateEvent,
-    updateEventStatus,
-    deleteEvent,
-    registerForEvent,
-    unregisterFromEvent,
+    submitEvent,
+    approveEvent,
+    rejectEvent,
+    publishEvent,
+    cancelEvent,
+    completeEvent,
     getEventsByClub
 };

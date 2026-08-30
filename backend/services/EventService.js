@@ -1,367 +1,504 @@
 const Event = require("../models/Event");
 const Club = require("../models/Club");
-const User = require("../models/User");
+const Venue = require("../models/Venue");
 const AppError = require("../utils/AppError");
+const ERROR_CODES = require("../constants/ErrorCodes");
+const {
+    EVENT_STATUS,
+    CLUB_STATUS,
+    PUBLIC_EVENT_STATUSES,
+    VENUE_STATUS,
+    AUDIT_ACTIONS
+} = require("../constants/Statuses");
+const CoordinatorAssignment = require("../models/CoordinatorAssignment");
+const { GLOBAL_ROLES } = require("../constants/Roles");
+const {
+    assertClubPresident,
+    assertCoordinatorAssigned,
+    assertClubMemberOrStaff,
+    isAdmin
+} = require("./AuthorizationService");
+const { combineDateAndTime } = require("../utils/UniversityRules");
+const { assertVenueAvailable } = require("./VenueService");
+const { recordAudit } = require("./AuditService");
 
-
-// CREATE EVENT
-const createEvent = async (eventData) => {
-
-    const {
-        name,
-        description,
-        date,
-        time,
-        venue,
-        registrationDeadline,
-        bannerImage,
-        club,
-        createdBy
-    } = eventData;
-
-
-    // Validate required fields
-    if (!name || !description || !date || !time || !venue || !registrationDeadline || !club || !createdBy) {
+const assertClubCanHostEvents = (club) => {
+    if (club.status !== CLUB_STATUS.ACTIVE) {
         throw new AppError(
-            "Name, description, date, time, venue, registrationDeadline, club and createdBy are required",
-            400
+            "Only active clubs can create or publish events",
+            409,
+            ERROR_CODES.CLUB_NOT_ACTIVE
         );
     }
-
-
-    // Check club exists and is active
-    const clubDoc = await Club.findById(club);
-
-    if (!clubDoc) {
-        throw new AppError("Club not found", 404);
-    }
-
-    if (clubDoc.status !== "ACTIVE") {
-        throw new AppError(
-            "Events can only be created for active clubs",
-            400
-        );
-    }
-
-
-    // Check creator exists
-    const userDoc = await User.findById(createdBy);
-
-    if (!userDoc) {
-        throw new AppError("Creator user not found", 404);
-    }
-
-
-    // Create event with PENDING status (needs approval)
-    const event = await Event.create({
-        name,
-        description,
-        date,
-        time,
-        venue,
-        registrationDeadline,
-        bannerImage,
-        club,
-        createdBy,
-        status: "PENDING"
-    });
-
-
-    return await event.populate([
-        { path: "club", select: "name category" },
-        { path: "createdBy", select: "name email" }
-    ]);
 };
 
+const hydrateSchedule = (payload) => {
+    const startAt = combineDateAndTime(payload.eventDate, payload.startTime);
+    const endAt = combineDateAndTime(payload.eventDate, payload.endTime);
 
-
-// GET ALL EVENTS (with search, filter, pagination)
-const getAllEvents = async (query) => {
-
-    const {
-        search,
-        status,
-        clubId,
-        upcoming,
-        page = 1,
-        limit = 10
-    } = query;
-
-    const filter = {};
-
-
-    // Search by event name
-    if (search) {
-        filter.name = {
-            $regex: search,
-            $options: "i"
-        };
+    if (startAt >= endAt) {
+        throw new AppError("Event end must be after event start", 400, ERROR_CODES.VALIDATION_ERROR);
     }
 
+    const registrationStart = new Date(payload.registrationStart);
+    const registrationEnd = new Date(payload.registrationEnd);
 
-    // Filter by status
-    if (status) {
+    if (Number.isNaN(registrationStart.getTime()) || Number.isNaN(registrationEnd.getTime())) {
+        throw new AppError("Invalid registration window", 400, ERROR_CODES.VALIDATION_ERROR);
+    }
+
+    if (registrationStart >= registrationEnd) {
+        throw new AppError("registrationStart must be before registrationEnd", 400, ERROR_CODES.VALIDATION_ERROR);
+    }
+
+    if (registrationEnd > startAt) {
+        throw new AppError("Registration must close before the event starts", 400, ERROR_CODES.VALIDATION_ERROR);
+    }
+
+    return { startAt, endAt, registrationStart, registrationEnd };
+};
+
+const populateEvent = (query) => {
+    return query
+        .populate("club", "name category status")
+        .populate("venue", "name location capacity")
+        .populate("createdBy", "name email");
+};
+
+const createDraft = async (actor, payload) => {
+    const club = await Club.findById(payload.club);
+
+    if (!club) {
+        throw new AppError("Club not found", 404, ERROR_CODES.NOT_FOUND);
+    }
+
+    await assertClubPresident(actor, club._id);
+    assertClubCanHostEvents(club);
+
+    const required = [
+        "title",
+        "shortDescription",
+        "description",
+        "category",
+        "eventDate",
+        "startTime",
+        "endTime",
+        "venue",
+        "registrationStart",
+        "registrationEnd"
+    ];
+
+    const missing = required.filter((field) => payload[field] === undefined || payload[field] === null || payload[field] === "");
+    if (missing.length) {
+        throw new AppError(`Missing required fields: ${missing.join(", ")}`, 400, ERROR_CODES.VALIDATION_ERROR);
+    }
+
+    const venue = await Venue.findById(payload.venue);
+    if (!venue || venue.status !== VENUE_STATUS.ACTIVE) {
+        throw new AppError("Venue is not available", 400, ERROR_CODES.VALIDATION_ERROR);
+    }
+
+    const schedule = hydrateSchedule(payload);
+    await assertVenueAvailable({
+        venueId: venue._id,
+        startAt: schedule.startAt,
+        endAt: schedule.endAt
+    });
+
+    const event = await Event.create({
+        title: payload.title,
+        shortDescription: payload.shortDescription,
+        description: payload.description,
+        category: payload.category,
+        poster: payload.poster || null,
+        club: club._id,
+        venue: venue._id,
+        eventDate: payload.eventDate,
+        startTime: payload.startTime,
+        endTime: payload.endTime,
+        ...schedule,
+        maxParticipants: payload.maxParticipants || null,
+        eligibility: payload.eligibility || { departments: [], batches: [], notes: "" },
+        createdBy: actor._id,
+        updatedBy: actor._id,
+        status: EVENT_STATUS.DRAFT
+    });
+
+    return populateEvent(Event.findById(event._id));
+};
+
+const getEventById = async (eventId, { publicOnly = false, actor = null } = {}) => {
+    const event = await populateEvent(Event.findById(eventId));
+
+    if (!event) {
+        throw new AppError("Event not found", 404, ERROR_CODES.NOT_FOUND);
+    }
+
+    if (publicOnly && !PUBLIC_EVENT_STATUSES.includes(event.status)) {
+        throw new AppError("Event not found", 404, ERROR_CODES.NOT_FOUND);
+    }
+
+    if (actor && !PUBLIC_EVENT_STATUSES.includes(event.status)) {
+        const clubId = event.club._id || event.club;
+        await assertClubMemberOrStaff(actor, clubId);
+    }
+
+    return event;
+};
+
+const getAllEvents = async (query = {}, { publicFeed = false, actor = null } = {}) => {
+    const { search, status, clubId, upcoming, page = 1, limit = 10 } = query;
+    const filter = {};
+
+    if (publicFeed) {
+        filter.status = { $in: PUBLIC_EVENT_STATUSES };
+    } else if (status) {
         filter.status = status.toUpperCase();
     }
 
+    if (actor && actor.globalRole === GLOBAL_ROLES.COORDINATOR) {
+        const assignments = await CoordinatorAssignment.find({
+            coordinator: actor._id,
+            isActive: true
+        }).select("club");
+        filter.club = { $in: assignments.map((item) => item.club) };
+    }
 
-    // Filter by club
+    if (search) {
+        filter.title = { $regex: search, $options: "i" };
+    }
+
     if (clubId) {
-        filter.club = clubId;
+        if (filter.club && filter.club.$in) {
+            const allowed = filter.club.$in.map((id) => String(id));
+            if (!allowed.includes(String(clubId))) {
+                filter.club = { $in: [] };
+            } else {
+                filter.club = clubId;
+            }
+        } else {
+            filter.club = clubId;
+        }
     }
 
-
-    // Filter upcoming events only
     if (upcoming === "true") {
-        filter.date = { $gte: new Date() };
+        filter.startAt = { $gte: new Date() };
     }
 
-
-    // Pagination
     const pageNumber = Number(page);
     const limitNumber = Number(limit);
     const skip = (pageNumber - 1) * limitNumber;
 
-
-    const events = await Event.find(filter)
-        .populate("club", "name category")
-        .populate("createdBy", "name email")
-        .sort({ date: 1 })
-        .skip(skip)
-        .limit(limitNumber);
-
+    const events = await populateEvent(
+        Event.find(filter).sort({ startAt: 1 }).skip(skip).limit(limitNumber)
+    );
 
     const totalEvents = await Event.countDocuments(filter);
-
 
     return {
         events,
         totalEvents,
         currentPage: pageNumber,
-        totalPages: Math.ceil(totalEvents / limitNumber),
+        totalPages: Math.ceil(totalEvents / limitNumber) || 1,
         limit: limitNumber
     };
 };
 
-
-
-// GET EVENT BY ID
-const getEventById = async (eventId) => {
-
-    const event = await Event.findById(eventId)
-        .populate("club", "name category logo")
-        .populate("createdBy", "name email")
-        .populate("registeredUsers", "name email");
-
-    if (!event) {
-        throw new AppError("Event not found", 404);
-    }
-
-    return event;
-};
-
-
-
-// UPDATE EVENT
-const updateEvent = async (eventId, eventData) => {
-
+const updateDraft = async (actor, eventId, payload) => {
     const event = await Event.findById(eventId);
 
     if (!event) {
-        throw new AppError("Event not found", 404);
+        throw new AppError("Event not found", 404, ERROR_CODES.NOT_FOUND);
     }
 
-    const {
-        name,
-        description,
-        date,
-        time,
-        venue,
-        registrationDeadline,
-        bannerImage,
-        maxAttendees
-    } = eventData;
+    await assertClubPresident(actor, event.club);
 
-    if (name !== undefined) event.name = name;
-    if (description !== undefined) event.description = description;
-    if (date !== undefined) event.date = date;
-    if (time !== undefined) event.time = time;
-    if (venue !== undefined) event.venue = venue;
-    if (registrationDeadline !== undefined) event.registrationDeadline = registrationDeadline;
-    if (bannerImage !== undefined) event.bannerImage = bannerImage;
-    if (maxAttendees !== undefined) event.maxAttendees = maxAttendees;
+    if (![EVENT_STATUS.DRAFT, EVENT_STATUS.REJECTED].includes(event.status)) {
+        throw new AppError("Only draft or rejected events can be edited", 409, ERROR_CODES.INVALID_STATE);
+    }
 
-    const updatedEvent = await event.save();
+    const fields = [
+        "title",
+        "shortDescription",
+        "description",
+        "category",
+        "poster",
+        "maxParticipants",
+        "eligibility"
+    ];
 
-    return await updatedEvent.populate([
-        { path: "club", select: "name category" },
-        { path: "createdBy", select: "name email" }
-    ]);
+    fields.forEach((field) => {
+        if (payload[field] !== undefined) {
+            event[field] = payload[field];
+        }
+    });
+
+    const nextDate = payload.eventDate || event.eventDate;
+    const nextStart = payload.startTime || event.startTime;
+    const nextEnd = payload.endTime || event.endTime;
+    const nextRegStart = payload.registrationStart || event.registrationStart;
+    const nextRegEnd = payload.registrationEnd || event.registrationEnd;
+    const nextVenue = payload.venue || event.venue;
+
+    const schedule = hydrateSchedule({
+        eventDate: nextDate,
+        startTime: nextStart,
+        endTime: nextEnd,
+        registrationStart: nextRegStart,
+        registrationEnd: nextRegEnd
+    });
+
+    await assertVenueAvailable({
+        venueId: nextVenue,
+        startAt: schedule.startAt,
+        endAt: schedule.endAt,
+        excludeEventId: event._id
+    });
+
+    event.venue = nextVenue;
+    event.eventDate = nextDate;
+    event.startTime = nextStart;
+    event.endTime = nextEnd;
+    Object.assign(event, schedule);
+    event.status = EVENT_STATUS.DRAFT;
+    event.updatedBy = actor._id;
+
+    await event.save();
+    return populateEvent(Event.findById(event._id));
 };
 
-
-
-// APPROVE / REJECT EVENT (admin action)
-const updateEventStatus = async (eventId, status) => {
-
-    const validStatuses = ["APPROVED", "REJECTED", "CANCELLED"];
-
-    if (!validStatuses.includes(status)) {
-        throw new AppError(
-            `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
-            400
-        );
-    }
-
-    const event = await Event.findById(eventId);
+const submitEvent = async (actor, eventId) => {
+    const event = await Event.findById(eventId).populate("club");
 
     if (!event) {
-        throw new AppError("Event not found", 404);
+        throw new AppError("Event not found", 404, ERROR_CODES.NOT_FOUND);
     }
 
-    event.status = status;
+    await assertClubPresident(actor, event.club._id);
+    assertClubCanHostEvents(event.club);
 
-    const updatedEvent = await event.save();
-
-    return await updatedEvent.populate([
-        { path: "club", select: "name category" },
-        { path: "createdBy", select: "name email" }
-    ]);
-};
-
-
-
-// DELETE EVENT
-const deleteEvent = async (eventId) => {
-
-    const event = await Event.findById(eventId);
-
-    if (!event) {
-        throw new AppError("Event not found", 404);
+    if (![EVENT_STATUS.DRAFT, EVENT_STATUS.REJECTED].includes(event.status)) {
+        throw new AppError("Event cannot be submitted from its current state", 409, ERROR_CODES.INVALID_STATE);
     }
 
-    await Event.findByIdAndDelete(eventId);
+    await assertVenueAvailable({
+        venueId: event.venue,
+        startAt: event.startAt,
+        endAt: event.endAt,
+        excludeEventId: event._id
+    });
 
-    return event;
-};
-
-
-
-// REGISTER USER FOR EVENT
-const registerForEvent = async (eventId, userId) => {
-
-    const event = await Event.findById(eventId);
-
-    if (!event) {
-        throw new AppError("Event not found", 404);
-    }
-
-    if (event.status !== "APPROVED") {
-        throw new AppError(
-            "Can only register for approved events",
-            400
-        );
-    }
-
-
-    // Check registration deadline
-    if (new Date() > event.registrationDeadline) {
-        throw new AppError(
-            "Registration deadline has passed",
-            400
-        );
-    }
-
-
-    // Check if user exists
-    const user = await User.findById(userId);
-
-    if (!user) {
-        throw new AppError("User not found", 404);
-    }
-
-
-    // Check if already registered
-    if (event.registeredUsers.includes(userId)) {
-        throw new AppError(
-            "User is already registered for this event",
-            409
-        );
-    }
-
-
-    // Check max attendees
-    if (
-        event.maxAttendees &&
-        event.registeredUsers.length >= event.maxAttendees
-    ) {
-        throw new AppError(
-            "Event has reached maximum number of attendees",
-            400
-        );
-    }
-
-
-    event.registeredUsers.push(userId);
+    const from = event.status;
+    event.status = EVENT_STATUS.PENDING_APPROVAL;
+    event.updatedBy = actor._id;
     await event.save();
 
-    return await event.populate([
-        { path: "club", select: "name category" },
-        { path: "registeredUsers", select: "name email" }
-    ]);
+    await recordAudit({
+        action: AUDIT_ACTIONS.EVENT_SUBMITTED,
+        actor: actor._id,
+        targetType: "Event",
+        targetId: event._id,
+        fromState: from,
+        toState: event.status
+    });
+
+    return populateEvent(Event.findById(event._id));
 };
 
+const approveEvent = async (actor, eventId) => {
+    const event = await Event.findById(eventId);
 
+    if (!event) {
+        throw new AppError("Event not found", 404, ERROR_CODES.NOT_FOUND);
+    }
 
-// UNREGISTER USER FROM EVENT
-const unregisterFromEvent = async (eventId, userId) => {
+    await assertCoordinatorAssigned(actor, event.club);
+
+    if (event.status !== EVENT_STATUS.PENDING_APPROVAL) {
+        throw new AppError("Event is not pending approval", 409, ERROR_CODES.INVALID_STATE);
+    }
+
+    await assertVenueAvailable({
+        venueId: event.venue,
+        startAt: event.startAt,
+        endAt: event.endAt,
+        excludeEventId: event._id
+    });
+
+    event.status = EVENT_STATUS.APPROVED;
+    event.reviewedBy = actor._id;
+    event.reviewedAt = new Date();
+    event.rejectionReason = null;
+    await event.save();
+
+    await recordAudit({
+        action: AUDIT_ACTIONS.EVENT_APPROVED,
+        actor: actor._id,
+        targetType: "Event",
+        targetId: event._id,
+        fromState: EVENT_STATUS.PENDING_APPROVAL,
+        toState: event.status
+    });
+
+    return populateEvent(Event.findById(event._id));
+};
+
+const rejectEvent = async (actor, eventId, reason) => {
+    if (!reason || !String(reason).trim()) {
+        throw new AppError("Rejection reason is required", 400, ERROR_CODES.VALIDATION_ERROR);
+    }
 
     const event = await Event.findById(eventId);
 
     if (!event) {
-        throw new AppError("Event not found", 404);
+        throw new AppError("Event not found", 404, ERROR_CODES.NOT_FOUND);
     }
 
-    const userIndex = event.registeredUsers.indexOf(userId);
+    await assertCoordinatorAssigned(actor, event.club);
 
-    if (userIndex === -1) {
-        throw new AppError(
-            "User is not registered for this event",
-            404
-        );
+    if (event.status !== EVENT_STATUS.PENDING_APPROVAL) {
+        throw new AppError("Event is not pending approval", 409, ERROR_CODES.INVALID_STATE);
     }
 
-    event.registeredUsers.splice(userIndex, 1);
+    event.status = EVENT_STATUS.REJECTED;
+    event.rejectionReason = String(reason).trim();
+    event.reviewedBy = actor._id;
+    event.reviewedAt = new Date();
     await event.save();
+
+    await recordAudit({
+        action: AUDIT_ACTIONS.EVENT_REJECTED,
+        actor: actor._id,
+        targetType: "Event",
+        targetId: event._id,
+        fromState: EVENT_STATUS.PENDING_APPROVAL,
+        toState: event.status,
+        reason: event.rejectionReason
+    });
+
+    return populateEvent(Event.findById(event._id));
 };
 
+const publishEvent = async (actor, eventId) => {
+    const event = await Event.findById(eventId).populate("club");
 
-
-// GET EVENTS BY CLUB
-const getEventsByClub = async (clubId) => {
-
-    const club = await Club.findById(clubId);
-
-    if (!club) {
-        throw new AppError("Club not found", 404);
+    if (!event) {
+        throw new AppError("Event not found", 404, ERROR_CODES.NOT_FOUND);
     }
 
-    const events = await Event.find({ club: clubId })
-        .populate("createdBy", "name email")
-        .sort({ date: 1 });
+    await assertClubPresident(actor, event.club._id);
+    assertClubCanHostEvents(event.club);
 
-    return events;
+    if (event.status !== EVENT_STATUS.APPROVED) {
+        throw new AppError("Only approved events can be published", 409, ERROR_CODES.INVALID_STATE);
+    }
+
+    event.status = EVENT_STATUS.PUBLISHED;
+    event.publishedAt = new Date();
+    event.updatedBy = actor._id;
+    await event.save();
+
+    await recordAudit({
+        action: AUDIT_ACTIONS.EVENT_PUBLISHED,
+        actor: actor._id,
+        targetType: "Event",
+        targetId: event._id,
+        fromState: EVENT_STATUS.APPROVED,
+        toState: event.status
+    });
+
+    return populateEvent(Event.findById(event._id));
 };
 
+const cancelEvent = async (actor, eventId, reason = null) => {
+    const event = await Event.findById(eventId);
+
+    if (!event) {
+        throw new AppError("Event not found", 404, ERROR_CODES.NOT_FOUND);
+    }
+
+    const cancellable = [
+        EVENT_STATUS.DRAFT,
+        EVENT_STATUS.PENDING_APPROVAL,
+        EVENT_STATUS.APPROVED,
+        EVENT_STATUS.PUBLISHED
+    ];
+
+    if (!cancellable.includes(event.status)) {
+        throw new AppError("Event cannot be cancelled", 409, ERROR_CODES.INVALID_STATE);
+    }
+
+    if (!isAdmin(actor)) {
+        await assertClubPresident(actor, event.club);
+    }
+
+    const from = event.status;
+    event.status = EVENT_STATUS.CANCELLED;
+    event.updatedBy = actor._id;
+    await event.save();
+
+    await recordAudit({
+        action: AUDIT_ACTIONS.EVENT_CANCELLED,
+        actor: actor._id,
+        targetType: "Event",
+        targetId: event._id,
+        fromState: from,
+        toState: event.status,
+        reason
+    });
+
+    return populateEvent(Event.findById(event._id));
+};
+
+const completeEvent = async (actor, eventId) => {
+    const event = await Event.findById(eventId);
+
+    if (!event) {
+        throw new AppError("Event not found", 404, ERROR_CODES.NOT_FOUND);
+    }
+
+    await assertClubPresident(actor, event.club);
+
+    if (event.status !== EVENT_STATUS.PUBLISHED) {
+        throw new AppError("Only published events can be marked completed", 409, ERROR_CODES.INVALID_STATE);
+    }
+
+    event.status = EVENT_STATUS.COMPLETED;
+    event.completedAt = new Date();
+    event.updatedBy = actor._id;
+    await event.save();
+
+    await recordAudit({
+        action: AUDIT_ACTIONS.EVENT_COMPLETED,
+        actor: actor._id,
+        targetType: "Event",
+        targetId: event._id,
+        fromState: EVENT_STATUS.PUBLISHED,
+        toState: event.status
+    });
+
+    return populateEvent(Event.findById(event._id));
+};
+
+const getEventsByClub = async (clubId, { publicOnly = false } = {}) => {
+    const filter = { club: clubId };
+    if (publicOnly) {
+        filter.status = { $in: PUBLIC_EVENT_STATUSES };
+    }
+
+    return populateEvent(Event.find(filter).sort({ startAt: 1 }));
+};
 
 module.exports = {
-    createEvent,
-    getAllEvents,
+    createDraft,
     getEventById,
-    updateEvent,
-    updateEventStatus,
-    deleteEvent,
-    registerForEvent,
-    unregisterFromEvent,
+    getAllEvents,
+    updateDraft,
+    submitEvent,
+    approveEvent,
+    rejectEvent,
+    publishEvent,
+    cancelEvent,
+    completeEvent,
     getEventsByClub
 };

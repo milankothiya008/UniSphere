@@ -1,28 +1,16 @@
 const express = require("express");
-
-const {
-    createUser,
-    getAllUsers,
-    getUserById,
-    updateUser,
-    deleteUser
-} = require("../controllers/UserController");
+const { getAllUsers, getUserById, updateUser } = require("../controllers/UserController");
+const { protect, restrictTo } = require("../middleware/Auth");
+const { GLOBAL_ROLES } = require("../constants/Roles");
+const validate = require("../middleware/Validate");
+const { mongoIdParam } = require("../validators/RequestValidators");
 
 const router = express.Router();
 
-// Create user
-router.post("/", createUser);
+router.use(protect);
 
-// Get all users
-router.get("/", getAllUsers);
-
-// Get user by ID
-router.get("/:id", getUserById);
-
-// Update user
-router.put("/:id", updateUser);
-
-// Delete user
-router.delete("/:id", deleteUser);
+router.get("/", restrictTo(GLOBAL_ROLES.UNIVERSITY_ADMIN), getAllUsers);
+router.get("/:id", mongoIdParam("id"), validate, getUserById);
+router.put("/:id", mongoIdParam("id"), validate, updateUser);
 
 module.exports = router;

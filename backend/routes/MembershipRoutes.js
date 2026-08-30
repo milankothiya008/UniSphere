@@ -1,41 +1,13 @@
 const express = require("express");
-
-const {
-    joinClub,
-    getClubMembers,
-    leaveClub,
-    getUserClubs
-} = require("../controllers/MembershipController");
+const { getUserClubs } = require("../controllers/MembershipController");
+const { protect, requireVerified } = require("../middleware/Auth");
+const validate = require("../middleware/Validate");
+const { mongoIdParam } = require("../validators/RequestValidators");
 
 const router = express.Router();
 
+router.use(protect, requireVerified);
 
-// Join club
-router.post(
-    "/clubs/:clubId/join",
-    joinClub
-);
-
-
-// Get club members
-router.get(
-    "/clubs/:clubId/members",
-    getClubMembers
-);
-
-
-// Leave club
-router.delete(
-    "/clubs/:clubId/leave",
-    leaveClub
-);
-
-
-// Get user's clubs
-router.get(
-    "/users/:userId/clubs",
-    getUserClubs
-);
-
+router.get("/users/:userId/clubs", mongoIdParam("userId"), validate, getUserClubs);
 
 module.exports = router;

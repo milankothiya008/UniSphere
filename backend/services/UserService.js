@@ -1,81 +1,37 @@
 const User = require("../models/User");
 const AppError = require("../utils/AppError");
+const ERROR_CODES = require("../constants/ErrorCodes");
+const { USER_PUBLIC_FIELDS } = require("../constants/Roles");
+const adminService = require("./AdminService");
 
-const ALLOWED_EMAIL_DOMAIN = "ddu.ac.in";
+const getAllUsers = async (actor, query) => adminService.listUsers(actor, query);
 
+const getUserById = async (actor, id) => adminService.getUserById(actor, id);
 
-const createUser = async (userData) => {
-
-    const { name, email, password } = userData;
-
-    if (!name || !email || !password) {
-        throw new AppError(
-            "Name, email and password are required",
-            400
-        );
+const updateUser = async (actor, id, data) => {
+    if (String(actor._id) !== String(id)) {
+        throw new AppError("You can only update your own profile", 403, ERROR_CODES.FORBIDDEN);
     }
 
-    // Validate DDU college email
-    if (!email.endsWith(`@${ALLOWED_EMAIL_DOMAIN}`)) {
-        throw new AppError(
-            `Only @${ALLOWED_EMAIL_DOMAIN} email addresses are allowed for registration`,
-            400
-        );
+    const allowed = {};
+    if (data.name !== undefined) {
+        allowed.name = data.name;
     }
 
-    return await User.create(userData);
-};
-
-
-const getAllUsers = async () => {
-    return await User.find();
-};
-
-
-const getUserById = async (id) => {
-    const user = await User.findById(id);
+    const user = await User.findByIdAndUpdate(id, allowed, {
+        new: true,
+        runValidators: true
+    }).select(USER_PUBLIC_FIELDS);
 
     if (!user) {
-        throw new AppError("User not found", 404);
+        throw new AppError("User not found", 404, ERROR_CODES.NOT_FOUND);
     }
 
     return user;
 };
-
-
-const updateUser = async (id, userData) => {
-    const user = await User.findByIdAndUpdate(
-        id,
-        userData,
-        {
-            new: true,
-            runValidators: true
-        }
-    );
-
-    if (!user) {
-        throw new AppError("User not found", 404);
-    }
-
-    return user;
-};
-
-
-const deleteUser = async (id) => {
-    const user = await User.findByIdAndDelete(id);
-
-    if (!user) {
-        throw new AppError("User not found", 404);
-    }
-
-    return user;
-};
-
 
 module.exports = {
-    createUser,
     getAllUsers,
     getUserById,
-    updateUser,
-    deleteUser
+    updateUser
 };

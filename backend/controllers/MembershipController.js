@@ -1,81 +1,16 @@
-const membershipService =
-    require("../services/MembershipService");
+const clubService = require("../services/ClubService");
+const asyncHandler = require("../utils/AsyncHandler");
+const { sendSuccess } = require("../utils/ApiResponse");
 
-const asyncHandler =
-    require("../utils/AsyncHandler");
-
-
-// JOIN CLUB
-const joinClub = asyncHandler(async (req, res) => {
-
-    const membership =
-        await membershipService.joinClub(
-            req.params.clubId,
-            req.body.userId
-        );
-
-
-    res.status(201).json({
-        success: true,
-        message: "Membership request submitted successfully",
-        membership
-    });
-});
-
-
-// GET CLUB MEMBERS
-const getClubMembers = asyncHandler(async (req, res) => {
-
-    const members =
-        await membershipService.getClubMembers(
-            req.params.clubId
-        );
-
-
-    res.status(200).json({
-        success: true,
-        count: members.length,
-        members
-    });
-});
-
-
-// LEAVE CLUB
-const leaveClub = asyncHandler(async (req, res) => {
-
-    await membershipService.leaveClub(
-        req.params.clubId,
-        req.body.userId
-    );
-
-
-    res.status(200).json({
-        success: true,
-        message: "Successfully left the club"
-    });
-});
-
-
-// GET USER CLUBS
 const getUserClubs = asyncHandler(async (req, res) => {
+    if (String(req.user._id) !== String(req.params.userId) && req.user.globalRole !== "UNIVERSITY_ADMIN") {
+        const AppError = require("../utils/AppError");
+        const ERROR_CODES = require("../constants/ErrorCodes");
+        throw new AppError("You cannot view another user's clubs", 403, ERROR_CODES.FORBIDDEN);
+    }
 
-    const memberships =
-        await membershipService.getUserClubs(
-            req.params.userId
-        );
-
-
-    res.status(200).json({
-        success: true,
-        count: memberships.length,
-        memberships
-    });
+    const memberships = await clubService.getUserClubs(req.params.userId);
+    sendSuccess(res, 200, "User clubs fetched", memberships, { count: memberships.length });
 });
 
-
-module.exports = {
-    joinClub,
-    getClubMembers,
-    leaveClub,
-    getUserClubs
-};
+module.exports = { getUserClubs };
