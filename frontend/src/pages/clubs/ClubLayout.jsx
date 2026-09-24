@@ -6,12 +6,13 @@ import { useApi } from "../../hooks/useApi";
 import { useAuth } from "../../context/AuthContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { useToast } from "../../context/ToastContext";
-import { Alert, AsyncContent, Avatar, Badge, Button, ConfirmDialog, Modal, RoleBadge, StatusBadge, Tabs, Textarea } from "../../components/ui";
+import { Alert, AsyncContent, Badge, Button, ConfirmDialog, Modal, RoleBadge, StatusBadge, Tabs, Textarea } from "../../components/ui";
 import { departmentsLabel, humanize, plural } from "../../lib/format";
 import { PERMISSIONS } from "../../lib/constants";
 import { belongsToScope } from "../../lib/eligibility";
 import { ClubSocialRow } from "../../components/clubs/ClubConnect";
 import { NotifyBell } from "../../components/clubs/NotifyBell";
+import { ClubStoryAvatar } from "../../components/stories/ClubStoryAvatar";
 
 // The cover sits under a dark overlay (see .hero-cover) so the header text stays readable on any image.
 const coverStyle = (src) => (src ? { "--cover": `url("${String(src).replace(/"/g, "%22")}")` } : undefined);
@@ -115,7 +116,7 @@ const ClubLayout = () => {
                 <div className="stack-lg">
                     <section className={`hero ${club.coverImage ? "hero-cover" : ""}`} style={coverStyle(club.coverImage)}>
                         <div className="row" style={{ gap: 18, alignItems: "flex-start", flexWrap: "wrap" }}>
-                            <Avatar name={club.name} src={club.logo} size="lg" square />
+                            <ClubStoryAvatar club={club} square />
                             <div className="stack-sm" style={{ flex: 1, minWidth: 220 }}>
                                 <div className="row">
                                     <Badge>{humanize(club.category)}</Badge>

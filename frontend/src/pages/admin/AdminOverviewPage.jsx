@@ -41,14 +41,14 @@ const AdminOverviewPage = () => {
                     <div className="stack-lg">
                         <div className="grid-3">
                             <StatTile label="Students" value={stats.users.students} icon={Users} />
-                            <StatTile label="Faculty" value={stats.users.faculty} icon={GraduationCap} />
-                            <StatTile label="Club memberships" value={stats.memberships} icon={UserPlus} />
+                            <StatTile label="Faculty" value={stats.users.faculty} icon={GraduationCap} tone="violet" />
+                            <StatTile label="Club memberships" value={stats.memberships} icon={UserPlus} tone="success" />
                             <StatTile label="Clubs" value={stats.clubs.total} icon={Building2} />
-                            <StatTile label="Events" value={stats.events.total} icon={CalendarDays} hint={`${stats.events.upcoming} upcoming`} />
-                            <StatTile label="Active registrations" value={stats.registrations} icon={CalendarDays} />
-                            <StatTile label="In faculty review" value={stats.clubRequests.pendingFacultyReview} icon={FileText} />
-                            <StatTile label="Awaiting admin approval" value={stats.clubRequests.awaitingAdmin} icon={FileText} />
-                            <StatTile label="Venues" value={stats.venues} icon={MapPin} />
+                            <StatTile label="Events" value={stats.events.total} icon={CalendarDays} hint={`${stats.events.upcoming} upcoming`} tone="info" />
+                            <StatTile label="Active registrations" value={stats.registrations} icon={CalendarDays} tone="success" />
+                            <StatTile label="In faculty review" value={stats.clubRequests.pendingFacultyReview} icon={FileText} tone="violet" />
+                            <StatTile label="Awaiting admin approval" value={stats.clubRequests.awaitingAdmin} icon={FileText} tone="gold" />
+                            <StatTile label="Venues" value={stats.venues} icon={MapPin} tone="gold" />
                             {stats.emails && (
                                 <StatTile
                                     label="Emails sent (24 h)"

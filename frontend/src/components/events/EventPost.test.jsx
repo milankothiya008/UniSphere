@@ -81,6 +81,33 @@ describe("EventPost", () => {
         expect(await screen.findByText("standings page")).toBeInTheDocument();
     });
 
+    test("copies the event link on desktop and offers a calendar file for upcoming events", async () => {
+        const writeText = vi.fn().mockResolvedValue();
+        Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+        renderWithRouter(<EventPost event={baseEvent} />);
+
+        expect(screen.getByRole("button", { name: /add to calendar/i })).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: /share event/i }));
+        expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/events/e1`);
+        expect(await screen.findByText(/Link copied/)).toBeInTheDocument();
+    });
+
+    test("flags events that are filling fast or full", () => {
+        const { unmount } = renderWithRouter(<EventPost event={{ ...baseEvent, registeredCount: 100 }} />);
+        expect(screen.getByText(/Filling fast · 20 left/)).toBeInTheDocument();
+        unmount();
+
+        renderWithRouter(<EventPost event={{ ...baseEvent, registeredCount: 120, waitlistCount: 4, registrationState: "FULL" }} />);
+        expect(screen.getByText(/Full · 4 waiting/)).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /join waitlist/i })).toBeInTheDocument();
+    });
+
+    test("past events have no calendar button or seat bar", () => {
+        renderWithRouter(<EventPost event={{ ...baseEvent, status: "COMPLETED", startAt: hoursFromNow(-48), endAt: hoursFromNow(-44) }} />);
+        expect(screen.queryByRole("button", { name: /add to calendar/i })).not.toBeInTheDocument();
+        expect(screen.queryByText(/going/)).not.toBeInTheDocument();
+    });
+
     test("explains why an ineligible student cannot register", () => {
         renderWithRouter(<EventPost event={{ ...baseEvent, eligibility: { departments: ["ME"], batches: [] } }} />);
         expect(screen.getByText("Open to ME students only.")).toBeInTheDocument();

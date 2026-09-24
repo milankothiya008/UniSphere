@@ -1,11 +1,13 @@
 import { useParams, Link } from "react-router-dom";
-import { AlertTriangle, CalendarDays, Clock, Hourglass, Mail, MapPin, Megaphone, Phone, ShieldCheck, Trophy, User, Users } from "lucide-react";
+import { Check, AlertTriangle, CalendarDays, Clock, Hourglass, Mail, MapPin, Megaphone, Phone, ShieldCheck, Trophy, User, Users } from "lucide-react";
 import { eventApi, feedApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { Alert, AsyncContent, Avatar, Badge, Card, PageHeader, StatusBadge } from "../../components/ui";
 import { EventActions } from "../../components/events/EventActions";
 import { RegistrationPanel } from "../../components/events/RegistrationPanel";
 import { Podium } from "../../components/feed/FeedCard";
+import { CategoryArt } from "../../components/events/EventCard";
+import { categoryVars } from "../../lib/eventVisuals";
 import { batchLabel, formatDateLong, formatDateTime, formatTimeRange, humanize, timeAgo } from "../../lib/format";
 
 const WORKFLOW = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "PUBLISHED", "COMPLETED"];
@@ -17,13 +19,14 @@ const Workflow = ({ status }) => {
         return null;
     }
     return (
-        <div className="workflow" aria-label="Event progress">
+        <ol className="workflow" aria-label="Event progress">
             {WORKFLOW_LABELS.map((label, i) => (
-                <span key={label} className={`step ${i < index ? "done" : i === index ? "current" : ""}`}>
-                    {label}
-                </span>
+                <li key={label} className={`step ${i < index ? "done" : i === index ? "current" : ""}`} aria-current={i === index ? "step" : undefined}>
+                    <span className="step-dot">{i < index ? <Check size={13} strokeWidth={3} /> : i + 1}</span>
+                    <span className="step-label">{label}</span>
+                </li>
             ))}
-        </div>
+        </ol>
     );
 };
 
@@ -151,7 +154,8 @@ const EventDetailPage = () => {
                                     <img src={event.poster} alt={`${event.title} poster`} />
                                 </div>
                             ) : (
-                                <div className="poster poster-fallback" aria-hidden="true">
+                                <div className="poster poster-fallback" aria-hidden="true" style={categoryVars(event.category)}>
+                                    <CategoryArt category={event.category} />
                                     <span>{humanize(event.category)}</span>
                                     <strong>{event.title}</strong>
                                     <span>{event.club.name}</span>

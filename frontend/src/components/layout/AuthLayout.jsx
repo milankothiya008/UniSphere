@@ -11,6 +11,11 @@ const POINTS = [
 export const AuthLayout = () => (
     <div className="auth">
         <aside className="auth-aside">
+            <span className="auth-orbs" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+            </span>
             <Link to="/login" className="brand" style={{ padding: 0, height: "auto" }}>
                 <span className="brand-mark">
                     <Sparkles size={18} />
@@ -26,9 +31,11 @@ export const AuthLayout = () => (
                 <p>Clubs, events, registrations and results for your university community — verified with your university email.</p>
             </div>
             <div className="auth-points">
-                {POINTS.map(([Icon, text]) => (
-                    <div key={text}>
-                        <Icon size={18} />
+                {POINTS.map(([Icon, text], index) => (
+                    <div key={text} style={{ "--i": index }}>
+                        <span className="auth-point-icon">
+                            <Icon size={17} />
+                        </span>
                         <span>{text}</span>
                     </div>
                 ))}

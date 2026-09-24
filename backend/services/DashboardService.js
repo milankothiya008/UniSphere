@@ -9,6 +9,7 @@ const {
     CLUB_STATUS,
     EVENT_STATUS,
     MEMBERSHIP_STATUS,
+    REGISTRATION_STATUS,
     RESULT_STATUS
 } = require("../constants/Statuses");
 const { CLUB_ROLES } = require("../constants/Roles");
@@ -19,7 +20,7 @@ const { getStats } = require("./AdminService");
 const { getMyRegistrations } = require("./RegistrationService");
 const { registrationWindowState, listEvents } = require("./EventService");
 
-const eventCard = "title startAt endAt startTime endTime status registeredCount maxParticipants poster club venue category registrationEnd registrationStart registrationClosed";
+const eventCard = "title startAt endAt startTime endTime status registeredCount maxParticipants waitlistCount poster club venue category registrationEnd registrationStart registrationClosed";
 
 const withState = (events) => events.map((event) => ({ ...event.toObject(), registrationState: registrationWindowState(event) }));
 
@@ -137,8 +138,8 @@ const studentDashboard = async (actor) => {
     const approved = valid.filter((m) => m.status === MEMBERSHIP_STATUS.APPROVED);
     const officerships = approved.filter((m) => m.role !== CLUB_ROLES.MEMBER && m.club.status === CLUB_STATUS.ACTIVE);
 
-    const [upcomingRegistrations, pastRegistrations, clubRequests, recentNotifications, workspaces] = await Promise.all([
-        getMyRegistrations(actor, { timeframe: "upcoming" }),
+    const [upcomingAll, pastRegistrations, clubRequests, recentNotifications, workspaces] = await Promise.all([
+        getMyRegistrations(actor, { timeframe: "upcoming", includeWaitlist: "true" }),
         getMyRegistrations(actor, { timeframe: "past" }),
         ClubCreationRequest.find({ $or: [{ requester: actor._id }, { foundingMembers: actor._id }] })
             .select("name status updatedAt reviewComment rejectionReason club")
@@ -148,7 +149,10 @@ const studentDashboard = async (actor) => {
         Promise.all(officerships.map(clubWorkspace))
     ]);
 
-    const registeredIds = new Set([...upcomingRegistrations, ...pastRegistrations].map((r) => String(r.event._id)));
+    const upcomingRegistrations = upcomingAll.filter((r) => r.status === REGISTRATION_STATUS.REGISTERED);
+    const waitlistedRegistrations = upcomingAll.filter((r) => r.status === REGISTRATION_STATUS.WAITLISTED);
+    // Events the student holds or queues for a seat at are never recommended again.
+    const registeredIds = new Set([...upcomingAll, ...pastRegistrations].map((r) => String(r.event._id)));
 
     // Club workspaces manage their own events; events the student is attending live in their schedule.
     for (const workspace of workspaces) {
@@ -191,9 +195,11 @@ const studentDashboard = async (actor) => {
             upcoming: upcomingRegistrations.length,
             attended: pastRegistrations.filter((r) => r.event.status === EVENT_STATUS.COMPLETED).length,
             clubs: approved.length,
-            pendingClubs: valid.length - approved.length
+            pendingClubs: valid.length - approved.length,
+            waitlisted: waitlistedRegistrations.length
         },
         upcomingRegistrations: upcomingRegistrations.slice(0, 6),
+        waitlistedRegistrations: waitlistedRegistrations.slice(0, 6),
         pastRegistrations: pastRegistrations
             .sort((a, b) => b.event.startAt - a.event.startAt)
             .slice(0, 6)

@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { BarChart3, CalendarCheck2, CalendarClock, CalendarDays, Gauge, Table2, Ticket, Users } from "lucide-react";
-import { StatTile } from "../ui";
+import { BarChart3, Table2 } from "lucide-react";
 import { formatDate, plural } from "../../lib/format";
 
 // Rounds the axis maximum up to a clean 1 / 2 / 5 × 10ⁿ value so ticks read naturally.
@@ -14,7 +13,7 @@ const niceMax = (value) => {
     return step * magnitude;
 };
 
-const compact = (value) => new Intl.NumberFormat("en-IN", { notation: value >= 10000 ? "compact" : "standard" }).format(value);
+export const compact = (value) => new Intl.NumberFormat("en-IN", { notation: value >= 10000 ? "compact" : "standard" }).format(value);
 
 const stateLabel = (event) => (event.status === "COMPLETED" ? "Completed" : event.upcoming ? "Upcoming" : "Ended — not marked completed");
 
@@ -121,72 +120,38 @@ const RegistrationsTable = ({ events }) => (
     </div>
 );
 
-// The president's view of how the club is doing.
-export const ClubInsights = ({ insights, clubId }) => {
+// Registrations per event (chart, or the same numbers as a table) for the president's Club HQ.
+export const EventRegistrations = ({ insights }) => {
     const [view, setView] = useState("chart");
     const events = insights.eventWise;
 
     return (
-        <section className="club-insights" aria-label="Club insights">
-            <div className="row-between" style={{ padding: "4px 20px 0" }}>
-                <div className="section-title" style={{ margin: 0 }}>
-                    Club insights
-                </div>
-                <span className="subtle small">Published and completed events</span>
-            </div>
-            <div className="insight-tiles">
-                <Link to={`/clubs/${clubId}/members`} className="stat-link">
-                    <StatTile label="Total members" value={compact(insights.totalMembers)} icon={Users} />
-                </Link>
-                <StatTile
-                    label="Total events"
-                    value={compact(insights.totalEvents)}
-                    icon={CalendarDays}
-                    hint={insights.eventsInPipeline ? `+${insights.eventsInPipeline} in the pipeline` : null}
-                />
-                <StatTile
-                    label="Total registrations"
-                    value={compact(insights.totalRegistrations)}
-                    icon={Ticket}
-                    hint={insights.waitlisted ? `+${insights.waitlisted} on waitlists` : null}
-                />
-                <StatTile label="Upcoming events" value={insights.upcomingEvents} icon={CalendarClock} />
-                <StatTile label="Completed events" value={insights.completedEvents} icon={CalendarCheck2} />
-                <StatTile
-                    label="Average participation"
-                    value={insights.averageParticipation}
-                    icon={Gauge}
-                    hint={insights.seatFillRate !== null ? `per event · ${insights.seatFillRate}% of seats filled` : "registrations per event"}
-                />
-            </div>
-
-            <div className="insight-chart">
-                <div className="row-between">
-                    <div>
-                        <h3 className="row" style={{ margin: 0, gap: 8 }}>
-                            <BarChart3 size={16} /> Event-wise registrations
-                        </h3>
-                        <p className="subtle small" style={{ margin: "2px 0 0" }}>
-                            Filled bar: registered · light bar: seats available
-                            {events.length < insights.totalEvents ? ` · latest ${events.length} events` : ""}
-                        </p>
-                    </div>
-                    {events.length > 0 && (
-                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setView(view === "chart" ? "table" : "chart")} aria-pressed={view === "table"}>
-                            {view === "chart" ? <Table2 size={14} /> : <BarChart3 size={14} />} {view === "chart" ? "Table" : "Chart"}
-                        </button>
-                    )}
-                </div>
-                {events.length === 0 ? (
-                    <p className="subtle" style={{ margin: "12px 0 0" }}>
-                        Registrations per event appear here once your first event is published.
+        <div className="insight-chart">
+            <div className="row-between">
+                <div>
+                    <h3 className="row" style={{ margin: 0, gap: 8 }}>
+                        <BarChart3 size={16} /> Event-wise registrations
+                    </h3>
+                    <p className="subtle small" style={{ margin: "2px 0 0" }}>
+                        Filled bar: registered · light bar: seats available
+                        {events.length < insights.totalEvents ? ` · latest ${events.length} events` : ""}
                     </p>
-                ) : view === "chart" ? (
-                    <RegistrationsChart events={events} />
-                ) : (
-                    <RegistrationsTable events={events} />
+                </div>
+                {events.length > 0 && (
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => setView(view === "chart" ? "table" : "chart")} aria-pressed={view === "table"}>
+                        {view === "chart" ? <Table2 size={14} /> : <BarChart3 size={14} />} {view === "chart" ? "Table" : "Chart"}
+                    </button>
                 )}
             </div>
-        </section>
+            {events.length === 0 ? (
+                <p className="subtle" style={{ margin: "12px 0 0" }}>
+                    Registrations per event appear here once your first event is published.
+                </p>
+            ) : view === "chart" ? (
+                <RegistrationsChart events={events} />
+            ) : (
+                <RegistrationsTable events={events} />
+            )}
+        </div>
     );
 };

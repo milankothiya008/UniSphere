@@ -7,6 +7,8 @@ import { useDebounce } from "../hooks/useDebounce";
 import { AsyncContent, Avatar, EmptyState, PageHeader, Pagination, SearchInput, Segmented, Skeleton } from "../components/ui";
 import { ResultStage } from "../components/results/ResultParts";
 import { formatDate, plural, timeAgo } from "../lib/format";
+import { CategoryArt } from "../components/events/EventCard";
+import { categoryVars } from "../lib/eventVisuals";
 
 // One card per event: poster, where the results stand, and a teaser of the winners.
 const ResultCard = ({ card }) => {
@@ -15,8 +17,17 @@ const ResultCard = ({ card }) => {
 
     return (
         <Link to={`/results/${event._id}`} className="card card-link result-card">
-            <div className="result-card-media">
-                {event.poster ? <img src={event.poster} alt="" loading="lazy" /> : <div className="result-card-placeholder"><Trophy size={34} /></div>}
+            <div className="result-card-media" style={categoryVars(event.category)}>
+                {event.poster ? (
+                    <img src={event.poster} alt="" loading="lazy" />
+                ) : (
+                    <div className="result-card-placeholder">
+                        <CategoryArt category={event.category} size={150} />
+                        <span className="result-trophy">
+                            <Trophy size={30} />
+                        </span>
+                    </div>
+                )}
                 <div className="result-card-stage">
                     <ResultStage final={card.final} latestRound={card.rounds.latest?.name} />
                 </div>

@@ -6,7 +6,7 @@ import {
     Crown,
     FileText,
     GraduationCap,
-    Megaphone,
+    MapPin,
     Newspaper,
     ShieldCheck,
     UserPlus,
@@ -18,7 +18,7 @@ import { useAuth } from "../context/AuthContext";
 import { EventCard, EventRow } from "../components/events/EventCard";
 import { AsyncContent, Avatar, ButtonLink, Card, EmptyState, Skeleton, StatTile, StatusBadge } from "../components/ui";
 import { departmentsLabel, plural, timeAgo } from "../lib/format";
-import { Hero, greeting } from "../components/dashboard/DashboardHero";
+import { Hero, greeting, todayLabel } from "../components/dashboard/DashboardHero";
 import { StudentDashboard } from "../components/dashboard/StudentDashboard";
 
 const Section = ({ title, action, children, padded = false }) => (
@@ -55,26 +55,26 @@ const FacultyDashboard = ({ user, data }) => {
     const { faculty } = data;
 
     return (
-        <div className="stack-lg">
+        <div className="stack-lg dashboard stagger">
             <Hero
+                eyebrow={todayLabel()}
                 title={`${greeting()}, ${user.name}`}
                 subtitle={
                     faculty.eventsToReview.length || faculty.requestsToReview.length
                         ? `${plural(faculty.eventsToReview.length, "event")} and ${plural(faculty.requestsToReview.length, "club request")} are waiting for your review.`
                         : "You're all caught up on reviews."
                 }
+                stats={[
+                    { label: "events to review", value: faculty.eventsToReview.length, to: "/faculty", icon: ClipboardCheck },
+                    { label: "club requests", value: faculty.requestsToReview.length, to: "/faculty", icon: FileText },
+                    { label: faculty.mentoredClubs.length === 1 ? "mentored club" : "mentored clubs", value: faculty.mentoredClubs.length, to: "/faculty/clubs", icon: GraduationCap }
+                ]}
                 actions={
                     <ButtonLink to="/faculty" variant="accent">
                         <ClipboardCheck size={16} /> Open reviews
                     </ButtonLink>
                 }
             />
-
-            <div className="grid-3">
-                <StatTile label="Mentored clubs" value={faculty.mentoredClubs.length} icon={GraduationCap} />
-                <StatTile label="Events to review" value={faculty.eventsToReview.length} icon={ClipboardCheck} />
-                <StatTile label="Club requests" value={faculty.requestsToReview.length} icon={FileText} />
-            </div>
 
             {faculty.clubsAwaitingPresident.map((club) => (
                 <Card key={club._id}>
@@ -165,21 +165,22 @@ const AdminDashboard = ({ data }) => {
     const { stats, awaitingApproval, recentClubs } = data.admin;
 
     return (
-        <div className="stack-lg">
+        <div className="stack-lg dashboard stagger">
             <Hero
+                eyebrow={todayLabel()}
                 title="University administration"
                 subtitle={awaitingApproval.length ? `${plural(awaitingApproval.length, "club request")} awaiting your approval.` : "No club approvals pending."}
+                stats={[
+                    { label: "users", value: stats.users.total, to: "/admin/users", icon: Users },
+                    { label: "active clubs", value: stats.clubs.byStatus.ACTIVE || 0, to: "/admin/clubs", icon: Building2 },
+                    { label: "upcoming events", value: stats.events.upcoming, to: "/feed", icon: CalendarDays }
+                ]}
                 actions={
                     <ButtonLink to="/admin/club-requests" variant="accent">
                         <ShieldCheck size={16} /> Club approvals
                     </ButtonLink>
                 }
             />
-            <div className="grid-3">
-                <StatTile label="Users" value={stats.users.total} icon={Users} hint={`${stats.users.students} students · ${stats.users.faculty} faculty`} />
-                <StatTile label="Active clubs" value={stats.clubs.byStatus.ACTIVE || 0} icon={Building2} hint={`${stats.clubs.total} total`} />
-                <StatTile label="Upcoming events" value={stats.events.upcoming} icon={CalendarDays} hint={`${stats.registrations} active registrations`} />
-            </div>
             <div className="grid-2" style={{ alignItems: "start" }}>
                 <Section title="Awaiting final approval" action={<Link to="/admin/club-requests" className="small">All</Link>}>
                     {awaitingApproval.length ? (
@@ -221,9 +222,9 @@ const AdminDashboard = ({ data }) => {
                 </Section>
             </div>
             <div className="grid-3">
-                <StatTile label="Faculty review queue" value={stats.clubRequests.pendingFacultyReview} icon={FileText} />
-                <StatTile label="Club memberships" value={stats.memberships} icon={UserPlus} />
-                <StatTile label="Venues" value={stats.venues} icon={Megaphone} />
+                <StatTile label="Faculty review queue" value={stats.clubRequests.pendingFacultyReview} icon={FileText} tone="violet" />
+                <StatTile label="Club memberships" value={stats.memberships} icon={UserPlus} tone="success" hint={`${stats.registrations} active registrations`} />
+                <StatTile label="Venues" value={stats.venues} icon={MapPin} tone="gold" />
             </div>
             <CampusEvents events={data.campusEvents} />
         </div>

@@ -8,6 +8,11 @@ import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/components.css";
 import "./styles/layout.css";
+import "./styles/polish.css";
+import "./styles/dashboard.css";
+import "./styles/feed.css";
+import "./styles/pages.css";
+import "./styles/stories.css";
 
 createRoot(document.getElementById("root")).render(
     <StrictMode>

@@ -15,6 +15,7 @@ const logger = require("./utils/Logger");
 const { bootstrapAdminIfNeeded } = require("./services/AdminService");
 const { deliveryMode, checkMailConfiguration } = require("./services/MailService");
 const { startEmailWorker } = require("./services/EmailQueueService");
+const { startStorySweeper } = require("./services/StoryService");
 
 const authRoutes = require("./routes/AuthRoutes");
 const userRoutes = require("./routes/UserRoutes");
@@ -30,6 +31,7 @@ const feedRoutes = require("./routes/FeedRoutes");
 const notificationRoutes = require("./routes/NotificationRoutes");
 const uploadRoutes = require("./routes/UploadRoutes");
 const dashboardRoutes = require("./routes/DashboardRoutes");
+const storyRoutes = require("./routes/StoryRoutes");
 const devRoutes = require("./routes/DevRoutes");
 
 validateEnv();
@@ -60,7 +62,8 @@ if (!env.isTest) {
     app.use(morgan(env.isProduction ? "combined" : "dev"));
 }
 
-app.use("/uploads", express.static(env.uploadDir, { fallthrough: false, maxAge: "7d", index: false }));
+// File names are unique, so uploads can be cached for good (videos are served with range requests).
+app.use("/uploads", express.static(env.uploadDir, { fallthrough: false, maxAge: "7d", immutable: true, index: false }));
 
 app.use("/api", apiLimiter);
 app.use("/api/auth", authRoutes);
@@ -77,6 +80,7 @@ app.use("/api/feed", feedRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/uploads", uploadRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/stories", storyRoutes);
 
 // Development inbox: only exists when SMTP is not configured and NODE_ENV is not production.
 if (deliveryMode() === "preview") {
@@ -105,6 +109,7 @@ const start = async () => {
     await bootstrapAdminIfNeeded();
     await checkMailConfiguration();
     startEmailWorker();
+    startStorySweeper();
 
     app.listen(env.port, () => {
         logger.info(`Server running on port ${env.port}`);

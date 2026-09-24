@@ -2,6 +2,7 @@ import { NavLink, Link } from "react-router-dom";
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { initials } from "../../lib/format";
 
+// Top-level pages get the animated dark banner; pages with a back link (details, forms) get the lighter variant.
 export const PageHeader = ({ eyebrow, title, description, actions, back }) => (
     <>
         {back && (
@@ -9,14 +10,21 @@ export const PageHeader = ({ eyebrow, title, description, actions, back }) => (
                 <ArrowLeft size={15} /> {back.label}
             </Link>
         )}
-        <div className="page-header">
-            <div>
+        <header className={`page-header page-hero ${back ? "page-hero-soft" : ""}`}>
+            {!back && (
+                <span className="page-hero-orbs" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                </span>
+            )}
+            <div className="page-hero-copy">
                 {eyebrow && <div className="eyebrow">{eyebrow}</div>}
                 <h1>{title}</h1>
                 {description && <p>{description}</p>}
             </div>
-            {actions && <div className="row">{actions}</div>}
-        </div>
+            {actions && <div className="row page-hero-actions">{actions}</div>}
+        </header>
     </>
 );
 
@@ -39,14 +47,19 @@ export const Avatar = ({ name, src, size, square = false }) => (
     </span>
 );
 
-export const StatTile = ({ label, value, icon: Icon, hint }) => (
-    <div className="card stat">
-        <span className="stat-label">
-            {Icon && <Icon size={14} />}
-            {label}
-        </span>
+// tone picks the icon badge colour: ink (default), gold, success, violet, info or danger.
+export const StatTile = ({ label, value, icon: Icon, hint, tone = "ink" }) => (
+    <div className={`card stat stat-${tone}`}>
+        <div className="stat-top">
+            <span className="stat-label">{label}</span>
+            {Icon && (
+                <span className="stat-icon" aria-hidden="true">
+                    <Icon size={17} />
+                </span>
+            )}
+        </div>
         <span className="stat-value">{value ?? "—"}</span>
-        {hint && <span className="subtle">{hint}</span>}
+        {hint && <span className="stat-hint">{hint}</span>}
     </div>
 );
 

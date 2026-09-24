@@ -127,6 +127,16 @@ export const uploadApi = {
     }
 };
 
+export const storyApi = {
+    tray: () => api.get("/stories"),
+    uploadTicket: (club, kind) => api.post("/stories/uploads", { club, kind }),
+    create: (body) => api.post("/stories", body),
+    view: (id) => api.post(`/stories/${id}/view`),
+    like: (id, liked) => api.post(`/stories/${id}/like`, { liked }),
+    viewers: (id, query) => api.get(`/stories/${id}/viewers`, query),
+    remove: (id) => api.delete(`/stories/${id}`)
+};
+
 export const adminApi = {
     stats: () => api.get("/admin/stats"),
     faculty: (query) => api.get("/admin/faculty", query),

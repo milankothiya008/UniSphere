@@ -40,12 +40,55 @@ const data = () => ({
 const titlesIn = (container) => within(container).queryAllByText(/HackNight|Git Workshop|Quiz Night|CodeSprint/).map((node) => node.textContent);
 
 describe("StudentDashboard", () => {
+    test("does not repeat clubs the student already runs in Club HQ, nor show separate club or unread tiles", () => {
+        const withWorkspace = data();
+        withWorkspace.student.memberships = [
+            { _id: "m1", role: "PRESIDENT", status: "APPROVED", club: { _id: "c1", name: "Coding Club" } },
+            { _id: "m2", role: "MEMBER", status: "APPROVED", club: { _id: "c9", name: "Music Society" } }
+        ];
+        withWorkspace.student.clubWorkspaces = [
+            {
+                club: { _id: "c1", name: "Coding Club", category: "TECHNOLOGY" },
+                role: "PRESIDENT",
+                permissions: ["MANAGE_CLUB", "MANAGE_EVENTS"],
+                memberCount: 4,
+                pendingMembershipRequests: 0,
+                drafts: [],
+                needsChanges: [],
+                pendingApproval: [],
+                readyToPublish: [],
+                upcoming: [],
+                awaitingCompletion: [],
+                resultsPending: [],
+                insights: null
+            }
+        ];
+        renderWithRouter(<StudentDashboard user={authValue().user} data={withWorkspace} />);
+
+        expect(screen.getByRole("heading", { name: "Coding Club" })).toBeInTheDocument();
+        const otherClubs = screen.getByText("Other clubs").closest(".card");
+        expect(within(otherClubs).getByText("Music Society")).toBeInTheDocument();
+        expect(within(otherClubs).queryByText("Coding Club")).not.toBeInTheDocument();
+        expect(screen.queryByText(/unread/i)).not.toBeInTheDocument();
+    });
+
+    test("lists waitlisted events with their place in line", async () => {
+        const withWaitlist = data();
+        withWaitlist.student.waitlistedRegistrations = [{ _id: "w1", status: "WAITLISTED", waitlistPosition: 3, event: event("e7", "Sold Out Show", 90) }];
+        renderWithRouter(<StudentDashboard user={authValue().user} data={withWaitlist} />);
+
+        expect(within(screen.getByText("on waitlist").closest("a")).getByText("1")).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("tab", { name: /waitlist/i }));
+        expect(screen.getByText("Sold Out Show")).toBeInTheDocument();
+        expect(screen.getByText("#3 in line")).toBeInTheDocument();
+    });
+
     test("shows a countdown to the next event, stats, schedule and recommendations without repeating events", () => {
         renderWithRouter(<StudentDashboard user={authValue().user} data={data()} />);
 
         expect(screen.getByText("Next up")).toBeInTheDocument();
         expect(screen.getByLabelText("Time until the event starts")).toBeInTheDocument();
-        expect(screen.getByText("Attended").closest("a")).toHaveAttribute("href", "/my-registrations?timeframe=past");
+        expect(screen.getByText("attended").closest("a")).toHaveAttribute("href", "/my-registrations?timeframe=past");
         expect(screen.getByText("Your club")).toBeInTheDocument();
         expect(screen.getByText(/Closes in/)).toBeInTheDocument();
 
@@ -70,7 +113,7 @@ describe("StudentDashboard", () => {
         await userEvent.click(within(card).getByRole("button", { name: /register/i }));
 
         expect(eventApi.register).toHaveBeenCalledWith("e3");
-        expect(await screen.findByText("Going to")).toBeInTheDocument();
+        expect(within(screen.getByText("upcoming").closest("a")).getByText("2")).toBeInTheDocument();
         expect(screen.queryAllByRole("article").map((a) => a.textContent).join()).not.toMatch(/Quiz Night/);
         // Quiz Night starts sooner than HackNight, so it becomes the pinned next event and HackNight moves to the list.
         expect(document.querySelector(".next-up strong").textContent).toBe("Quiz Night");

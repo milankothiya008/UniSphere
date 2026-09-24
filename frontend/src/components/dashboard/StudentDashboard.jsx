@@ -1,32 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
+    ArrowRight,
     Bell,
     Building2,
     CalendarCheck2,
     CalendarDays,
     ChevronRight,
-    ClipboardCheck,
     Clock,
     Compass,
     FileText,
     History,
     Hourglass,
+    Lightbulb,
     MapPin,
     Plus,
     Sparkles,
-    Trophy,
-    UserPlus,
-    Users
+    Trophy
 } from "lucide-react";
 import { eventApi, notificationApi } from "../../api/endpoints";
 import { useToast } from "../../context/ToastContext";
 import { EventRow } from "../events/EventCard";
-import { Avatar, Badge, Button, ButtonLink, Card, EmptyState, RoleBadge, StatTile, StatusBadge } from "../ui";
-import { ClubInsights } from "./ClubInsights";
+import { Avatar, Badge, Button, ButtonLink, Card, RoleBadge, StatusBadge } from "../ui";
+import { ClubHQ } from "./ClubHQ";
+import { NotificationIcon } from "../notifications/NotificationIcon";
 import { countdownParts, daysUntil, formatDate, formatDateLong, formatTimeRange, humanize, plural, timeAgo } from "../../lib/format";
-import { PERMISSIONS } from "../../lib/constants";
-import { Hero, greeting } from "./DashboardHero";
+import { Hero, greeting, todayLabel } from "./DashboardHero";
 
 const HOUR = 3600000;
 
@@ -45,13 +44,16 @@ const isLiveAt = (event, now) => new Date(event.startAt).getTime() <= now && new
 const NextUp = ({ registration, now }) => {
     if (!registration) {
         return (
-            <div className="next-up next-up-empty">
+            <Link to="/feed" className="next-up next-up-empty">
                 <span className="next-up-label">
                     <CalendarDays size={14} /> Your calendar is clear
                 </span>
                 <strong>Find something to go to</strong>
-                <span>Register for an event and a countdown to it appears here.</span>
-            </div>
+                <span>Register for an event and a live countdown to it appears here.</span>
+                <span className="next-up-cta">
+                    Explore events <ArrowRight size={14} />
+                </span>
+            </Link>
         );
     }
 
@@ -92,12 +94,6 @@ const NextUp = ({ registration, now }) => {
     );
 };
 
-const StatLink = ({ to, ...props }) => (
-    <Link to={to} className="stat-link">
-        <StatTile {...props} />
-    </Link>
-);
-
 const DayBadge = ({ event, now }) => {
     if (isLiveAt(event, now)) {
         return (
@@ -116,52 +112,83 @@ const DayBadge = ({ event, now }) => {
     return <Badge>In {days} days</Badge>;
 };
 
+const CompactEmpty = ({ icon: Icon, title, text, action }) => (
+    <div className="compact-empty">
+        <span className="compact-empty-icon">
+            <Icon size={18} />
+        </span>
+        <div className="grow">
+            <strong>{title}</strong>
+            <small>{text}</small>
+        </div>
+        {action}
+    </div>
+);
+
 // `pinnedId` is the event already shown in the "Next up" banner; it is left out here so nothing repeats.
-const Schedule = ({ upcoming: all, past, now, pinnedId }) => {
+const Schedule = ({ upcoming: all, waitlisted, past, now, pinnedId }) => {
     const [tab, setTab] = useState("upcoming");
     const upcoming = all.filter((registration) => registration.event._id !== pinnedId);
-    const items = tab === "upcoming" ? upcoming : past;
+    const tabs = [
+        ["upcoming", "Upcoming", CalendarDays, upcoming.length],
+        ...(waitlisted.length ? [["waitlist", "Waitlist", Hourglass, waitlisted.length]] : []),
+        ["past", "Past", History, past.length]
+    ];
+    const items = tab === "upcoming" ? upcoming : tab === "waitlist" ? waitlisted : past;
 
     return (
         <Card
+            className="dash-card"
             title={
                 <h2 className="row">
                     <CalendarCheck2 size={18} /> My schedule
                 </h2>
             }
             actions={
-                <Link to={`/my-registrations${tab === "past" ? "?timeframe=past" : ""}`} className="small">
-                    View all
+                <Link to={`/my-registrations${tab === "past" ? "?timeframe=past" : ""}`} className="small link-arrow">
+                    View all <ChevronRight size={14} />
                 </Link>
             }
             padded={false}
         >
-            <div className="feed-tabs schedule-tabs" role="tablist">
-                {[
-                    ["upcoming", "Upcoming", CalendarDays, upcoming.length],
-                    ["past", "Past", History, past.length]
-                ].map(([value, label, Icon, count]) => (
-                    <button key={value} type="button" role="tab" aria-selected={tab === value} className={`feed-tab ${tab === value ? "active" : ""}`} onClick={() => setTab(value)}>
-                        <Icon size={15} /> {label} <span className="count">{count}</span>
+            <div className="pill-tabs" role="tablist" aria-label="Schedule">
+                {tabs.map(([value, label, Icon, count]) => (
+                    <button key={value} type="button" role="tab" aria-selected={tab === value} className={`pill-tab ${tab === value ? "active" : ""}`} onClick={() => setTab(value)}>
+                        <Icon size={14} /> {label} <span className="count">{count}</span>
                     </button>
                 ))}
             </div>
 
             {items.length === 0 ? (
                 tab === "upcoming" ? (
-                    <EmptyState
+                    <CompactEmpty
                         icon={CalendarCheck2}
                         title={pinnedId ? "Nothing else scheduled" : "Nothing on your schedule"}
-                        description={pinnedId ? "Your next event is pinned at the top. Register for more from the recommendations below." : "Pick an event from the recommendations below and register in one click."}
+                        text={pinnedId ? "Your next event is pinned at the top." : "Pick an event below and register in one click."}
+                        action={
+                            <ButtonLink to="/feed" size="sm" variant="secondary">
+                                Browse
+                            </ButtonLink>
+                        }
                     />
                 ) : (
-                    <EmptyState icon={History} title="No past events yet" description="Events you attended appear here with their results." />
+                    <CompactEmpty icon={History} title="No past events yet" text="Events you attended appear here with their results." />
                 )
             ) : (
                 <div className="list-rows">
                     {items.map((registration) =>
                         tab === "upcoming" ? (
                             <EventRow key={registration._id} event={registration.event} right={<DayBadge event={registration.event} now={now} />} />
+                        ) : tab === "waitlist" ? (
+                            <EventRow
+                                key={registration._id}
+                                event={registration.event}
+                                right={
+                                    <Badge tone="warning">
+                                        <Hourglass size={11} /> #{registration.waitlistPosition} in line
+                                    </Badge>
+                                }
+                            />
                         ) : (
                             <EventRow
                                 key={registration._id}
@@ -194,7 +221,11 @@ const RecommendCard = ({ event, now, onRegistered }) => {
         setPending(true);
         try {
             const response = await eventApi.register(event._id);
-            toast.success(`You're registered for ${event.title}`);
+            if (response.data?.waitlisted) {
+                toast.info(`${event.title} is full — you're #${response.data.waitlistPosition} on the waitlist`);
+            } else {
+                toast.success(`You're registered for ${event.title}`);
+            }
             onRegistered(event, response.data);
         } catch (error) {
             toast.error(error);
@@ -205,14 +236,8 @@ const RecommendCard = ({ event, now, onRegistered }) => {
     return (
         <article className="card rec-card">
             <Link to={`/events/${event._id}`} className="rec-media" aria-label={`Open ${event.title}`}>
-                {event.poster ? (
-                    <img src={event.poster} alt="" loading="lazy" />
-                ) : (
-                    <span className="rec-fallback">{humanize(event.category)}</span>
-                )}
-                <span className="rec-date">
-                    {formatDate(event.startAt).replace(/ \d{4}$/, "")}
-                </span>
+                {event.poster ? <img src={event.poster} alt="" loading="lazy" /> : <span className="rec-fallback">{humanize(event.category)}</span>}
+                <span className="rec-date">{formatDate(event.startAt).replace(/ \d{4}$/, "")}</span>
             </Link>
             <div className="rec-body">
                 <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
@@ -236,16 +261,14 @@ const RecommendCard = ({ event, now, onRegistered }) => {
                         <span className="seat-bar">
                             <span style={{ width: `${taken}%` }} className={taken >= 80 ? "hot" : ""} />
                         </span>
-                        <span className="subtle">
-                            {event.maxParticipants - event.registeredCount} spots left
-                        </span>
+                        <span className="subtle">{event.maxParticipants - event.registeredCount} spots left</span>
                     </div>
                 )}
                 <div className="row-between rec-actions">
                     <Button size="sm" onClick={register} loading={pending}>
                         <CalendarCheck2 size={15} /> Register
                     </Button>
-                    <Link to={`/events/${event._id}`} className="small row" style={{ gap: 2 }}>
+                    <Link to={`/events/${event._id}`} className="small link-arrow">
                         Details <ChevronRight size={14} />
                     </Link>
                 </div>
@@ -265,24 +288,25 @@ const Recommended = ({ events, now, onRegistered }) => {
     const counts = Object.fromEntries(FILTERS.map((f) => [f.value, f.test ? events.filter((e) => f.test(e, now)).length : events.length]));
     const active = FILTERS.find((f) => f.value === filter && (!f.test || counts[f.value] > 0)) || FILTERS[0];
     const shown = active.test ? events.filter((e) => active.test(e, now)) : events;
+    const filters = FILTERS.filter((f) => !f.test || counts[f.value] > 0);
 
     return (
         <section className="stack">
-            <div className="row-between">
-                <div className="stack-sm" style={{ gap: 2 }}>
+            <div className="section-head">
+                <div>
                     <h2 className="row">
-                        <Sparkles size={18} /> Recommended for you
+                        <Sparkles size={18} className="section-icon" /> Recommended for you
                     </h2>
                     <span className="subtle">Open for registration and eligible for you.</span>
                 </div>
-                <Link to="/feed" className="small nowrap">
-                    Campus feed →
+                <Link to="/feed" className="small link-arrow">
+                    Campus feed <ChevronRight size={14} />
                 </Link>
             </div>
 
-            {events.length > 0 && (
+            {events.length > 0 && filters.length > 1 && (
                 <div className="chip-filters" role="tablist" aria-label="Filter recommendations">
-                    {FILTERS.filter((f) => !f.test || counts[f.value] > 0).map((f) => (
+                    {filters.map((f) => (
                         <button key={f.value} type="button" role="tab" aria-selected={active.value === f.value} className={`chip-filter ${active.value === f.value ? "active" : ""}`} onClick={() => setFilter(f.value)}>
                             {f.label} <span>{counts[f.value]}</span>
                         </button>
@@ -291,20 +315,20 @@ const Recommended = ({ events, now, onRegistered }) => {
             )}
 
             {shown.length ? (
-                <div className="rec-grid">
+                <div className="rec-grid stagger">
                     {shown.map((event) => (
                         <RecommendCard key={event._id} event={event} now={now} onRegistered={onRegistered} />
                     ))}
                 </div>
             ) : (
                 <Card>
-                    <EmptyState
+                    <CompactEmpty
                         icon={Compass}
                         title="You're all caught up"
-                        description="There's nothing new you can register for right now. Browse the campus feed for live and past events."
+                        text="Nothing new you can register for right now."
                         action={
                             <ButtonLink to="/feed" size="sm" variant="secondary">
-                                Open campus feed
+                                Open feed
                             </ButtonLink>
                         }
                     />
@@ -330,160 +354,78 @@ const Activity = ({ items: initial }) => {
 
     return (
         <Card
+            className="dash-card"
             title={
                 <h2 className="row">
                     <Bell size={16} /> Recent activity
                 </h2>
             }
             actions={
-                <Link to="/notifications" className="small">
-                    View all
+                <Link to="/notifications" className="small link-arrow">
+                    View all <ChevronRight size={14} />
                 </Link>
             }
             padded={false}
         >
             {items.length ? (
-                <div className="list-rows">
-                    {items.map((item) => (
-                        <button key={item._id} type="button" className={`list-row activity-row ${item.readAt ? "" : "unread"}`} onClick={() => open(item)}>
-                            <span className="activity-dot" />
-                            <span className="grow" style={{ minWidth: 0 }}>
-                                <span className="title activity-title">{item.title}</span>
-                                <span className="subtle">{timeAgo(item.createdAt)}</span>
-                            </span>
-                        </button>
-                    ))}
+                <div className="activity-list">
+                    {items.map((item) => {
+                        return (
+                            <button key={item._id} type="button" className={`activity-item ${item.readAt ? "" : "unread"}`} onClick={() => open(item)}>
+                                <NotificationIcon type={item.type} />
+                                <span className="grow" style={{ minWidth: 0 }}>
+                                    <span className="activity-title">{item.title}</span>
+                                    <span className="subtle">{timeAgo(item.createdAt)}</span>
+                                </span>
+                                {!item.readAt && <span className="unread-dot" aria-label="Unread" />}
+                            </button>
+                        );
+                    })}
                 </div>
             ) : (
-                <p className="subtle card-body">New events, results and announcements show up here.</p>
+                <CompactEmpty icon={Bell} title="No activity yet" text="New events, results and announcements show up here." />
             )}
         </Card>
     );
 };
 
-const ClubWorkspace = ({ workspace }) => {
-    const has = (permission) => workspace.permissions.includes(permission);
-    const attention = [
-        ...workspace.needsChanges.map((event) => ({ event, label: "Changes requested", tone: "violet" })),
-        ...workspace.readyToPublish.map((event) => ({ event, label: "Ready to publish", tone: "info" })),
-        ...workspace.awaitingCompletion.map((event) => ({ event, label: "Mark completed", tone: "warning" })),
-        ...workspace.resultsPending.map((event) => ({ event, label: event.resultStatus === "DRAFT" ? "Publish results" : "Add results", tone: "gold", to: `/events/${event._id}/results/edit` }))
-    ];
+// Clubs already shown in Club HQ are not listed again here.
+const MyClubs = ({ memberships, hiddenClubIds }) => {
+    const visible = memberships.filter((m) => !hiddenClubIds.has(m.club._id));
+    if (!visible.length && hiddenClubIds.size) {
+        return null;
+    }
 
     return (
         <Card
-            title={
-                <div className="row">
-                    <Avatar name={workspace.club.name} src={workspace.club.logo} size="sm" square />
-                    <Link to={`/clubs/${workspace.club._id}`} style={{ color: "inherit", fontWeight: 650 }}>
-                        {workspace.club.name}
-                    </Link>
-                    <RoleBadge role={workspace.role} />
-                </div>
-            }
-            actions={
-                has(PERMISSIONS.MANAGE_EVENTS) && (
-                    <ButtonLink to={`/events/create?club=${workspace.club._id}`} size="sm">
-                        <Plus size={14} /> New event
-                    </ButtonLink>
-                )
-            }
-            padded={false}
-        >
-            <div className="grid-3" style={{ padding: 16, gap: 12 }}>
-                <StatLink to={`/clubs/${workspace.club._id}/members`} label="Members" value={workspace.memberCount} icon={Users} />
-                <StatLink
-                    to={`/clubs/${workspace.club._id}/members`}
-                    label="Join requests"
-                    value={workspace.pendingMembershipRequests ?? "—"}
-                    icon={UserPlus}
-                    hint={workspace.pendingMembershipRequests ? "Review requests →" : null}
-                />
-                <StatLink to="/events/manage" label="Awaiting approval" value={workspace.pendingApproval.length} icon={ClipboardCheck} />
-            </div>
-            {workspace.insights && <ClubInsights insights={workspace.insights} clubId={workspace.club._id} />}
-            {attention.length > 0 && (
-                <>
-                    <div className="section-title" style={{ padding: "4px 20px 0" }}>
-                        Needs your attention
-                    </div>
-                    <div className="list-rows">
-                        {attention.map(({ event, label, tone, to }) => (
-                            <EventRow key={`${event._id}-${label}`} event={{ ...event, club: null }} to={to} right={<Badge tone={tone}>{label}</Badge>} />
-                        ))}
-                    </div>
-                </>
-            )}
-            {workspace.upcoming.length > 0 && (
-                <>
-                    <div className="section-title" style={{ padding: "12px 20px 0" }}>
-                        Your club's upcoming events
-                    </div>
-                    <div className="list-rows">
-                        {workspace.upcoming.map((event) => (
-                            <EventRow
-                                key={event._id}
-                                event={{ ...event, club: null }}
-                                right={
-                                    <span className="subtle nowrap">
-                                        {event.registeredCount}
-                                        {event.maxParticipants ? ` / ${event.maxParticipants}` : ""} registered
-                                    </span>
-                                }
-                            />
-                        ))}
-                    </div>
-                </>
-            )}
-            {workspace.drafts.length > 0 && (
-                <div className="card-footer subtle">
-                    {plural(workspace.drafts.length, "draft")} not yet submitted · <Link to="/events/manage">Manage events</Link>
-                </div>
-            )}
-        </Card>
-    );
-};
-
-const MyClubs = ({ memberships }) => {
-    const approved = memberships.filter((m) => m.status === "APPROVED");
-    const pending = memberships.filter((m) => m.status === "PENDING");
-
-    return (
-        <Card
+            className="dash-card"
             title={
                 <h2 className="row">
-                    <Building2 size={16} /> My clubs
+                    <Building2 size={16} /> {hiddenClubIds.size ? "Other clubs" : "My clubs"}
                 </h2>
             }
             actions={
-                <Link to="/clubs?view=mine" className="small">
-                    View all
+                <Link to="/clubs?view=mine" className="small link-arrow">
+                    View all <ChevronRight size={14} />
                 </Link>
             }
             padded={false}
         >
-            {approved.length || pending.length ? (
+            {visible.length ? (
                 <div className="list-rows">
-                    {approved.map((m) => (
+                    {visible.map((m) => (
                         <Link key={m._id} to={`/clubs/${m.club._id}`} className="list-row">
                             <Avatar name={m.club.name} src={m.club.logo} size="sm" square />
                             <span className="grow title">{m.club.name}</span>
-                            <RoleBadge role={m.role} />
-                        </Link>
-                    ))}
-                    {pending.map((m) => (
-                        <Link key={m._id} to={`/clubs/${m.club._id}`} className="list-row">
-                            <Avatar name={m.club.name} src={m.club.logo} size="sm" square />
-                            <span className="grow title">{m.club.name}</span>
-                            <Badge tone="warning">Pending</Badge>
+                            {m.status === "PENDING" ? <Badge tone="warning">Pending</Badge> : <RoleBadge role={m.role} />}
                         </Link>
                     ))}
                 </div>
             ) : (
-                <EmptyState
+                <CompactEmpty
                     icon={Building2}
                     title="No clubs yet"
-                    description="Clubs for your department are waiting for you."
+                    text="Clubs for your department are waiting for you."
                     action={
                         <ButtonLink to="/clubs" size="sm" variant="secondary">
                             Find clubs
@@ -495,21 +437,22 @@ const MyClubs = ({ memberships }) => {
     );
 };
 
-const Proposals = ({ requests }) => (
-    <Card
-        title={
-            <h2 className="row">
-                <FileText size={16} /> Club proposals
-            </h2>
-        }
-        actions={
-            <ButtonLink to="/club-requests/new" size="sm" variant="ghost">
-                <Plus size={14} /> Propose
-            </ButtonLink>
-        }
-        padded={false}
-    >
-        {requests.length ? (
+const Proposals = ({ requests }) =>
+    requests.length ? (
+        <Card
+            className="dash-card"
+            title={
+                <h2 className="row">
+                    <FileText size={16} /> Club proposals
+                </h2>
+            }
+            actions={
+                <ButtonLink to="/club-requests/new" size="sm" variant="ghost">
+                    <Plus size={14} /> Propose
+                </ButtonLink>
+            }
+            padded={false}
+        >
             <div className="list-rows">
                 {requests.map((request) => (
                     <Link key={request._id} to={`/club-requests/${request._id}`} className="list-row">
@@ -518,50 +461,70 @@ const Proposals = ({ requests }) => (
                     </Link>
                 ))}
             </div>
-        ) : (
-            <p className="subtle card-body">Have an idea for a new club? Propose it with your friends.</p>
-        )}
-    </Card>
-);
+        </Card>
+    ) : (
+        <Link to="/club-requests/new" className="card card-link propose-card">
+            <span className="action-icon tone-gold">
+                <Lightbulb size={16} />
+            </span>
+            <span className="grow">
+                <strong>Start a new club</strong>
+                <small>Have an idea? Propose it with your friends.</small>
+            </span>
+            <ChevronRight size={16} className="subtle" />
+        </Link>
+    );
 
 export const StudentDashboard = ({ user, data }) => {
     const { student } = data;
     const now = useNow();
     const [schedule, setSchedule] = useState(student.upcomingRegistrations);
+    const [waitlisted, setWaitlisted] = useState(student.waitlistedRegistrations || []);
     const [recommended, setRecommended] = useState(student.recommended);
-    const [upcomingCount, setUpcomingCount] = useState(student.stats.upcoming);
 
-    // Registering from a recommendation moves the event into the schedule, so it is never shown twice.
+    // Registering from a recommendation moves the event into the schedule (or the waitlist), so it is never shown twice.
     const handleRegistered = (event, result) => {
         setRecommended((list) => list.filter((e) => e._id !== event._id));
+        if (result?.waitlisted) {
+            setWaitlisted((list) => [...list, { _id: `wl-${event._id}`, status: "WAITLISTED", waitlistPosition: result.waitlistPosition, event }]);
+            return;
+        }
         setSchedule((list) =>
             [...list, { _id: `new-${event._id}`, event: { ...event, registeredCount: result?.registeredCount ?? event.registeredCount + 1 } }].sort(
                 (a, b) => new Date(a.event.startAt) - new Date(b.event.startAt)
             )
         );
-        setUpcomingCount((count) => count + 1);
     };
 
     const next = useMemo(() => schedule.find((r) => new Date(r.event.endAt).getTime() > now), [schedule, now]);
     const firstName = user.name.split(" ")[0];
+    const workspaces = student.clubWorkspaces;
+    const workspaceClubIds = useMemo(() => new Set(workspaces.map((w) => w.club._id)), [workspaces]);
+
+    const stats = [
+        { label: "upcoming", value: schedule.length, to: "/my-registrations", icon: CalendarCheck2 },
+        ...(waitlisted.length ? [{ label: "on waitlist", value: waitlisted.length, to: "/my-registrations", icon: Hourglass }] : []),
+        { label: "attended", value: student.stats.attended, to: "/my-registrations?timeframe=past", icon: Trophy },
+        { label: student.stats.clubs === 1 ? "club" : "clubs", value: student.stats.clubs, to: "/clubs?view=mine", icon: Building2 }
+    ];
 
     return (
-        <div className="stack-lg">
+        <div className="stack-lg dashboard stagger">
             <Hero
+                eyebrow={todayLabel()}
                 title={`${greeting()}, ${firstName}`}
                 subtitle={
-                    upcomingCount
-                        ? `You're going to ${plural(upcomingCount, "event")}${recommended.length ? ` · ${plural(recommended.length, "new event")} you can still join` : ""}.`
-                        : recommended.length
-                          ? `${plural(recommended.length, "event")} ${recommended.length === 1 ? "is" : "are"} open for you to join.`
-                          : "Discover what's happening on campus and join the clubs you care about."
+                    recommended.length
+                        ? `${plural(recommended.length, "event")} ${recommended.length === 1 ? "is" : "are"} open for you to join.`
+                        : "Here's what's happening across your clubs and events."
                 }
+                stats={stats}
                 actions={
                     <>
                         <ButtonLink to="/feed" variant="accent">
                             <Compass size={16} /> Explore events
                         </ButtonLink>
-                        <ButtonLink to="/clubs" variant="secondary">
+                        <ButtonLink to="/clubs" variant="secondary" className="btn-glass">
                             <Building2 size={16} /> Browse clubs
                         </ButtonLink>
                     </>
@@ -569,32 +532,17 @@ export const StudentDashboard = ({ user, data }) => {
                 aside={<NextUp registration={next} now={now} />}
             />
 
-            <div className="dash-stats">
-                <StatLink to="/my-registrations" label="Going to" value={upcomingCount} icon={CalendarCheck2} hint="upcoming events" />
-                <StatLink to="/my-registrations?timeframe=past" label="Attended" value={student.stats.attended} icon={Trophy} hint="completed events" />
-                <StatLink
-                    to="/clubs?view=mine"
-                    label="My clubs"
-                    value={student.stats.clubs}
-                    icon={Building2}
-                    hint={student.stats.pendingClubs ? `${student.stats.pendingClubs} request pending` : "clubs joined"}
-                />
-                <StatLink to="/notifications" label="Unread" value={data.unreadNotifications} icon={Bell} hint="notifications" />
-            </div>
+            {workspaces.length > 0 && <ClubHQ workspaces={workspaces} />}
 
-            {student.clubWorkspaces.map((workspace) => (
-                <ClubWorkspace key={workspace.club._id} workspace={workspace} />
-            ))}
-
-            <div className="detail-layout">
+            <div className="dash-grid">
                 <div className="stack-lg">
-                    <Schedule upcoming={schedule} past={student.pastRegistrations} now={now} pinnedId={next?.event._id} />
+                    <Schedule upcoming={schedule} waitlisted={waitlisted} past={student.pastRegistrations} now={now} pinnedId={next?.event._id} />
                     <Recommended events={recommended} now={now} onRegistered={handleRegistered} />
                 </div>
 
                 <aside className="stack">
                     <Activity items={student.recentNotifications} />
-                    <MyClubs memberships={student.memberships} />
+                    <MyClubs memberships={student.memberships} hiddenClubIds={workspaceClubIds} />
                     <Proposals requests={student.clubRequests} />
                 </aside>
             </div>

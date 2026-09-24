@@ -7,6 +7,7 @@ import { useQueryState } from "../hooks/useQueryState";
 import { useToast } from "../context/ToastContext";
 import { AsyncContent, Button, Card, EmptyState, PageHeader, Pagination, Segmented } from "../components/ui";
 import { formatDateTime, timeAgo } from "../lib/format";
+import { NotificationIcon } from "../components/notifications/NotificationIcon";
 
 const NotificationsPage = () => {
     const navigate = useNavigate();
@@ -70,25 +71,18 @@ const NotificationsPage = () => {
                         isEmpty={!data?.length}
                         empty={<EmptyState icon={Bell} title={filters.view === "unread" ? "No unread notifications" : "No notifications yet"} description="You're all caught up." />}
                     >
-                        <div className="list-rows">
+                        <div className="notification-list">
                             {data?.map((item) => (
-                                <button
-                                    key={item._id}
-                                    type="button"
-                                    className="list-row"
-                                    onClick={() => open(item)}
-                                    style={{ width: "100%", border: "none", borderBottom: "1px solid var(--border)", background: item.readAt ? "transparent" : "var(--ink-50)", textAlign: "left", cursor: "pointer" }}
-                                >
-                                    <span style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: item.readAt ? "transparent" : "var(--ink-500)" }} />
-                                    <div className="grow">
-                                        <div className="title" style={{ fontWeight: item.readAt ? 500 : 650 }}>
-                                            {item.title}
-                                        </div>
-                                        {item.message && <div className="small muted">{item.message}</div>}
+                                <button key={item._id} type="button" className={`notification-row ${item.readAt ? "" : "unread"}`} onClick={() => open(item)}>
+                                    <NotificationIcon type={item.type} size={16} />
+                                    <div className="grow" style={{ minWidth: 0 }}>
+                                        <div className="notification-title">{item.title}</div>
+                                        {item.message && <div className="small muted notification-message">{item.message}</div>}
                                     </div>
                                     <span className="subtle nowrap" title={formatDateTime(item.createdAt)}>
                                         {timeAgo(item.createdAt)}
                                     </span>
+                                    {!item.readAt && <span className="unread-dot" aria-label="Unread" />}
                                 </button>
                             ))}
                         </div>

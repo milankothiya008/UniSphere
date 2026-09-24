@@ -60,7 +60,15 @@ const env = {
         folder: process.env.CLOUDINARY_FOLDER || "campusconnect"
     },
     uploadDir: process.env.UPLOAD_DIR || path.join(__dirname, "..", "uploads"),
-    maxUploadBytes: Number(process.env.MAX_UPLOAD_BYTES) || 5 * 1024 * 1024
+    maxUploadBytes: Number(process.env.MAX_UPLOAD_BYTES) || 5 * 1024 * 1024,
+    // Club stories: short-lived photos and videos kept in media storage, never in the database.
+    stories: {
+        lifetimeHours: Number(process.env.STORY_LIFETIME_HOURS) || 24,
+        maxImageBytes: Number(process.env.STORY_MAX_IMAGE_BYTES) || 10 * 1024 * 1024,
+        maxVideoBytes: Number(process.env.STORY_MAX_VIDEO_BYTES) || 40 * 1024 * 1024,
+        maxVideoSeconds: Number(process.env.STORY_MAX_VIDEO_SECONDS) || 30,
+        maxActivePerClub: Number(process.env.STORY_MAX_ACTIVE_PER_CLUB) || 30
+    }
 };
 
 module.exports = { env, validateEnv };

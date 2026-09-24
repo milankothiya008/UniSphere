@@ -2,6 +2,13 @@ import { Link } from "react-router-dom";
 import { CalendarDays, Clock, MapPin, Users } from "lucide-react";
 import { Badge, StatusBadge } from "../ui";
 import { dateParts, formatDate, formatTimeRange, humanize } from "../../lib/format";
+import { categoryStyle, categoryVars } from "../../lib/eventVisuals";
+
+// Large faded category icon used as artwork on poster-less covers.
+export const CategoryArt = ({ category, size = 180 }) => {
+    const Icon = categoryStyle(category).icon;
+    return <Icon className="category-art" size={size} strokeWidth={1} aria-hidden="true" />;
+};
 
 const registrationBadge = (event) => {
     if (event.myRegistration === "REGISTERED") {
@@ -19,8 +26,15 @@ const registrationBadge = (event) => {
 export const EventCover = ({ event, showDate = true }) => {
     const { month, day } = dateParts(event.startAt);
     return (
-        <div className="event-cover">
-            {event.poster ? <img src={event.poster} alt="" loading="lazy" /> : <div className="cover-fallback">{event.club?.name || humanize(event.category)}</div>}
+        <div className="event-cover" style={categoryVars(event.category)}>
+            {event.poster ? (
+                <img src={event.poster} alt="" loading="lazy" />
+            ) : (
+                <div className="cover-fallback">
+                    <CategoryArt category={event.category} size={130} />
+                    <span>{event.club?.name || humanize(event.category)}</span>
+                </div>
+            )}
             {showDate && (
                 <div className="date-chip">
                     <div className="mon">{month}</div>

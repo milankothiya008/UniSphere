@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Bell, CheckCheck } from "lucide-react";
 import { notificationApi } from "../../api/endpoints";
 import { timeAgo } from "../../lib/format";
+import { NotificationIcon } from "../notifications/NotificationIcon";
 
 const POLL_MS = 60_000;
 
@@ -88,16 +89,7 @@ export const NotificationBell = () => {
                     {!loading &&
                         items.map((item) => (
                             <button key={item._id} type="button" className="menu-item" style={{ alignItems: "flex-start" }} onClick={() => openItem(item)}>
-                                <span
-                                    style={{
-                                        width: 8,
-                                        height: 8,
-                                        borderRadius: "50%",
-                                        marginTop: 7,
-                                        flexShrink: 0,
-                                        background: item.readAt ? "transparent" : "var(--ink-500)"
-                                    }}
-                                />
+                                <NotificationIcon type={item.type} />
                                 <span style={{ minWidth: 0 }}>
                                     <strong style={{ display: "block", fontSize: "0.87rem", fontWeight: item.readAt ? 500 : 650 }}>{item.title}</strong>
                                     {item.message && (

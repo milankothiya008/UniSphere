@@ -23,4 +23,23 @@ const singleImage = (field = "file") => (req, res, next) => {
     });
 };
 
-module.exports = { singleImage };
+// Story photos and videos (development storage only; production uploads go straight to Cloudinary).
+const storyUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: Math.max(env.stories.maxImageBytes, env.stories.maxVideoBytes), files: 1 }
+});
+
+const singleStoryFile = (field = "file") => (req, res, next) => {
+    storyUpload.single(field)(req, res, (error) => {
+        if (!error) {
+            return next();
+        }
+        if (error.code === "LIMIT_FILE_SIZE") {
+            const mb = Math.round(env.stories.maxVideoBytes / (1024 * 1024));
+            return next(new AppError(`Story files must be ${mb} MB or smaller`, 413, ERROR_CODES.UPLOAD_ERROR));
+        }
+        return next(new AppError("Invalid upload", 400, ERROR_CODES.UPLOAD_ERROR));
+    });
+};
+
+module.exports = { singleImage, singleStoryFile };
