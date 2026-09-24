@@ -46,12 +46,55 @@ const userSchema = new mongoose.Schema(
             type: Boolean,
             default: false
         },
-        emailVerificationTokenHash: {
+        // One-time codes (OTP) emailed for verification and password reset. Only a hash is stored,
+        // and a code dies after OTP_MAX_ATTEMPTS wrong guesses.
+        emailVerificationCodeHash: {
             type: String,
             select: false,
             default: null
         },
-        emailVerificationExpires: {
+        emailVerificationCodeExpires: {
+            type: Date,
+            select: false,
+            default: null
+        },
+        emailVerificationAttempts: {
+            type: Number,
+            select: false,
+            default: 0
+        },
+        emailVerificationSentAt: {
+            type: Date,
+            select: false,
+            default: null
+        },
+        passwordResetCodeHash: {
+            type: String,
+            select: false,
+            default: null
+        },
+        passwordResetCodeExpires: {
+            type: Date,
+            select: false,
+            default: null
+        },
+        passwordResetAttempts: {
+            type: Number,
+            select: false,
+            default: 0
+        },
+        passwordResetSentAt: {
+            type: Date,
+            select: false,
+            default: null
+        },
+        // Short-lived token handed out once the reset code is confirmed; it authorises choosing the new password.
+        passwordResetTokenHash: {
+            type: String,
+            select: false,
+            default: null
+        },
+        passwordResetExpires: {
             type: Date,
             select: false,
             default: null
@@ -59,6 +102,12 @@ const userSchema = new mongoose.Schema(
         isActive: {
             type: Boolean,
             default: true
+        },
+        // Optional email categories (constants/EmailCategories). Account emails ignore these.
+        emailPreferences: {
+            clubUpdates: { type: Boolean, default: true },
+            eventRecommendations: { type: Boolean, default: true },
+            eventActivity: { type: Boolean, default: true }
         }
     },
     { timestamps: true }

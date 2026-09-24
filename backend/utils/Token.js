@@ -39,6 +39,23 @@ const hashToken = (token) => crypto.createHash("sha256").update(token).digest("h
 
 const generateRawToken = () => crypto.randomBytes(32).toString("hex");
 
+const OTP_LENGTH = 6;
+
+const generateOtp = () => String(crypto.randomInt(0, 10 ** OTP_LENGTH)).padStart(OTP_LENGTH, "0");
+
+// Codes are short, so the hash is keyed with a server secret and bound to the user.
+const hashOtp = (userId, code) =>
+    crypto.createHmac("sha256", env.jwtAccessSecret).update(`${userId}:${code}`).digest("hex");
+
+const otpMatches = (userId, code, storedHash) => {
+    if (!storedHash) {
+        return false;
+    }
+    const expected = Buffer.from(storedHash, "hex");
+    const actual = Buffer.from(hashOtp(userId, code), "hex");
+    return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+};
+
 const refreshTokenTtlMs = () => parseExpiryToMs(env.refreshTokenExpiry, 7 * 24 * 60 * 60 * 1000);
 
 module.exports = {
@@ -48,5 +65,9 @@ module.exports = {
     verifyRefreshToken,
     hashToken,
     generateRawToken,
+    OTP_LENGTH,
+    generateOtp,
+    hashOtp,
+    otpMatches,
     refreshTokenTtlMs
 };

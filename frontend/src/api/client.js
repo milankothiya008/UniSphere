@@ -1,0 +1,128 @@
+const BASE = import.meta.env.VITE_API_URL || "/api";
+
+export class ApiError extends Error {
+    constructor(message, { status = 0, code = null, details = null } = {}) {
+        super(message);
+        this.name = "ApiError";
+        this.status = status;
+        this.code = code;
+        this.details = details;
+    }
+}
+
+let accessToken = null;
+let refreshPromise = null;
+let onSessionExpired = () => {};
+
+export const setAccessToken = (token) => {
+    accessToken = token;
+};
+
+export const getAccessToken = () => accessToken;
+
+export const setSessionExpiredHandler = (handler) => {
+    onSessionExpired = handler;
+};
+
+const buildUrl = (path, query) => {
+    const url = `${BASE}${path}`;
+    if (!query) {
+        return url;
+    }
+
+    const params = new URLSearchParams();
+    Object.entries(query).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+            params.append(key, value);
+        }
+    });
+
+    const qs = params.toString();
+    return qs ? `${url}?${qs}` : url;
+};
+
+const parse = async (response) => {
+    const text = await response.text();
+    if (!text) {
+        return {};
+    }
+    try {
+        return JSON.parse(text);
+    } catch {
+        return { message: text };
+    }
+};
+
+// Every caller shares one in-flight refresh, so parallel 401s never rotate the token twice.
+export const refreshSession = () => {
+    if (!refreshPromise) {
+        refreshPromise = fetch(`${BASE}/auth/refresh`, { method: "POST", credentials: "include" })
+            .then(async (response) => {
+                const body = await parse(response);
+                if (!response.ok) {
+                    throw new ApiError(body.message || "Session expired", { status: response.status, code: body.errorCode });
+                }
+                accessToken = body.data.accessToken;
+                return body.data;
+            })
+            .finally(() => {
+                refreshPromise = null;
+            });
+    }
+    return refreshPromise;
+};
+
+export const request = async (path, { method = "GET", body, query, retry = true } = {}) => {
+    const isForm = typeof FormData !== "undefined" && body instanceof FormData;
+    const headers = {};
+
+    if (body !== undefined && !isForm) {
+        headers["Content-Type"] = "application/json";
+    }
+    if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    let response;
+    try {
+        response = await fetch(buildUrl(path, query), {
+            method,
+            headers,
+            credentials: "include",
+            body: body === undefined ? undefined : isForm ? body : JSON.stringify(body)
+        });
+    } catch {
+        throw new ApiError("Cannot reach CampusConnect. Check your connection and try again.");
+    }
+
+    if (response.status === 401 && retry && accessToken && !path.startsWith("/auth/")) {
+        try {
+            await refreshSession();
+        } catch {
+            accessToken = null;
+            onSessionExpired();
+            throw new ApiError("Your session has expired. Please sign in again.", { status: 401, code: "SESSION_EXPIRED" });
+        }
+        return request(path, { method, body, query, retry: false });
+    }
+
+    const payload = await parse(response);
+
+    if (!response.ok) {
+        throw new ApiError(payload.message || `Request failed (${response.status})`, {
+            status: response.status,
+            code: payload.errorCode || null,
+            details: payload.details || null
+        });
+    }
+
+    return payload;
+};
+
+export const api = {
+    get: (path, query) => request(path, { query }),
+    post: (path, body) => request(path, { method: "POST", body }),
+    put: (path, body) => request(path, { method: "PUT", body }),
+    patch: (path, body) => request(path, { method: "PATCH", body }),
+    delete: (path, body) => request(path, { method: "DELETE", body })
+};

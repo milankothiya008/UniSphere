@@ -1,5 +1,4 @@
 const adminService = require("../services/AdminService");
-const clubService = require("../services/ClubService");
 const asyncHandler = require("../utils/AsyncHandler");
 const { sendSuccess } = require("../utils/ApiResponse");
 
@@ -33,14 +32,19 @@ const updateBatch = asyncHandler(async (req, res) => {
     sendSuccess(res, 200, "Academic batch updated", batch);
 });
 
-const promoteCoordinator = asyncHandler(async (req, res) => {
-    const user = await adminService.promoteCoordinator(req.user, req.body.userId);
-    sendSuccess(res, 200, "User promoted to coordinator", user);
+const listFaculty = asyncHandler(async (req, res) => {
+    const faculty = await adminService.listFaculty(req.user, req.query);
+    sendSuccess(res, 200, "Faculty fetched", faculty);
 });
 
-const assignedClubs = asyncHandler(async (req, res) => {
-    const clubs = await clubService.getAssignedClubs(req.user);
-    sendSuccess(res, 200, "Assigned clubs fetched", clubs);
+const stats = asyncHandler(async (req, res) => {
+    const data = await adminService.getStats(req.user);
+    sendSuccess(res, 200, "Platform statistics fetched", data);
+});
+
+const auditLogs = asyncHandler(async (req, res) => {
+    const { items, ...meta } = await adminService.listAuditLogs(req.user, req.query);
+    sendSuccess(res, 200, "Audit log fetched", items, { meta });
 });
 
 module.exports = {
@@ -50,6 +54,7 @@ module.exports = {
     createBatch,
     listBatches,
     updateBatch,
-    promoteCoordinator,
-    assignedClubs
+    listFaculty,
+    stats,
+    auditLogs
 };

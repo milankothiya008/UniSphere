@@ -1,0 +1,131 @@
+import { NavLink, Link } from "react-router-dom";
+import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { initials } from "../../lib/format";
+
+export const PageHeader = ({ eyebrow, title, description, actions, back }) => (
+    <>
+        {back && (
+            <Link to={back.to} className="back-link">
+                <ArrowLeft size={15} /> {back.label}
+            </Link>
+        )}
+        <div className="page-header">
+            <div>
+                {eyebrow && <div className="eyebrow">{eyebrow}</div>}
+                <h1>{title}</h1>
+                {description && <p>{description}</p>}
+            </div>
+            {actions && <div className="row">{actions}</div>}
+        </div>
+    </>
+);
+
+export const Card = ({ title, actions, footer, children, padded = true, className = "" }) => (
+    <section className={`card ${className}`}>
+        {(title || actions) && (
+            <header className="card-header">
+                {typeof title === "string" ? <h2>{title}</h2> : title}
+                {actions && <div className="row">{actions}</div>}
+            </header>
+        )}
+        {padded ? <div className="card-body">{children}</div> : children}
+        {footer && <footer className="card-footer">{footer}</footer>}
+    </section>
+);
+
+export const Avatar = ({ name, src, size, square = false }) => (
+    <span className={`avatar ${size ? `avatar-${size}` : ""} ${square ? "avatar-square" : ""}`} aria-hidden="true">
+        {src ? <img src={src} alt="" /> : initials(name)}
+    </span>
+);
+
+export const StatTile = ({ label, value, icon: Icon, hint }) => (
+    <div className="card stat">
+        <span className="stat-label">
+            {Icon && <Icon size={14} />}
+            {label}
+        </span>
+        <span className="stat-value">{value ?? "—"}</span>
+        {hint && <span className="subtle">{hint}</span>}
+    </div>
+);
+
+export const Pagination = ({ meta, onPage }) => {
+    if (!meta || meta.totalPages <= 1) {
+        return null;
+    }
+    const { page, totalPages, total } = meta;
+    return (
+        <nav className="pagination" aria-label="Pagination">
+            <span className="subtle">
+                Page {page} of {totalPages} · {total} total
+            </span>
+            <div className="row">
+                <button type="button" className="btn btn-secondary btn-sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>
+                    <ChevronLeft size={15} /> Previous
+                </button>
+                <button type="button" className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => onPage(page + 1)}>
+                    Next <ChevronRight size={15} />
+                </button>
+            </div>
+        </nav>
+    );
+};
+
+// Tabs can be route links (`to`) or local buttons (`value` + onChange).
+export const Tabs = ({ tabs, value, onChange }) => (
+    <div className="tabs" role="tablist">
+        {tabs.map((tab) =>
+            tab.to ? (
+                <NavLink key={tab.to} to={tab.to} end={tab.end} className={({ isActive }) => `tab ${isActive ? "active" : ""}`}>
+                    {tab.icon && <tab.icon size={15} />}
+                    {tab.label}
+                    {tab.count !== undefined && tab.count !== null && <span className="count">{tab.count}</span>}
+                </NavLink>
+            ) : (
+                <button
+                    key={tab.value}
+                    type="button"
+                    role="tab"
+                    aria-selected={value === tab.value}
+                    className={`tab ${value === tab.value ? "active" : ""}`}
+                    onClick={() => onChange(tab.value)}
+                >
+                    {tab.icon && <tab.icon size={15} />}
+                    {tab.label}
+                    {tab.count !== undefined && tab.count !== null && <span className="count">{tab.count}</span>}
+                </button>
+            )
+        )}
+    </div>
+);
+
+export const Segmented = ({ options, value, onChange, label }) => (
+    <div className="segmented" role="group" aria-label={label}>
+        {options.map((option) => (
+            <button key={option.value} type="button" className={value === option.value ? "active" : ""} aria-pressed={value === option.value} onClick={() => onChange(option.value)}>
+                {option.label}
+            </button>
+        ))}
+    </div>
+);
+
+export const CapacityBar = ({ registered = 0, max }) => {
+    if (!max) {
+        return <span className="subtle">{registered} registered · no limit</span>;
+    }
+    const percent = Math.min(100, Math.round((registered / max) * 100));
+    return (
+        <div className="stack-sm" style={{ gap: 5 }}>
+            <div className="row-between subtle">
+                <span>
+                    {registered} / {max} registered
+                </span>
+                <span>{Math.max(0, max - registered)} seats left</span>
+            </div>
+            <div className={`progress ${percent >= 100 ? "full" : ""}`}>
+                <span style={{ width: `${percent}%` }} />
+            </div>
+        </div>
+    );
+};

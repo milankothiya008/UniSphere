@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { MEMBERSHIP_ROLES } = require("../constants/Roles");
+const { CLUB_ROLES } = require("../constants/Roles");
 const { MEMBERSHIP_STATUS } = require("../constants/Statuses");
 
 const clubMembershipSchema = new mongoose.Schema(
@@ -16,17 +16,36 @@ const clubMembershipSchema = new mongoose.Schema(
         },
         role: {
             type: String,
-            enum: Object.values(MEMBERSHIP_ROLES),
-            default: MEMBERSHIP_ROLES.MEMBER
+            enum: Object.values(CLUB_ROLES),
+            default: CLUB_ROLES.MEMBER
         },
         status: {
             type: String,
             enum: Object.values(MEMBERSHIP_STATUS),
-            default: MEMBERSHIP_STATUS.APPROVED
+            default: MEMBERSHIP_STATUS.PENDING
+        },
+        requestMessage: {
+            type: String,
+            trim: true,
+            maxlength: 500,
+            default: null
+        },
+        decidedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            default: null
+        },
+        decidedAt: {
+            type: Date,
+            default: null
+        },
+        decisionReason: {
+            type: String,
+            default: null
         },
         joinedAt: {
             type: Date,
-            default: Date.now
+            default: null
         }
     },
     { timestamps: true }

@@ -5,25 +5,43 @@ const ERROR_CODES = require("../constants/ErrorCodes");
 const { USER_PUBLIC_FIELDS } = require("../constants/Roles");
 const { verifyAccessToken } = require("../utils/Token");
 
-const protect = asyncHandler(async (req, res, next) => {
-    let token;
+const readBearer = (req) => {
+    const header = req.headers.authorization;
+    return header && header.startsWith("Bearer ") ? header.split(" ")[1] : null;
+};
 
-    if (req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
-        token = req.headers.authorization.split(" ")[1];
-    }
-
-    if (!token) {
-        throw new AppError("Authentication required", 401, ERROR_CODES.UNAUTHORIZED);
-    }
-
+// The user is always re-loaded from the database so role changes and deactivation apply immediately.
+const loadUser = async (token) => {
     const decoded = verifyAccessToken(token);
-    const user = await User.findById(decoded.sub).select(USER_PUBLIC_FIELDS + " isActive");
+    const user = await User.findById(decoded.sub).select(USER_PUBLIC_FIELDS);
 
     if (!user || !user.isActive) {
         throw new AppError("Authentication required", 401, ERROR_CODES.UNAUTHORIZED);
     }
 
-    req.user = user;
+    return user;
+};
+
+const protect = asyncHandler(async (req, res, next) => {
+    const token = readBearer(req);
+
+    if (!token) {
+        throw new AppError("Authentication required", 401, ERROR_CODES.UNAUTHORIZED);
+    }
+
+    req.user = await loadUser(token);
+    next();
+});
+
+// Attaches the user when a token is sent; anonymous requests continue. An invalid or
+// expired token still fails with 401 so the client knows to refresh it.
+const optionalAuth = asyncHandler(async (req, res, next) => {
+    const token = readBearer(req);
+
+    if (token) {
+        req.user = await loadUser(token);
+    }
+
     next();
 });
 
@@ -41,4 +59,4 @@ const restrictTo = (...roles) => (req, res, next) => {
     next();
 };
 
-module.exports = { protect, requireVerified, restrictTo };
+module.exports = { protect, optionalAuth, requireVerified, restrictTo };

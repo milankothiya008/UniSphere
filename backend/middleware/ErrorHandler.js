@@ -27,8 +27,10 @@ const handleValidationError = (err) => {
     );
 };
 
-const handleJwtError = () => {
-    return new AppError("Invalid or expired token", 401, ERROR_CODES.TOKEN_INVALID);
+const handleJwtError = (err) => {
+    return err.name === "TokenExpiredError"
+        ? new AppError("Session expired", 401, ERROR_CODES.TOKEN_EXPIRED)
+        : new AppError("Invalid token", 401, ERROR_CODES.TOKEN_INVALID);
 };
 
 const sendError = (err, res, isProduction) => {
@@ -39,7 +41,11 @@ const sendError = (err, res, isProduction) => {
         errorCode: err.errorCode || null
     };
 
-    if (!isProduction) {
+    if (err.details) {
+        body.details = err.details;
+    }
+
+    if (!isProduction && !err.isOperational) {
         body.stack = err.stack;
     }
 
@@ -47,7 +53,7 @@ const sendError = (err, res, isProduction) => {
         return res.status(err.statusCode || 500).json(body);
     }
 
-    logger.error("Unhandled error", { message: err.message, name: err.name });
+    logger.error("Unhandled error", { message: err.message, name: err.name, stack: isProduction ? undefined : err.stack });
 
     return res.status(500).json({
         success: false,
@@ -71,7 +77,11 @@ const errorHandler = (err, req, res, next) => {
     } else if (err.name === "ValidationError") {
         error = handleValidationError(err);
     } else if (err.name === "JsonWebTokenError" || err.name === "TokenExpiredError") {
-        error = handleJwtError();
+        error = handleJwtError(err);
+    } else if (err.type === "entity.parse.failed") {
+        error = new AppError("Malformed JSON body", 400, ERROR_CODES.VALIDATION_ERROR);
+    } else if (err.type === "entity.too.large") {
+        error = new AppError("Request body is too large", 413, ERROR_CODES.VALIDATION_ERROR);
     }
 
     sendError(error, res, isProduction);

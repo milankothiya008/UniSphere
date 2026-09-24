@@ -2,7 +2,7 @@ const dotenv = require("dotenv");
 const path = require("path");
 const AppError = require("../utils/AppError");
 
-dotenv.config({ path: path.join(__dirname, "..", ".env") });
+dotenv.config({ path: path.join(__dirname, "..", ".env"), quiet: true });
 
 const REQUIRED = [
     "MONGO_URI",
@@ -21,20 +21,46 @@ const validateEnv = () => {
     }
 };
 
+const nodeEnv = process.env.NODE_ENV || "development";
+
 const env = {
-    nodeEnv: process.env.NODE_ENV || "development",
+    nodeEnv,
+    isProduction: nodeEnv === "production",
+    isTest: nodeEnv === "test",
     port: Number(process.env.PORT) || 5000,
     mongoUri: process.env.MONGO_URI,
     clientUrl: process.env.CLIENT_URL || "http://localhost:3000",
+    publicApiUrl: process.env.PUBLIC_API_URL || "",
     jwtAccessSecret: process.env.JWT_ACCESS_SECRET,
     jwtRefreshSecret: process.env.JWT_REFRESH_SECRET,
     accessTokenExpiry: process.env.ACCESS_TOKEN_EXPIRY || "15m",
     refreshTokenExpiry: process.env.REFRESH_TOKEN_EXPIRY || "7d",
-    cookieSecure: process.env.COOKIE_SECURE === "true" || process.env.NODE_ENV === "production",
+    cookieSecure: process.env.COOKIE_SECURE === "true" || nodeEnv === "production",
     universityDomain: process.env.UNIVERSITY_DOMAIN || "ddu.ac.in",
+    universityName: process.env.UNIVERSITY_NAME || "Dharmsinh Desai University",
+    // Event dates and times are entered as university-local wall-clock time.
+    timezoneOffset: process.env.UNIVERSITY_TZ_OFFSET || "+05:30",
     bootstrapAdminEmail: process.env.BOOTSTRAP_ADMIN_EMAIL || "",
+    // Bulk email sending rate (see services/EmailQueueService).
+    emailRatePerMinute: Number(process.env.EMAIL_RATE_PER_MINUTE) || 30,
     bootstrapAdminPassword: process.env.BOOTSTRAP_ADMIN_PASSWORD || "",
-    bootstrapAdminName: process.env.BOOTSTRAP_ADMIN_NAME || "University Admin"
+    bootstrapAdminName: process.env.BOOTSTRAP_ADMIN_NAME || "University Admin",
+    smtp: {
+        host: process.env.SMTP_HOST || "",
+        port: Number(process.env.SMTP_PORT) || 587,
+        secure: process.env.SMTP_SECURE === "true",
+        user: process.env.SMTP_USER || "",
+        pass: process.env.SMTP_PASS || ""
+    },
+    mailFrom: process.env.MAIL_FROM || "CampusConnect <no-reply@campusconnect.local>",
+    cloudinary: {
+        cloudName: process.env.CLOUDINARY_CLOUD_NAME || "",
+        apiKey: process.env.CLOUDINARY_API_KEY || "",
+        apiSecret: process.env.CLOUDINARY_API_SECRET || "",
+        folder: process.env.CLOUDINARY_FOLDER || "campusconnect"
+    },
+    uploadDir: process.env.UPLOAD_DIR || path.join(__dirname, "..", "uploads"),
+    maxUploadBytes: Number(process.env.MAX_UPLOAD_BYTES) || 5 * 1024 * 1024
 };
 
 module.exports = { env, validateEnv };

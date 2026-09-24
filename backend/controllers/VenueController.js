@@ -19,7 +19,7 @@ const updateVenue = asyncHandler(async (req, res) => {
 
 const available = asyncHandler(async (req, res) => {
     const venues = await venueService.getAvailableVenues(req.query);
-    sendSuccess(res, 200, "Available venues fetched", venues);
+    sendSuccess(res, 200, "Venue availability fetched", venues);
 });
 
 module.exports = {

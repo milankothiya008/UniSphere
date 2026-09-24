@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const { CLUB_REQUEST_STATUS } = require("../constants/Statuses");
+const { CLUB_CATEGORIES } = require("../constants/Categories");
 
 const historySchema = new mongoose.Schema(
     {
@@ -45,44 +46,50 @@ const clubCreationRequestSchema = new mongoose.Schema(
             trim: true,
             maxlength: 2000
         },
-        departmentCode: {
-            type: String,
-            required: true,
-            uppercase: true,
-            trim: true
+        // Either open to every department, or limited to departmentCodes (see utils/DepartmentScope).
+        allDepartments: {
+            type: Boolean,
+            default: false
+        },
+        departmentCodes: {
+            type: [{ type: String, uppercase: true, trim: true }],
+            default: []
         },
         category: {
             type: String,
             required: true,
-            enum: [
-                "TECHNOLOGY",
-                "SPORTS",
-                "CULTURAL",
-                "LITERARY",
-                "MUSIC",
-                "ART",
-                "SOCIAL_SERVICE",
-                "ENTREPRENEURSHIP",
-                "OTHER"
-            ]
+            enum: CLUB_CATEGORIES
         },
         requester: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
             required: true
         },
-        status: {
-            type: String,
-            enum: Object.values(CLUB_REQUEST_STATUS),
-            default: CLUB_REQUEST_STATUS.PENDING_COORDINATOR_REVIEW
+        foundingMembers: {
+            type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+            default: []
         },
-        recommendedBy: {
+        proposedMentor: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
             default: null
         },
-        recommendedAt: {
+        status: {
+            type: String,
+            enum: Object.values(CLUB_REQUEST_STATUS),
+            default: CLUB_REQUEST_STATUS.PENDING_FACULTY_REVIEW
+        },
+        verifiedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            default: null
+        },
+        verifiedAt: {
             type: Date,
+            default: null
+        },
+        reviewComment: {
+            type: String,
             default: null
         },
         decidedBy: {
@@ -113,5 +120,6 @@ const clubCreationRequestSchema = new mongoose.Schema(
 
 clubCreationRequestSchema.index({ status: 1, createdAt: -1 });
 clubCreationRequestSchema.index({ requester: 1 });
+clubCreationRequestSchema.index({ foundingMembers: 1 });
 
 module.exports = mongoose.model("ClubCreationRequest", clubCreationRequestSchema);

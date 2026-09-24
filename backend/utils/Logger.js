@@ -19,7 +19,13 @@ const formatMeta = (meta) => {
     return Object.keys(safe).length ? ` ${JSON.stringify(safe)}` : "";
 };
 
+const quietInTests = process.env.NODE_ENV === "test" && !process.env.LOG_IN_TESTS;
+
 const log = (level, message, meta) => {
+    if (quietInTests && level !== "error") {
+        return;
+    }
+
     const line = `[${new Date().toISOString()}] ${levels[level] || level} ${message}${formatMeta(meta)}`;
 
     if (level === "error") {

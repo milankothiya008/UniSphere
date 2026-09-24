@@ -1,0 +1,189 @@
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--text);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+    margin: 0;
+    line-height: 1.25;
+    font-weight: 650;
+    color: var(--text);
+}
+
+h1 {
+    font-size: 1.65rem;
+    letter-spacing: -0.01em;
+}
+
+h2 {
+    font-size: 1.2rem;
+}
+
+h3 {
+    font-size: 1.02rem;
+}
+
+p {
+    margin: 0;
+}
+
+a {
+    color: var(--ink-600);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+img {
+    max-width: 100%;
+    display: block;
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+    color: inherit;
+}
+
+:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.display {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+}
+
+.muted {
+    color: var(--text-muted);
+}
+
+.subtle {
+    color: var(--text-subtle);
+    font-size: 0.86rem;
+}
+
+.small {
+    font-size: 0.86rem;
+}
+
+.nowrap {
+    white-space: nowrap;
+}
+
+.pre-line {
+    white-space: pre-line;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
+.stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.stack-sm {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.stack-lg {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.row-between {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.grid {
+    display: grid;
+    gap: 16px;
+}
+
+.grid-2 {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.grid-3 {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.grid-cards {
+    display: grid;
+    gap: 18px;
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+}
+
+.spacer {
+    flex: 1;
+}
+
+@media (max-width: 960px) {
+    .grid-3 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 680px) {
+    .grid-2,
+    .grid-3 {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    h1 {
+        font-size: 1.4rem;
+    }
+}

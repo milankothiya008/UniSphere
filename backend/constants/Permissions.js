@@ -1,0 +1,50 @@
+const { CLUB_ROLES } = require("./Roles");
+
+const CLUB_PERMISSIONS = Object.freeze({
+    MANAGE_CLUB: "MANAGE_CLUB",
+    MANAGE_MEMBERS: "MANAGE_MEMBERS",
+    ASSIGN_ROLES: "ASSIGN_ROLES",
+    MANAGE_EVENTS: "MANAGE_EVENTS",
+    PUBLISH_EVENTS: "PUBLISH_EVENTS",
+    VIEW_PARTICIPANTS: "VIEW_PARTICIPANTS",
+    MANAGE_PARTICIPANTS: "MANAGE_PARTICIPANTS",
+    MANAGE_RESULTS: "MANAGE_RESULTS",
+    // Publishing, withdrawing and correcting official results: the president only.
+    PUBLISH_RESULTS: "PUBLISH_RESULTS",
+    POST_UPDATES: "POST_UPDATES"
+});
+
+const P = CLUB_PERMISSIONS;
+
+const CLUB_ROLE_PERMISSIONS = Object.freeze({
+    [CLUB_ROLES.PRESIDENT]: Object.values(P),
+    [CLUB_ROLES.VICE_PRESIDENT]: [
+        P.MANAGE_MEMBERS,
+        P.MANAGE_EVENTS,
+        P.PUBLISH_EVENTS,
+        P.VIEW_PARTICIPANTS,
+        P.MANAGE_PARTICIPANTS,
+        P.MANAGE_RESULTS,
+        P.POST_UPDATES
+    ],
+    [CLUB_ROLES.EVENT_COORDINATOR]: [
+        P.MANAGE_EVENTS,
+        P.VIEW_PARTICIPANTS,
+        P.MANAGE_PARTICIPANTS,
+        P.MANAGE_RESULTS
+    ],
+    [CLUB_ROLES.MARKETING_COORDINATOR]: [P.POST_UPDATES],
+    [CLUB_ROLES.TECHNICAL_COORDINATOR]: [P.MANAGE_EVENTS, P.VIEW_PARTICIPANTS],
+    [CLUB_ROLES.TREASURER]: [P.VIEW_PARTICIPANTS],
+    [CLUB_ROLES.MEMBER]: []
+});
+
+const roleHasPermission = (role, permission) => {
+    return (CLUB_ROLE_PERMISSIONS[role] || []).includes(permission);
+};
+
+module.exports = {
+    CLUB_PERMISSIONS,
+    CLUB_ROLE_PERMISSIONS,
+    roleHasPermission
+};

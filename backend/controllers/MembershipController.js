@@ -1,16 +1,16 @@
+const membershipService = require("../services/MembershipService");
 const clubService = require("../services/ClubService");
 const asyncHandler = require("../utils/AsyncHandler");
 const { sendSuccess } = require("../utils/ApiResponse");
 
-const getUserClubs = asyncHandler(async (req, res) => {
-    if (String(req.user._id) !== String(req.params.userId) && req.user.globalRole !== "UNIVERSITY_ADMIN") {
-        const AppError = require("../utils/AppError");
-        const ERROR_CODES = require("../constants/ErrorCodes");
-        throw new AppError("You cannot view another user's clubs", 403, ERROR_CODES.FORBIDDEN);
-    }
-
-    const memberships = await clubService.getUserClubs(req.params.userId);
-    sendSuccess(res, 200, "User clubs fetched", memberships, { count: memberships.length });
+const getMyMemberships = asyncHandler(async (req, res) => {
+    const data = await clubService.getMyClubs(req.user);
+    sendSuccess(res, 200, "Your memberships fetched", data);
 });
 
-module.exports = { getUserClubs };
+const getUserClubs = asyncHandler(async (req, res) => {
+    const memberships = await membershipService.getUserClubs(req.user, req.params.userId);
+    sendSuccess(res, 200, "User clubs fetched", memberships, { meta: { total: memberships.length } });
+});
+
+module.exports = { getMyMemberships, getUserClubs };

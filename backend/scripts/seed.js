@@ -39,15 +39,12 @@ const DEFAULT_VENUES = [
     { name: "Seminar Hall B", location: "Academic Block", capacity: 80 }
 ];
 
-const seed = async () => {
-    validateEnv();
-    await connectDB();
-
+const seedReferenceData = async () => {
     for (const department of DEPARTMENTS) {
         await Department.findOneAndUpdate(
             { code: department.code },
             { ...department, isActive: true },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
+            { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
         );
     }
 
@@ -55,24 +52,34 @@ const seed = async () => {
         await AcademicBatch.findOneAndUpdate(
             { code: batch.code },
             { ...batch, isActive: true },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
+            { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
         );
     }
 
     for (const venue of DEFAULT_VENUES) {
         await Venue.findOneAndUpdate(
             { name: venue.name },
-            venue,
-            { upsert: true, new: true, setDefaultsOnInsert: true }
+            { $setOnInsert: venue },
+            { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
         );
     }
 
     await bootstrapAdminIfNeeded();
+};
+
+const seed = async () => {
+    validateEnv();
+    await connectDB();
+    await seedReferenceData();
     logger.info("Seed completed", { domain: env.universityDomain });
     process.exit(0);
 };
 
-seed().catch((error) => {
-    logger.error("Seed failed", { message: error.message });
-    process.exit(1);
-});
+if (require.main === module) {
+    seed().catch((error) => {
+        logger.error("Seed failed", { message: error.message });
+        process.exit(1);
+    });
+}
+
+module.exports = { seedReferenceData, buildBatches };

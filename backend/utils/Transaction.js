@@ -1,37 +1,44 @@
+const mongoose = require("mongoose");
 const logger = require("./Logger");
 
-const withTransaction = async (work) => {
-    const mongoose = require("mongoose");
+let supportsTransactions = null;
 
-    if (mongoose.connection.readyState !== 1) {
-        return work(null);
+// Transactions need a replica set or sharded cluster. Detect this once, up front, so the unit
+// of work never runs twice (a failed attempt followed by a retry would duplicate side effects).
+const detectTransactionSupport = async () => {
+    if (supportsTransactions !== null) {
+        return supportsTransactions;
     }
 
     try {
-        const session = await mongoose.startSession();
+        const hello = await mongoose.connection.db.admin().command({ hello: 1 });
+        supportsTransactions = Boolean(hello.setName || hello.msg === "isdbgrid");
+    } catch {
+        supportsTransactions = false;
+    }
 
-        try {
-            let result;
-            await session.withTransaction(async () => {
-                result = await work(session);
-            });
-            return result;
-        } finally {
-            session.endSession();
-        }
-    } catch (error) {
-        const message = String(error.message || "");
-        const standalone =
-            message.includes("Transaction numbers are only allowed") ||
-            message.includes("replica set") ||
-            error.code === 20;
+    if (!supportsTransactions) {
+        logger.warn("MongoDB transactions unavailable (standalone server); running without sessions");
+    }
 
-        if (standalone) {
-            logger.warn("MongoDB transactions unavailable; continuing without a session");
-            return work(null);
-        }
+    return supportsTransactions;
+};
 
-        throw error;
+const withTransaction = async (work) => {
+    if (mongoose.connection.readyState !== 1 || !(await detectTransactionSupport())) {
+        return work(null);
+    }
+
+    const session = await mongoose.startSession();
+
+    try {
+        let result;
+        await session.withTransaction(async () => {
+            result = await work(session);
+        });
+        return result;
+    } finally {
+        await session.endSession();
     }
 };
 

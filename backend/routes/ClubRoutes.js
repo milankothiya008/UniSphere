@@ -1,56 +1,62 @@
 const express = require("express");
-const {
-    getAllClubs,
-    getClubById,
-    updateClub,
-    changeStatus,
-    assignCoordinator,
-    unassignCoordinator,
-    listCoordinators,
-    assignPresident,
-    addMember,
-    removeMember,
-    getMembers
-} = require("../controllers/ClubController");
-const { protect, requireVerified, restrictTo } = require("../middleware/Auth");
+const c = require("../controllers/ClubController");
+const { listClubEvents } = require("../controllers/EventController");
+const { protect, optionalAuth, requireVerified, restrictTo } = require("../middleware/Auth");
 const { GLOBAL_ROLES } = require("../constants/Roles");
 const validate = require("../middleware/Validate");
-const { mongoIdParam } = require("../validators/RequestValidators");
+const {
+    mongoIdParam,
+    mongoIdBody,
+    clubUpdateRules,
+    clubStatusRules,
+    joinRules,
+    roleRules,
+    optionalReasonRules,
+    subscriptionRules
+} = require("../validators/RequestValidators");
 
 const router = express.Router();
+const auth = [protect, requireVerified];
+const id = [...mongoIdParam("id")];
 
-router.get("/", getAllClubs);
-router.get("/:id", mongoIdParam("id"), validate, getClubById);
+router.get("/", optionalAuth, c.listClubs);
+router.get("/mine", ...auth, c.myClubs);
+router.get("/:id", optionalAuth, id, validate, c.getClub);
+router.get("/:clubId/events", optionalAuth, mongoIdParam("clubId"), validate, listClubEvents);
 
-router.use(protect, requireVerified);
+router.put("/:id", ...auth, id, clubUpdateRules, validate, c.updateClub);
+router.get("/:id/subscription", ...auth, id, validate, c.getSubscription);
+router.put("/:id/subscription", ...auth, id, subscriptionRules, validate, c.setSubscription);
+router.post("/:id/status", ...auth, restrictTo(GLOBAL_ROLES.ADMIN), id, clubStatusRules, validate, c.changeStatus);
+router.put("/:id/mentor", ...auth, restrictTo(GLOBAL_ROLES.ADMIN), id, mongoIdBody("mentorId"), validate, c.setMentor);
+router.post("/:id/president", ...auth, id, mongoIdBody("userId"), validate, c.assignPresident);
 
-router.put("/:id", mongoIdParam("id"), validate, updateClub);
-router.post("/:id/status", restrictTo(GLOBAL_ROLES.UNIVERSITY_ADMIN), mongoIdParam("id"), validate, changeStatus);
-router.get("/:id/coordinators", mongoIdParam("id"), validate, listCoordinators);
+router.get("/:id/members", ...auth, id, validate, c.listMembers);
+router.post("/:id/members", ...auth, id, mongoIdBody("userId"), validate, c.addMember);
+router.patch("/:id/members/:userId/role", ...auth, id, mongoIdParam("userId"), roleRules, validate, c.changeMemberRole);
+router.delete("/:id/members/:userId", ...auth, id, mongoIdParam("userId"), validate, c.removeMember);
+
+router.post("/:id/join", ...auth, id, joinRules, validate, c.requestToJoin);
+router.delete("/:id/join", ...auth, id, validate, c.cancelJoinRequest);
+router.post("/:id/leave", ...auth, id, validate, c.leaveClub);
+
+router.get("/:id/membership-requests", ...auth, id, validate, c.listJoinRequests);
 router.post(
-    "/:id/coordinators",
-    restrictTo(GLOBAL_ROLES.UNIVERSITY_ADMIN),
-    mongoIdParam("id"),
+    "/:id/membership-requests/:membershipId/approve",
+    ...auth,
+    id,
+    mongoIdParam("membershipId"),
     validate,
-    assignCoordinator
-);
-router.delete(
-    "/:id/coordinators/:coordinatorId",
-    restrictTo(GLOBAL_ROLES.UNIVERSITY_ADMIN),
-    mongoIdParam("id"),
-    mongoIdParam("coordinatorId"),
-    validate,
-    unassignCoordinator
+    c.approveJoinRequest
 );
 router.post(
-    "/:id/president",
-    restrictTo(GLOBAL_ROLES.COORDINATOR, GLOBAL_ROLES.UNIVERSITY_ADMIN),
-    mongoIdParam("id"),
+    "/:id/membership-requests/:membershipId/reject",
+    ...auth,
+    id,
+    mongoIdParam("membershipId"),
+    optionalReasonRules,
     validate,
-    assignPresident
+    c.rejectJoinRequest
 );
-router.get("/:id/members", mongoIdParam("id"), validate, getMembers);
-router.post("/:id/members", mongoIdParam("id"), validate, addMember);
-router.delete("/:id/members/:userId", mongoIdParam("id"), mongoIdParam("userId"), validate, removeMember);
 
 module.exports = router;

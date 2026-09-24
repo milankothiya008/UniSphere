@@ -24,6 +24,17 @@ const venueSchema = new mongoose.Schema(
             type: String,
             enum: Object.values(VENUE_STATUS),
             default: VENUE_STATUS.ACTIVE
+        },
+        // Short-lived lock taken while an event claims this venue (see VenueService.withVenueLock).
+        bookingLock: {
+            type: String,
+            select: false,
+            default: null
+        },
+        bookingLockExpires: {
+            type: Date,
+            select: false,
+            default: null
         }
     },
     { timestamps: true }

@@ -1,34 +1,26 @@
 const express = require("express");
-const {
-    createDepartment,
-    listDepartments,
-    updateDepartment,
-    createBatch,
-    listBatches,
-    updateBatch,
-    promoteCoordinator,
-    assignedClubs
-} = require("../controllers/AdminController");
+const c = require("../controllers/AdminController");
 const { protect, restrictTo, requireVerified } = require("../middleware/Auth");
 const { GLOBAL_ROLES } = require("../constants/Roles");
 const validate = require("../middleware/Validate");
-const { mongoIdParam } = require("../validators/RequestValidators");
+const { mongoIdParam, departmentRules, batchRules } = require("../validators/RequestValidators");
 
 const router = express.Router();
 
-router.get("/departments", listDepartments);
-router.get("/batches", listBatches);
+// Reference data used by registration and event forms.
+router.get("/departments", c.listDepartments);
+router.get("/batches", c.listBatches);
 
-router.use(protect, requireVerified);
+router.use(protect, requireVerified, restrictTo(GLOBAL_ROLES.ADMIN));
 
-router.get("/assigned-clubs", restrictTo(GLOBAL_ROLES.COORDINATOR, GLOBAL_ROLES.UNIVERSITY_ADMIN), assignedClubs);
+router.get("/stats", c.stats);
+router.get("/faculty", c.listFaculty);
+router.get("/audit-logs", c.auditLogs);
 
-router.post("/departments", restrictTo(GLOBAL_ROLES.UNIVERSITY_ADMIN), createDepartment);
-router.put("/departments/:id", restrictTo(GLOBAL_ROLES.UNIVERSITY_ADMIN), mongoIdParam("id"), validate, updateDepartment);
+router.post("/departments", departmentRules(false), validate, c.createDepartment);
+router.put("/departments/:id", mongoIdParam("id"), departmentRules(true), validate, c.updateDepartment);
 
-router.post("/batches", restrictTo(GLOBAL_ROLES.UNIVERSITY_ADMIN), createBatch);
-router.put("/batches/:id", restrictTo(GLOBAL_ROLES.UNIVERSITY_ADMIN), mongoIdParam("id"), validate, updateBatch);
-
-router.post("/coordinators", restrictTo(GLOBAL_ROLES.UNIVERSITY_ADMIN), promoteCoordinator);
+router.post("/batches", batchRules(false), validate, c.createBatch);
+router.put("/batches/:id", mongoIdParam("id"), batchRules(true), validate, c.updateBatch);
 
 module.exports = router;

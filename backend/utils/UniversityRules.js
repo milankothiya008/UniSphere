@@ -11,9 +11,20 @@ const isUniversityEmail = (email) => {
     return String(email).toLowerCase().endsWith(`@${domain()}`);
 };
 
+// Student: <batch 2 digits><department 2-4 letters><identity 3 letters><number 3 digits>, e.g. 24ceuog001.
+// The department length is implied by the fixed 6-character tail, so the split is unambiguous.
+const STUDENT_PATTERN = /^(\d{2})([a-z]{2,4})([a-z]{3})(\d{3})$/i;
+// Faculty: <first name>.<department 2-4 letters>, e.g. mrudang.ce.
+const FACULTY_PATTERN = /^([a-z]+)\.([a-z]{2,4})$/i;
+
+const STUDENT_FORMAT_HINT = `Student emails must be <batch><department><identity><number>@${env.universityDomain}, e.g. 24ceuog001@${env.universityDomain} (2-digit batch, 2-4 letter department, 3 letters, 3 digits)`;
+const FACULTY_FORMAT_HINT = `Faculty emails must be <first name>.<department>@${env.universityDomain}, e.g. mrudang.ce@${env.universityDomain}`;
+const EMAIL_FORMAT_HINT = `student (e.g. 24ceuog001@${env.universityDomain}) or faculty (e.g. mrudang.ce@${env.universityDomain})`;
+
+const localPart = (email) => String(email).trim().split("@")[0];
+
 const parseStudentEmail = (email) => {
-    const local = String(email).split("@")[0];
-    const match = local.match(/^(\d{2})([A-Za-z]{2,4})([A-Za-z0-9]+)$/);
+    const match = localPart(email).match(STUDENT_PATTERN);
 
     if (!match) {
         return null;
@@ -22,31 +33,23 @@ const parseStudentEmail = (email) => {
     return {
         batchCode: match[1],
         departmentCode: match[2].toUpperCase(),
-        identifier: match[3].toUpperCase()
+        identifier: `${match[3]}${match[4]}`.toUpperCase()
     };
 };
 
 const parseFacultyEmail = (email) => {
-    const local = String(email).split("@")[0];
-    const parts = local.split(".");
+    const match = localPart(email).match(FACULTY_PATTERN);
 
-    if (parts.length < 2) {
+    if (!match) {
         return null;
     }
 
-    if (!/^[a-z][a-z0-9-]*$/i.test(parts[0])) {
-        return null;
-    }
-
-    const departmentCode = parts[parts.length - 1].toUpperCase();
-    const namePart = parts.slice(0, -1).join(".");
-
-    if (!namePart || !departmentCode) {
-        return null;
-    }
-
-    return { departmentCode, namePart };
+    return { departmentCode: match[2].toUpperCase(), namePart: match[1].toLowerCase() };
 };
+
+// Format-only check (no database lookups), used at login.
+const isValidUniversityEmailFormat = (email) =>
+    isUniversityEmail(email) && Boolean(parseStudentEmail(email) || parseFacultyEmail(email));
 
 const classifyUniversityEmail = async (email) => {
     const normalized = String(email).trim().toLowerCase();
@@ -117,7 +120,7 @@ const classifyUniversityEmail = async (email) => {
     }
 
     throw new AppError(
-        "Email must follow student (e.g. 24CE1234@ddu.ac.in) or faculty (e.g. name.ce@ddu.ac.in) format",
+        `Email must follow the ${EMAIL_FORMAT_HINT} format`,
         400,
         ERROR_CODES.INVALID_EMAIL
     );
@@ -127,23 +130,47 @@ const intervalsOverlap = (startA, endA, startB, endB) => {
     return startA < endB && endA > startB;
 };
 
-const combineDateAndTime = (dateValue, timeValue) => {
+// Normalises a calendar date (YYYY-MM-DD string, ISO string or Date stored at UTC midnight)
+// to its YYYY-MM-DD key, independent of the server's local timezone.
+const toDateKey = (dateValue) => {
+    if (typeof dateValue === "string" && /^\d{4}-\d{2}-\d{2}/.test(dateValue)) {
+        const key = dateValue.slice(0, 10);
+        if (!Number.isNaN(new Date(`${key}T00:00:00Z`).getTime())) {
+            return key;
+        }
+    }
+
     const date = new Date(dateValue);
 
-    if (Number.isNaN(date.getTime())) {
+    if (dateValue === null || dateValue === undefined || dateValue === "" || Number.isNaN(date.getTime())) {
         throw new AppError("Invalid date", 400, ERROR_CODES.VALIDATION_ERROR);
     }
 
-    const time = String(timeValue).trim();
+    return date.toISOString().slice(0, 10);
+};
+
+const dateKeyToDate = (dateValue) => new Date(`${toDateKey(dateValue)}T00:00:00Z`);
+
+const formatDateKey = (dateValue) =>
+    dateKeyToDate(dateValue).toLocaleDateString("en-GB", {
+        timeZone: "UTC",
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        year: "numeric"
+    });
+
+// Combines a calendar date and an HH:mm wall-clock time in the university's timezone.
+const combineDateAndTime = (dateValue, timeValue) => {
+    const key = toDateKey(dateValue);
+    const time = String(timeValue ?? "").trim();
     const match = time.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
 
     if (!match) {
         throw new AppError("Time must be in HH:mm 24-hour format", 400, ERROR_CODES.VALIDATION_ERROR);
     }
 
-    const result = new Date(date);
-    result.setHours(Number(match[1]), Number(match[2]), 0, 0);
-    return result;
+    return new Date(`${key}T${match[1]}:${match[2]}:00${env.timezoneOffset}`);
 };
 
 module.exports = {
@@ -151,6 +178,13 @@ module.exports = {
     isUniversityEmail,
     parseStudentEmail,
     parseFacultyEmail,
+    isValidUniversityEmailFormat,
+    EMAIL_FORMAT_HINT,
+    STUDENT_FORMAT_HINT,
+    FACULTY_FORMAT_HINT,
     intervalsOverlap,
+    toDateKey,
+    dateKeyToDate,
+    formatDateKey,
     combineDateAndTime
 };

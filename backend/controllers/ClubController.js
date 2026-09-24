@@ -1,25 +1,27 @@
 const clubService = require("../services/ClubService");
+const membershipService = require("../services/MembershipService");
+const subscriptionService = require("../services/SubscriptionService");
 const asyncHandler = require("../utils/AsyncHandler");
 const { sendSuccess } = require("../utils/ApiResponse");
 
-const getAllClubs = asyncHandler(async (req, res) => {
-    const result = await clubService.getAllClubs(req.query);
-    sendSuccess(res, 200, "Clubs fetched successfully", result.clubs, {
-        totalClubs: result.totalClubs,
-        currentPage: result.currentPage,
-        totalPages: result.totalPages,
-        limit: result.limit
-    });
+const listClubs = asyncHandler(async (req, res) => {
+    const { items, ...meta } = await clubService.listClubs(req.user, req.query);
+    sendSuccess(res, 200, "Clubs fetched", items, { meta });
 });
 
-const getClubById = asyncHandler(async (req, res) => {
-    const club = await clubService.getClubById(req.params.id);
-    sendSuccess(res, 200, "Club fetched successfully", club);
+const myClubs = asyncHandler(async (req, res) => {
+    const data = await clubService.getMyClubs(req.user);
+    sendSuccess(res, 200, "Your clubs fetched", data);
+});
+
+const getClub = asyncHandler(async (req, res) => {
+    const club = await clubService.getClub(req.user, req.params.id);
+    sendSuccess(res, 200, "Club fetched", club);
 });
 
 const updateClub = asyncHandler(async (req, res) => {
     const club = await clubService.updateClub(req.user, req.params.id, req.body);
-    sendSuccess(res, 200, "Club updated successfully", club);
+    sendSuccess(res, 200, "Club updated", club);
 });
 
 const changeStatus = asyncHandler(async (req, res) => {
@@ -27,51 +29,100 @@ const changeStatus = asyncHandler(async (req, res) => {
     sendSuccess(res, 200, "Club status updated", club);
 });
 
-const assignCoordinator = asyncHandler(async (req, res) => {
-    const club = await clubService.assignCoordinator(req.user, req.params.id, req.body.coordinatorId);
-    sendSuccess(res, 200, "Coordinator assigned", club);
-});
-
-const unassignCoordinator = asyncHandler(async (req, res) => {
-    const assignment = await clubService.unassignCoordinator(req.user, req.params.id, req.params.coordinatorId);
-    sendSuccess(res, 200, "Coordinator unassigned", assignment);
-});
-
-const listCoordinators = asyncHandler(async (req, res) => {
-    const coordinators = await clubService.listClubCoordinators(req.params.id);
-    sendSuccess(res, 200, "Club coordinators fetched", coordinators);
+const setMentor = asyncHandler(async (req, res) => {
+    const club = await clubService.setMentor(req.user, req.params.id, req.body.mentorId);
+    sendSuccess(res, 200, "Faculty mentor assigned", club);
 });
 
 const assignPresident = asyncHandler(async (req, res) => {
     const club = await clubService.assignPresident(req.user, req.params.id, req.body.userId);
-    sendSuccess(res, 200, "President assigned", club);
+    sendSuccess(res, 200, "President appointed", club);
+});
+
+const listMembers = asyncHandler(async (req, res) => {
+    const members = await clubService.listClubMembers(req.user, req.params.id);
+    sendSuccess(res, 200, "Club members fetched", members, { meta: { total: members.length } });
 });
 
 const addMember = asyncHandler(async (req, res) => {
-    const membership = await clubService.addMember(req.user, req.params.id, req.body.userId);
+    const membership = await membershipService.addMember(req.user, req.params.id, req.body.userId);
     sendSuccess(res, 201, "Member added", membership);
 });
 
 const removeMember = asyncHandler(async (req, res) => {
-    await clubService.removeMember(req.user, req.params.id, req.params.userId);
+    await membershipService.removeMember(req.user, req.params.id, req.params.userId);
     sendSuccess(res, 200, "Member removed");
 });
 
-const getMembers = asyncHandler(async (req, res) => {
-    const members = await clubService.getClubMembers(req.user, req.params.id);
-    sendSuccess(res, 200, "Club members fetched", members, { count: members.length });
+const changeMemberRole = asyncHandler(async (req, res) => {
+    const membership = await membershipService.changeMemberRole(req.user, req.params.id, req.params.userId, req.body.role);
+    sendSuccess(res, 200, "Member role updated", membership);
+});
+
+const requestToJoin = asyncHandler(async (req, res) => {
+    const membership = await membershipService.requestToJoin(req.user, req.params.id, req.body.message);
+    sendSuccess(res, 201, "Membership request sent", membership);
+});
+
+const cancelJoinRequest = asyncHandler(async (req, res) => {
+    await membershipService.cancelJoinRequest(req.user, req.params.id);
+    sendSuccess(res, 200, "Membership request withdrawn");
+});
+
+const leaveClub = asyncHandler(async (req, res) => {
+    await membershipService.leaveClub(req.user, req.params.id);
+    sendSuccess(res, 200, "You left the club");
+});
+
+const listJoinRequests = asyncHandler(async (req, res) => {
+    const requests = await membershipService.listJoinRequests(req.user, req.params.id, req.query);
+    sendSuccess(res, 200, "Membership requests fetched", requests);
+});
+
+const approveJoinRequest = asyncHandler(async (req, res) => {
+    const membership = await membershipService.decideJoinRequest(req.user, req.params.id, req.params.membershipId, true);
+    sendSuccess(res, 200, "Membership approved", membership);
+});
+
+const rejectJoinRequest = asyncHandler(async (req, res) => {
+    const membership = await membershipService.decideJoinRequest(
+        req.user,
+        req.params.id,
+        req.params.membershipId,
+        false,
+        req.body.reason
+    );
+    sendSuccess(res, 200, "Membership request rejected", membership);
+});
+
+const getSubscription = asyncHandler(async (req, res) => {
+    const result = await subscriptionService.getSubscription(req.user, req.params.id);
+    sendSuccess(res, 200, "Club notifications fetched", result);
+});
+
+const setSubscription = asyncHandler(async (req, res) => {
+    const result = await subscriptionService.setSubscription(req.user, req.params.id, req.body.enabled);
+    sendSuccess(res, 200, result.subscribed ? "Notifications turned on" : "Notifications turned off", result);
 });
 
 module.exports = {
-    getAllClubs,
-    getClubById,
+    getSubscription,
+    setSubscription,
+    listClubs,
+    myClubs,
+    getClub,
     updateClub,
     changeStatus,
-    assignCoordinator,
-    unassignCoordinator,
-    listCoordinators,
+    setMentor,
     assignPresident,
+    listMembers,
     addMember,
     removeMember,
-    getMembers
+    changeMemberRole,
+    requestToJoin,
+    cancelJoinRequest,
+    leaveClub,
+    listJoinRequests,
+    approveJoinRequest,
+    rejectJoinRequest
 };
