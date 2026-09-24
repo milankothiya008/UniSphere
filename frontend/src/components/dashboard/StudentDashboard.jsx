@@ -23,6 +23,7 @@ import { eventApi, notificationApi } from "../../api/endpoints";
 import { useToast } from "../../context/ToastContext";
 import { EventRow } from "../events/EventCard";
 import { Avatar, Badge, Button, ButtonLink, Card, EmptyState, RoleBadge, StatTile, StatusBadge } from "../ui";
+import { ClubInsights } from "./ClubInsights";
 import { countdownParts, daysUntil, formatDate, formatDateLong, formatTimeRange, humanize, plural, timeAgo } from "../../lib/format";
 import { PERMISSIONS } from "../../lib/constants";
 import { Hero, greeting } from "./DashboardHero";
@@ -400,6 +401,7 @@ const ClubWorkspace = ({ workspace }) => {
                 />
                 <StatLink to="/events/manage" label="Awaiting approval" value={workspace.pendingApproval.length} icon={ClipboardCheck} />
             </div>
+            {workspace.insights && <ClubInsights insights={workspace.insights} clubId={workspace.club._id} />}
             {attention.length > 0 && (
                 <>
                     <div className="section-title" style={{ padding: "4px 20px 0" }}>

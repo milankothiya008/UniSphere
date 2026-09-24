@@ -7,14 +7,14 @@ import { AsyncContent, ButtonLink, CardGridSkeleton, EmptyState, PageHeader, Tab
 
 const MyRegistrationsPage = () => {
     const [filters, setFilters] = useQueryState({ timeframe: "upcoming" });
-    const { data, loading, error, reload } = useApi(() => registrationApi.mine({ timeframe: filters.timeframe }), [filters.timeframe]);
+    const { data, loading, error, reload } = useApi(() => registrationApi.mine({ timeframe: filters.timeframe, includeWaitlist: filters.timeframe === "upcoming" ? "true" : undefined }), [filters.timeframe]);
 
     return (
         <>
             <PageHeader
                 eyebrow={<><CalendarCheck2 size={14} /> My registrations</>}
                 title="Your events"
-                description="Everything you've registered for, in one place."
+                description="Everything you've registered for, plus events you're on the waitlist for."
             />
             <div className="stack">
                 <Tabs
@@ -42,7 +42,11 @@ const MyRegistrationsPage = () => {
                 >
                     <div className="grid-cards">
                         {data?.map((registration) => (
-                            <EventCard key={registration._id} event={{ ...registration.event, myRegistration: "REGISTERED" }} showStatus={filters.timeframe === "past"} />
+                            <EventCard
+                                key={registration._id}
+                                event={{ ...registration.event, myRegistration: registration.status || "REGISTERED", waitlistPosition: registration.waitlistPosition }}
+                                showStatus={filters.timeframe === "past"}
+                            />
                         ))}
                     </div>
                 </AsyncContent>

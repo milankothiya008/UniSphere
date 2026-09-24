@@ -103,6 +103,10 @@ Each club is for **one or more departments, or for all departments**, and the sa
 
 **Registration** validates published status, registration window, manual closure, department/batch eligibility, duplicates (unique index) and capacity (atomic conditional seat counter — safe under concurrency). Students can cancel before the event starts; staff with `MANAGE_PARTICIPANTS` can remove participants; participant lists export to CSV.
 
+**Waitlist.** A full event doesn't turn students away: they join a first-come, first-served waitlist and see their place (#1, #2…). When a seat frees up — a student cancels, an organiser removes a participant, or the capacity is raised — the first student waiting is registered automatically, notified in-app and emailed ("You're in! A spot opened up…"), and everyone behind moves up. Newcomers can't jump the queue, promotion stops once the event starts, and every step is atomic so parallel cancellations never overfill the event or promote anyone twice. Students can leave the waitlist; organisers see it in order on the participants page; waitlisted students also get event updates and cancellation notices.
+
+**Club insights (president's dashboard).** The president's club workspace shows total members, total events (published + completed, plus how many are still in the pipeline), total registrations (and how many are waitlisted), upcoming and completed events, average participation per event with the share of seats filled, and an event-wise registrations chart — registrations against capacity with the waitlist, a hover tooltip, and a table view.
+
 **Results** work like a real competition board:
 
 - **Rounds** (screening, semi-final, finals…) each have standings: rank, registered participant and/or team or name, score, *Qualified* / *Eliminated* and a note. A round can be published any time after the event is published — including mid-event — so a hackathon can announce each round as it's judged. Publishing a round notifies registered participants in-app and by email; qualifiers get a personal "You're through!" email.

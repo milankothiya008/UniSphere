@@ -7,6 +7,9 @@ const registrationBadge = (event) => {
     if (event.myRegistration === "REGISTERED") {
         return <Badge tone="success" dot>You're registered</Badge>;
     }
+    if (event.myRegistration === "WAITLISTED") {
+        return <Badge tone="warning" dot>{event.waitlistPosition ? `Waitlist #${event.waitlistPosition}` : "On the waitlist"}</Badge>;
+    }
     if (event.status === "PUBLISHED") {
         return <StatusBadge status={event.registrationState} />;
     }

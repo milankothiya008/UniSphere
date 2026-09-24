@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { ClipboardList, Download, UserMinus } from "lucide-react";
+import { ClipboardList, Download, Hourglass, UserMinus } from "lucide-react";
 import { eventApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useToast } from "../../context/ToastContext";
@@ -35,6 +35,7 @@ const ParticipantsPage = () => {
 
     const event = eventState.data;
     const rows = useMemo(() => participants.data || [], [participants.data]);
+    const waitlist = useMemo(() => participants.meta?.waitlist || [], [participants.meta]);
     const canManage = event?.viewer?.canManageParticipants && event?.status === "PUBLISHED";
 
     const filtered = useMemo(() => {
@@ -47,7 +48,7 @@ const ParticipantsPage = () => {
 
     const remove = async (reason) => {
         await eventApi.removeParticipant(id, removing._id, reason || undefined);
-        toast.success(`${removing.user.name} was removed`);
+        toast.success(removing.status === "WAITLISTED" ? `${removing.user.name} was removed from the waitlist` : `${removing.user.name} was removed — the next student on the waitlist gets the seat`);
         participants.reload({ silent: true });
         eventState.reload({ silent: true });
     };
@@ -73,7 +74,14 @@ const ParticipantsPage = () => {
 
                     <div className="stack">
                         <Card>
-                            <CapacityBar registered={event.registeredCount} max={event.maxParticipants} />
+                            <div className="stack-sm">
+                                <CapacityBar registered={event.registeredCount} max={event.maxParticipants} />
+                                {waitlist.length > 0 && (
+                                    <span className="subtle row" style={{ gap: 6 }}>
+                                        <Hourglass size={13} /> {waitlist.length} waiting · freed seats go to them automatically, in order
+                                    </span>
+                                )}
+                            </div>
                         </Card>
 
                         <Card padded={false} title={`${rows.length} registered`} actions={<div style={{ width: 280, maxWidth: "100%" }}><SearchInput value={search} onChange={setSearch} placeholder="Search participants" /></div>}>
@@ -124,6 +132,53 @@ const ParticipantsPage = () => {
                                 </div>
                             </AsyncContent>
                         </Card>
+
+                        {waitlist.length > 0 && (
+                            <Card padded={false} title={<h2 className="row"><Hourglass size={17} /> Waitlist · {waitlist.length}</h2>}>
+                                <div className="table-wrap">
+                                    <table className="table">
+                                        <thead>
+                                            <tr>
+                                                <th>Place</th>
+                                                <th>Student</th>
+                                                <th>Department</th>
+                                                <th>Batch</th>
+                                                <th>Joined waitlist</th>
+                                                {canManage && <th />}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {waitlist.map((row) => (
+                                                <tr key={row._id}>
+                                                    <td>
+                                                        <strong>#{row.position}</strong>
+                                                    </td>
+                                                    <td>
+                                                        <div className="row" style={{ flexWrap: "nowrap" }}>
+                                                            <Avatar name={row.user.name} size="sm" />
+                                                            <div>
+                                                                <strong>{row.user.name}</strong>
+                                                                <div className="subtle">{row.user.email}</div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td>{row.user.departmentCode}</td>
+                                                    <td>{batchLabel(row.user.batchCode)}</td>
+                                                    <td className="nowrap">{formatDateTime(row.waitlistedAt)}</td>
+                                                    {canManage && (
+                                                        <td className="actions">
+                                                            <Button variant="ghost" size="sm" onClick={() => setRemoving(row)}>
+                                                                <UserMinus size={14} /> Remove
+                                                            </Button>
+                                                        </td>
+                                                    )}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </Card>
+                        )}
                     </div>
 
                     <ConfirmDialog
@@ -131,8 +186,14 @@ const ParticipantsPage = () => {
                         onClose={() => setRemoving(null)}
                         onConfirm={remove}
                         title={`Remove ${removing?.user.name}?`}
-                        description="Their seat is released and they are notified by email."
-                        confirmLabel="Remove participant"
+                        description={
+                            removing?.status === "WAITLISTED"
+                                ? "They lose their place on the waitlist and are notified by email."
+                                : waitlist.length
+                                  ? "Their seat goes to the first student on the waitlist, and both are notified by email."
+                                  : "Their seat is released and they are notified by email."
+                        }
+                        confirmLabel="Remove"
                         variant="danger"
                         reasonLabel="Reason (shared with the student)"
                     />

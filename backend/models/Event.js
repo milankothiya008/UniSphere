@@ -83,6 +83,12 @@ const eventSchema = new mongoose.Schema(
             default: 0,
             min: 0
         },
+        // Students queued for a seat once the event is full (see WaitlistService).
+        waitlistCount: {
+            type: Number,
+            default: 0,
+            min: 0
+        },
         eligibility: {
             departments: { type: [String], default: [] },
             batches: { type: [String], default: [] },

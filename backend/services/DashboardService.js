@@ -23,6 +23,52 @@ const eventCard = "title startAt endAt startTime endTime status registeredCount 
 
 const withState = (events) => events.map((event) => ({ ...event.toObject(), registrationState: registrationWindowState(event) }));
 
+const INSIGHT_EVENTS = 12;
+const round1 = (value) => Math.round(value * 10) / 10;
+
+// The president's numbers for their club. "Events" are the ones that reached campus (published or
+// completed); drafts and events in review are reported separately as the pipeline.
+const clubInsights = async (clubId, memberCount, now = new Date()) => {
+    const [hosted, pipeline] = await Promise.all([
+        Event.find({ club: clubId, status: { $in: [EVENT_STATUS.PUBLISHED, EVENT_STATUS.COMPLETED] } })
+            .select("title startAt endAt status registeredCount maxParticipants waitlistCount")
+            .sort({ startAt: -1 })
+            .lean(),
+        Event.countDocuments({
+            club: clubId,
+            status: { $in: [EVENT_STATUS.DRAFT, EVENT_STATUS.NEEDS_CHANGES, EVENT_STATUS.PENDING_APPROVAL, EVENT_STATUS.APPROVED] }
+        })
+    ]);
+
+    const totalRegistrations = hosted.reduce((sum, event) => sum + (event.registeredCount || 0), 0);
+    const capped = hosted.filter((event) => event.maxParticipants);
+    const seats = capped.reduce((sum, event) => sum + event.maxParticipants, 0);
+    const seatsTaken = capped.reduce((sum, event) => sum + (event.registeredCount || 0), 0);
+
+    return {
+        totalMembers: memberCount,
+        totalEvents: hosted.length,
+        eventsInPipeline: pipeline,
+        totalRegistrations,
+        upcomingEvents: hosted.filter((event) => event.status === EVENT_STATUS.PUBLISHED && event.startAt > now).length,
+        completedEvents: hosted.filter((event) => event.status === EVENT_STATUS.COMPLETED).length,
+        averageParticipation: hosted.length ? round1(totalRegistrations / hosted.length) : 0,
+        // Share of offered seats that were taken, across events with a participant limit.
+        seatFillRate: seats ? Math.round((seatsTaken / seats) * 100) : null,
+        waitlisted: hosted.reduce((sum, event) => sum + (event.waitlistCount || 0), 0),
+        eventWise: hosted.slice(0, INSIGHT_EVENTS).map((event) => ({
+            _id: event._id,
+            title: event.title,
+            startAt: event.startAt,
+            status: event.status,
+            upcoming: event.status === EVENT_STATUS.PUBLISHED && event.startAt > now,
+            registered: event.registeredCount || 0,
+            capacity: event.maxParticipants || null,
+            waitlist: event.waitlistCount || 0
+        }))
+    };
+};
+
 const clubWorkspace = async (membership) => {
     const clubId = membership.club._id;
     const permissions = CLUB_ROLE_PERMISSIONS[membership.role] || [];
@@ -72,7 +118,8 @@ const clubWorkspace = async (membership) => {
             ? completedIds
                   .filter((event) => resultByEvent.get(String(event._id)) !== RESULT_STATUS.PUBLISHED)
                   .map((event) => ({ ...event.toObject(), resultStatus: resultByEvent.get(String(event._id)) || null }))
-            : []
+            : [],
+        insights: has(CLUB_PERMISSIONS.MANAGE_CLUB) ? await clubInsights(clubId, memberCount, now) : null
     };
 };
 

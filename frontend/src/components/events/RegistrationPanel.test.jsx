@@ -49,11 +49,36 @@ describe("RegistrationPanel", () => {
         expect(screen.getByRole("button", { name: /register now/i })).toBeDisabled();
     });
 
-    test("shows a full event as unavailable", () => {
-        renderWithRouter(<RegistrationPanel event={{ ...baseEvent, registrationState: "FULL", registeredCount: 50 }} onChange={vi.fn()} />);
+    test("a full event offers the waitlist instead of turning students away", async () => {
+        eventApi.register.mockResolvedValue({ data: { waitlisted: true, waitlistPosition: 3 } });
+        const onChange = vi.fn();
+        renderWithRouter(<RegistrationPanel event={{ ...baseEvent, registrationState: "FULL", registeredCount: 50, waitlistCount: 2 }} onChange={onChange} />);
 
-        expect(screen.getByText("This event is full.")).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: /register now/i })).toBeDisabled();
+        expect(screen.getByText("All seats are taken")).toBeInTheDocument();
+        expect(screen.getByText("2 students on the waitlist")).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: /join waitlist/i }));
+
+        expect(eventApi.register).toHaveBeenCalledWith("e1");
+        expect(await screen.findByText(/you're #3 on the waitlist/i)).toBeInTheDocument();
+        expect(onChange).toHaveBeenCalled();
+    });
+
+    test("shows a waitlisted student their place and lets them leave", async () => {
+        eventApi.unregister.mockResolvedValue({ data: { leftWaitlist: true } });
+        renderWithRouter(
+            <RegistrationPanel event={{ ...baseEvent, registrationState: "FULL", viewer: { registration: { status: "WAITLISTED", waitlistPosition: 2 } } }} onChange={vi.fn()} />
+        );
+
+        expect(screen.getByText("#2")).toBeInTheDocument();
+        expect(screen.getByText(/1 ahead of you/)).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: /leave waitlist/i }));
+        await userEvent.click(screen.getByRole("dialog").querySelector("button.btn-danger") || screen.getAllByRole("button", { name: /leave waitlist/i }).at(-1));
+        expect(eventApi.unregister).toHaveBeenCalledWith("e1");
+    });
+
+    test("tells a promoted student they got a seat from the waitlist", () => {
+        renderWithRouter(<RegistrationPanel event={{ ...baseEvent, viewer: { registration: { status: "REGISTERED", promotedAt: future(-0.1) } } }} onChange={vi.fn()} />);
+        expect(screen.getByText("You got a seat from the waitlist")).toBeInTheDocument();
     });
 
     test("offers cancellation to registered students", () => {

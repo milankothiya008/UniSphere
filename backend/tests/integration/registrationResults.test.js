@@ -100,23 +100,31 @@ describe("event registration", () => {
         expect((await api(otherFaculty).post(`/api/events/${eventId}/register`)).status).toBe(403);
     });
 
-    test("capacity holds under concurrent registrations", async () => {
+    test("capacity holds under concurrent registrations; the rest join the waitlist in order", async () => {
         const students = await Promise.all([1, 2, 3, 4, 5].map(() => makeStudent()));
         const results = await Promise.all(students.map((s) => api(s).post(`/api/events/${eventId}/register`)));
 
-        expect(results.filter((r) => r.status === 201)).toHaveLength(1);
-        expect(results.filter((r) => r.body.errorCode === "EVENT_FULL")).toHaveLength(4);
+        expect(results.every((r) => r.status === 201)).toBe(true);
+        expect(results.filter((r) => !r.body.data.waitlisted)).toHaveLength(1);
+        const queued = results.filter((r) => r.body.data.waitlisted);
+        expect(queued).toHaveLength(4);
+        expect(queued.map((r) => r.body.data.waitlistPosition).sort()).toEqual([1, 2, 3, 4]);
+        expect((await Event.findById(eventId)).waitlistCount).toBe(4);
 
         const event = await Event.findById(eventId);
         expect(event.registeredCount).toBe(2);
         expect(await EventRegistration.countDocuments({ event: eventId, status: "REGISTERED" })).toBe(2);
     });
 
-    test("cancelling frees a seat and re-registering works", async () => {
+    test("cancelling hands the seat to the waitlist; re-registering joins the back of the queue", async () => {
         expect((await api(first).delete(`/api/events/${eventId}/register`)).status).toBe(200);
-        expect((await Event.findById(eventId)).registeredCount).toBe(1);
-        expect((await api(first).post(`/api/events/${eventId}/register`)).status).toBe(201);
-        expect((await Event.findById(eventId)).registeredCount).toBe(2);
+        const afterCancel = await Event.findById(eventId);
+        expect(afterCancel.registeredCount).toBe(2);
+        expect(afterCancel.waitlistCount).toBe(3);
+
+        const again = await api(first).post(`/api/events/${eventId}/register`);
+        expect(again.status).toBe(201);
+        expect(again.body.data).toMatchObject({ waitlisted: true, waitlistPosition: 4 });
     });
 
     test("registration fails after the deadline and when manually closed", async () => {
@@ -136,8 +144,8 @@ describe("event registration", () => {
         expect((await api(student).post(`/api/events/${draft.body.data._id}/register`)).status).toBe(400);
     });
 
-    test("my registrations lists upcoming events", async () => {
-        const res = await api(first).get("/api/registrations/me?timeframe=upcoming");
+    test("my registrations lists upcoming events (including ones the student is waitlisted for)", async () => {
+        const res = await api(first).get("/api/registrations/me?timeframe=upcoming&includeWaitlist=true");
         expect(res.body.data.map((r) => String(r.event._id))).toContain(String(eventId));
     });
 });

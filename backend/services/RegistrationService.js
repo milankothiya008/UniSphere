@@ -20,6 +20,7 @@ const {
 } = require("./AuthorizationService");
 const { recordAudit } = require("./AuditService");
 const { notify } = require("./NotificationService");
+const { promoteFromWaitlist, waitlistPosition, reserveSeat, releaseSeat, adjustWaitlistCount } = require("./WaitlistService");
 
 const findEvent = async (eventId) => {
     const event = await Event.findById(eventId);
@@ -67,10 +68,70 @@ const assertCanRegister = (actor, event, now = new Date()) => {
     if (problem) {
         throw new AppError(problem, 403, ERROR_CODES.NOT_ELIGIBLE);
     }
+};
 
-    if (event.maxParticipants && event.registeredCount >= event.maxParticipants) {
-        throw new AppError("This event is full", 409, ERROR_CODES.EVENT_FULL);
+const eventDateLabel = (event) => `${formatDateKey(event.eventDate)} at ${event.startTime}`;
+
+// Puts the student in the queue for a full event (re-using a cancelled registration if there is one).
+const joinWaitlist = async (actor, event, existing) => {
+    const now = new Date();
+    let registration;
+    try {
+        registration = existing
+            ? await EventRegistration.findOneAndUpdate(
+                  { _id: existing._id, status: REGISTRATION_STATUS.CANCELLED },
+                  { $set: { status: REGISTRATION_STATUS.WAITLISTED, waitlistedAt: now, promotedAt: null } },
+                  { returnDocument: "after" }
+              )
+            : await EventRegistration.create({ event: event._id, user: actor._id, status: REGISTRATION_STATUS.WAITLISTED, waitlistedAt: now });
+    } catch (error) {
+        if (error.code === 11000) {
+            throw new AppError("You are already registered or on the waitlist for this event", 409, ERROR_CODES.DUPLICATE_REGISTRATION);
+        }
+        throw error;
     }
+    if (!registration) {
+        throw new AppError("You are already registered or on the waitlist for this event", 409, ERROR_CODES.DUPLICATE_REGISTRATION);
+    }
+
+    await adjustWaitlistCount(event._id, 1);
+
+    await recordAudit({
+        action: AUDIT_ACTIONS.WAITLIST_JOINED,
+        actor: actor._id,
+        targetType: "EventRegistration",
+        targetId: registration._id,
+        toState: REGISTRATION_STATUS.WAITLISTED,
+        metadata: { eventId: event._id }
+    });
+
+    // A seat may have been freed between our failed reservation and joining the queue; fill it now.
+    await promoteFromWaitlist(event._id, { reason: "joined_while_seat_free" });
+
+    const current = await EventRegistration.findById(registration._id);
+    if (current.status === REGISTRATION_STATUS.REGISTERED) {
+        const fresh = await Event.findById(event._id).select("registeredCount maxParticipants waitlistCount");
+        return { registration: current, waitlisted: false, registeredCount: fresh.registeredCount, maxParticipants: fresh.maxParticipants, waitlistCount: fresh.waitlistCount };
+    }
+
+    const position = await waitlistPosition(current);
+    await notify(actor._id, {
+        type: NOTIFICATION_TYPES.WAITLISTED,
+        title: `You're #${position} on the waitlist for ${event.title}`,
+        message: "The event is full. If a seat frees up you'll be registered automatically and we'll email you.",
+        link: `/events/${event._id}`,
+        email: true
+    });
+
+    const fresh = await Event.findById(event._id).select("registeredCount maxParticipants waitlistCount");
+    return {
+        registration: current,
+        waitlisted: true,
+        waitlistPosition: position,
+        registeredCount: fresh.registeredCount,
+        maxParticipants: fresh.maxParticipants,
+        waitlistCount: fresh.waitlistCount
+    };
 };
 
 const registerForEvent = async (actor, eventId) => {
@@ -85,20 +146,19 @@ const registerForEvent = async (actor, eventId) => {
     if (existing?.status === REGISTRATION_STATUS.REGISTERED) {
         throw new AppError("You are already registered for this event", 409, ERROR_CODES.DUPLICATE_REGISTRATION);
     }
+    if (existing?.status === REGISTRATION_STATUS.WAITLISTED) {
+        const position = await waitlistPosition(existing);
+        throw new AppError(`You are already on the waitlist (#${position})`, 409, ERROR_CODES.DUPLICATE_REGISTRATION);
+    }
+
+    // Students already waiting keep their place: a newcomer only gets a seat directly when nobody is queued.
+    const queueExists = await EventRegistration.exists({ event: event._id, status: REGISTRATION_STATUS.WAITLISTED });
 
     // Reserve a seat first: the conditional $inc is atomic, so concurrent registrations cannot overfill.
-    const reserved = await Event.findOneAndUpdate(
-        {
-            _id: event._id,
-            status: EVENT_STATUS.PUBLISHED,
-            ...(event.maxParticipants ? { registeredCount: { $lt: event.maxParticipants } } : {})
-        },
-        { $inc: { registeredCount: 1 } },
-        { returnDocument: "after" }
-    );
+    const reserved = queueExists ? null : await reserveSeat(event);
 
     if (!reserved) {
-        throw new AppError("This event is full", 409, ERROR_CODES.EVENT_FULL);
+        return joinWaitlist(actor, event, existing);
     }
 
     let registration;
@@ -107,7 +167,7 @@ const registerForEvent = async (actor, eventId) => {
             // Unique (event, user) index plus the status guard stop two parallel re-registrations.
             registration = await EventRegistration.findOneAndUpdate(
                 { _id: existing._id, status: REGISTRATION_STATUS.CANCELLED },
-                { $set: { status: REGISTRATION_STATUS.REGISTERED, registeredAt: new Date() } },
+                { $set: { status: REGISTRATION_STATUS.REGISTERED, registeredAt: new Date(), waitlistedAt: null, promotedAt: null } },
                 { returnDocument: "after" }
             );
             if (!registration) {
@@ -121,7 +181,7 @@ const registerForEvent = async (actor, eventId) => {
             });
         }
     } catch (error) {
-        await Event.updateOne({ _id: event._id, registeredCount: { $gt: 0 } }, { $inc: { registeredCount: -1 } });
+        await releaseSeat(event._id);
 
         if (error.code === 11000) {
             throw new AppError("You are already registered for this event", 409, ERROR_CODES.DUPLICATE_REGISTRATION);
@@ -141,20 +201,21 @@ const registerForEvent = async (actor, eventId) => {
     await notify(actor._id, {
         type: NOTIFICATION_TYPES.REGISTRATION_CONFIRMED,
         title: `You're registered for ${event.title}`,
-        message: `See you on ${formatDateKey(event.eventDate)} at ${event.startTime}.`,
+        message: `See you on ${eventDateLabel(event)}.`,
         link: `/events/${event._id}`,
         email: true
     });
 
     return {
         registration,
+        waitlisted: false,
         registeredCount: reserved.registeredCount,
-        maxParticipants: reserved.maxParticipants
+        maxParticipants: reserved.maxParticipants,
+        waitlistCount: reserved.waitlistCount
     };
 };
 
-const releaseSeat = (eventId) => Event.updateOne({ _id: eventId, registeredCount: { $gt: 0 } }, { $inc: { registeredCount: -1 } });
-
+// Cancels a registration or leaves the waitlist. A freed seat goes to the first person waiting.
 const cancelRegistration = async (actor, eventId) => {
     const event = await findEvent(eventId);
 
@@ -163,26 +224,35 @@ const cancelRegistration = async (actor, eventId) => {
     }
 
     const registration = await EventRegistration.findOneAndUpdate(
-        { event: event._id, user: actor._id, status: REGISTRATION_STATUS.REGISTERED },
-        { $set: { status: REGISTRATION_STATUS.CANCELLED } },
-        { returnDocument: "after" }
+        { event: event._id, user: actor._id, status: { $in: [REGISTRATION_STATUS.REGISTERED, REGISTRATION_STATUS.WAITLISTED] } },
+        { $set: { status: REGISTRATION_STATUS.CANCELLED } }
     );
 
     if (!registration) {
         throw new AppError("You are not registered for this event", 404, ERROR_CODES.NOT_FOUND);
     }
 
-    await releaseSeat(event._id);
+    const wasWaitlisted = registration.status === REGISTRATION_STATUS.WAITLISTED;
+
+    if (wasWaitlisted) {
+        await adjustWaitlistCount(event._id, -1);
+    } else {
+        await releaseSeat(event._id);
+    }
 
     await recordAudit({
-        action: AUDIT_ACTIONS.REGISTRATION_CANCELLED,
+        action: wasWaitlisted ? AUDIT_ACTIONS.WAITLIST_LEFT : AUDIT_ACTIONS.REGISTRATION_CANCELLED,
         actor: actor._id,
         targetType: "EventRegistration",
         targetId: registration._id,
-        fromState: REGISTRATION_STATUS.REGISTERED,
+        fromState: registration.status,
         toState: REGISTRATION_STATUS.CANCELLED,
         metadata: { eventId: event._id }
     });
+
+    const promoted = wasWaitlisted ? 0 : await promoteFromWaitlist(event._id, { reason: "registration_cancelled" });
+    const fresh = await Event.findById(event._id).select("registeredCount maxParticipants waitlistCount");
+    return { leftWaitlist: wasWaitlisted, promoted, registeredCount: fresh.registeredCount, maxParticipants: fresh.maxParticipants, waitlistCount: fresh.waitlistCount };
 };
 
 const listParticipants = async (actor, eventId, query = {}) => {
@@ -193,21 +263,30 @@ const listParticipants = async (actor, eventId, query = {}) => {
         .populate("user", "name email departmentCode batchCode")
         .sort({ registeredAt: 1 });
 
+    const queued = await EventRegistration.find({ event: event._id, status: REGISTRATION_STATUS.WAITLISTED })
+        .populate("user", "name email departmentCode batchCode")
+        .sort({ waitlistedAt: 1, _id: 1 });
+
     let items = registrations.filter((registration) => registration.user);
+    let waitlist = queued.filter((registration) => registration.user).map((registration, index) => ({ ...registration.toObject(), position: index + 1 }));
 
     if (query.search) {
         const pattern = new RegExp(searchRegex(query.search).$regex, "i");
-        items = items.filter((registration) => pattern.test(registration.user.name) || pattern.test(registration.user.email));
+        const matches = (registration) => pattern.test(registration.user.name) || pattern.test(registration.user.email);
+        items = items.filter(matches);
+        waitlist = waitlist.filter(matches);
     }
 
     return {
         items,
+        waitlist,
         event: {
             _id: event._id,
             title: event.title,
             status: event.status,
             registeredCount: event.registeredCount,
-            maxParticipants: event.maxParticipants
+            maxParticipants: event.maxParticipants,
+            waitlistCount: event.waitlistCount
         }
     };
 };
@@ -221,27 +300,35 @@ const removeParticipant = async (actor, eventId, registrationId, reason = null) 
     }
 
     const registration = await EventRegistration.findOneAndUpdate(
-        { _id: registrationId, event: event._id, status: REGISTRATION_STATUS.REGISTERED },
-        { $set: { status: REGISTRATION_STATUS.CANCELLED } },
-        { returnDocument: "after" }
+        { _id: registrationId, event: event._id, status: { $in: [REGISTRATION_STATUS.REGISTERED, REGISTRATION_STATUS.WAITLISTED] } },
+        { $set: { status: REGISTRATION_STATUS.CANCELLED } }
     );
 
     if (!registration) {
         throw new AppError("Registration not found", 404, ERROR_CODES.NOT_FOUND);
     }
 
-    await releaseSeat(event._id);
+    const wasWaitlisted = registration.status === REGISTRATION_STATUS.WAITLISTED;
+    if (wasWaitlisted) {
+        await adjustWaitlistCount(event._id, -1);
+    } else {
+        await releaseSeat(event._id);
+    }
 
     await recordAudit({
         action: AUDIT_ACTIONS.PARTICIPANT_REMOVED,
         actor: actor._id,
         targetType: "EventRegistration",
         targetId: registration._id,
-        fromState: REGISTRATION_STATUS.REGISTERED,
+        fromState: registration.status,
         toState: REGISTRATION_STATUS.CANCELLED,
         reason,
         metadata: { eventId: event._id, userId: registration.user }
     });
+
+    if (!wasWaitlisted) {
+        await promoteFromWaitlist(event._id, { reason: "participant_removed" });
+    }
 
     await notify(registration.user, {
         type: NOTIFICATION_TYPES.REGISTRATION_REMOVED,
@@ -265,8 +352,10 @@ const getPublicRegistrationCount = async (eventId) => {
     };
 };
 
+// includeWaitlist=true adds waitlisted events (with the student's place in the queue).
 const getMyRegistrations = async (actor, query = {}) => {
-    const registrations = await EventRegistration.find({ user: actor._id, status: REGISTRATION_STATUS.REGISTERED })
+    const statuses = [REGISTRATION_STATUS.REGISTERED, ...(String(query.includeWaitlist) === "true" ? [REGISTRATION_STATUS.WAITLISTED] : [])];
+    const registrations = await EventRegistration.find({ user: actor._id, status: { $in: statuses } })
         .populate({
             path: "event",
             select: "title shortDescription poster startAt endAt startTime endTime status club venue registeredCount maxParticipants category",
@@ -285,6 +374,12 @@ const getMyRegistrations = async (actor, query = {}) => {
         items.sort((a, b) => a.event.startAt - b.event.startAt);
     } else if (query.timeframe === "past") {
         items = items.filter((r) => r.event.endAt <= now || r.event.status !== EVENT_STATUS.PUBLISHED);
+    }
+
+    if (statuses.includes(REGISTRATION_STATUS.WAITLISTED)) {
+        return Promise.all(
+            items.map(async (registration) => ({ ...registration.toObject(), waitlistPosition: await waitlistPosition(registration) }))
+        );
     }
 
     return items;

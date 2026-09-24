@@ -91,6 +91,7 @@ export const STATUS_STYLES = {
     ARCHIVED: ["Archived", "neutral"],
     PENDING: ["Pending", "warning"],
     REGISTERED: ["Registered", "success"],
+    WAITLISTED: ["Waitlisted", "warning"],
     OPEN: ["Registration open", "success"],
     NOT_OPEN: ["Opens soon", "info"],
     CLOSED: ["Registration closed", "neutral"],

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { CalendarCheck2, CalendarDays, CheckCircle2, ChevronRight, Clock, Hourglass, MapPin, Trophy, Users } from "lucide-react";
+import { CalendarCheck2, CalendarDays, CheckCircle2, ChevronRight, Clock, Hourglass, ListPlus, MapPin, Trophy, Users } from "lucide-react";
 import { eventApi } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -35,16 +35,29 @@ export const EventPost = ({ event: initial, onRegistered }) => {
     const past = isPast(event);
     const live = isLive(event);
     const registered = event.myRegistration === "REGISTERED";
+    const waitlisted = event.myRegistration === "WAITLISTED";
     const problem = isStudent ? eligibilityProblem(user, event) : null;
-    const canRegister = isStudent && !registered && !past && !live && event.registrationState === "OPEN" && !problem;
+    const full = event.registrationState === "FULL";
+    // A full event still takes sign-ups: they go on the waitlist.
+    const canRegister = isStudent && !registered && !waitlisted && !past && !live && ["OPEN", "FULL"].includes(event.registrationState) && !problem;
 
     const register = async () => {
         setPending(true);
         try {
             const response = await eventApi.register(event._id);
-            setEvent((prev) => ({ ...prev, myRegistration: "REGISTERED", registeredCount: response.data.registeredCount }));
-            toast.success(`You're registered for ${event.title}`);
-            onRegistered?.(event);
+            const joinedWaitlist = Boolean(response.data.waitlisted);
+            setEvent((prev) => ({
+                ...prev,
+                myRegistration: joinedWaitlist ? "WAITLISTED" : "REGISTERED",
+                registeredCount: response.data.registeredCount,
+                waitlistCount: response.data.waitlistCount
+            }));
+            if (joinedWaitlist) {
+                toast.info(`${event.title} is full — you're #${response.data.waitlistPosition} on the waitlist`);
+            } else {
+                toast.success(`You're registered for ${event.title}`);
+                onRegistered?.(event);
+            }
         } catch (error) {
             toast.error(error);
         } finally {
@@ -69,10 +82,16 @@ export const EventPost = ({ event: initial, onRegistered }) => {
                 <CheckCircle2 size={13} /> You're going
             </Badge>
         );
+    } else if (waitlisted) {
+        action = (
+            <Badge tone="warning">
+                <Hourglass size={13} /> On the waitlist
+            </Badge>
+        );
     } else if (canRegister) {
         action = (
-            <Button size="sm" onClick={register} loading={pending}>
-                <CalendarCheck2 size={15} /> Register
+            <Button size="sm" variant={full ? "secondary" : "primary"} onClick={register} loading={pending}>
+                {full ? <ListPlus size={15} /> : <CalendarCheck2 size={15} />} {full ? "Join waitlist" : "Register"}
             </Button>
         );
     } else {
@@ -83,14 +102,14 @@ export const EventPost = ({ event: initial, onRegistered }) => {
         );
     }
 
-    const note = !past && !registered && isStudent
+    const note = !past && !registered && !waitlisted && isStudent
         ? problem ||
           (live
               ? "Happening right now"
               : {
                     NOT_OPEN: `Registration opens ${formatDateTime(event.registrationStart)}`,
                     CLOSED: "Registration closed",
-                    FULL: "This event is full"
+                    FULL: event.waitlistCount ? `Full · ${event.waitlistCount} on the waitlist` : "Full · join the waitlist"
                 }[event.registrationState])
         : null;
 

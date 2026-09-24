@@ -31,6 +31,7 @@ const {
 } = require("./AuthorizationService");
 const { assertVenueAvailable, withVenueLock } = require("./VenueService");
 const { sendEventLaunchEmails } = require("./CampusMailer");
+const { promoteFromWaitlist, waitlistPosition } = require("./WaitlistService");
 const { EMAIL_CATEGORIES } = require("../constants/EmailCategories");
 const { recordAudit } = require("./AuditService");
 const { notify, notifyAllUsers } = require("./NotificationService");
@@ -215,8 +216,12 @@ const eventManagers = async (event) => clubUsersWithPermission(event.club?._id |
 
 const eventPublishers = async (event) => clubUsersWithPermission(event.club?._id || event.club, CLUB_PERMISSIONS.PUBLISH_EVENTS);
 
+// Everyone holding or queuing for a seat hears about changes to the event.
 const registeredUserIds = async (eventId) => {
-    const registrations = await EventRegistration.find({ event: eventId, status: REGISTRATION_STATUS.REGISTERED }).select("user");
+    const registrations = await EventRegistration.find({
+        event: eventId,
+        status: { $in: [REGISTRATION_STATUS.REGISTERED, REGISTRATION_STATUS.WAITLISTED] }
+    }).select("user");
     return registrations.map((registration) => registration.user);
 };
 
@@ -273,7 +278,15 @@ const viewerFor = (context, event, registration) => ({
     canManageResults: contextHas(context, CLUB_PERMISSIONS.MANAGE_RESULTS),
     canPublishResults: contextHas(context, CLUB_PERMISSIONS.PUBLISH_RESULTS),
     canReview: context.isMentor && event.status === EVENT_STATUS.PENDING_APPROVAL,
-    registration: registration ? { _id: registration._id, status: registration.status, registeredAt: registration.registeredAt } : null
+    registration: registration
+        ? {
+              _id: registration._id,
+              status: registration.status,
+              registeredAt: registration.registeredAt,
+              promotedAt: registration.promotedAt || null,
+              waitlistPosition: registration.waitlistPosition ?? null
+          }
+        : null
 });
 
 const getEventDetail = async (actor, eventId) => {
@@ -290,7 +303,8 @@ const getEventDetail = async (actor, eventId) => {
         throw new AppError("Event not found", 404, ERROR_CODES.NOT_FOUND);
     }
 
-    const registration = actor ? await EventRegistration.findOne({ event: event._id, user: actor._id }) : null;
+    const found = actor ? await EventRegistration.findOne({ event: event._id, user: actor._id }) : null;
+    const registration = found ? { ...found.toObject(), waitlistPosition: await waitlistPosition(found) } : null;
 
     return serialize(event, { viewer: actor ? viewerFor(context, event, registration) : null });
 };
@@ -332,6 +346,7 @@ const updateEvent = async (actor, eventId, payload) => {
     const event = await findEvent(eventId);
     await assertClubPermission(actor, event.club, CLUB_PERMISSIONS.MANAGE_EVENTS, "You cannot edit this club's events");
     const changed = [];
+    let promoteAfterSave = false;
 
     if (EDITABLE_EVENT_STATUSES.includes(event.status)) {
         const venue = await loadActiveVenue(payload.venue || event.venue);
@@ -386,6 +401,7 @@ const updateEvent = async (actor, eventId, payload) => {
             const venue = await Venue.findById(event.venue);
             event.maxParticipants = assertCapacityFits(payload.maxParticipants, venue, event.registeredCount);
             changed.push("maxParticipants");
+            promoteAfterSave = true;
         }
 
         if (payload.registrationEnd !== undefined) {
@@ -415,6 +431,11 @@ const updateEvent = async (actor, eventId, payload) => {
     event.updatedBy = actor._id;
     await event.save();
     await audit(event, AUDIT_ACTIONS.EVENT_UPDATED, actor, event.status, null, { fields: changed });
+
+    // More seats (or no limit any more): move waiting students in straight away.
+    if (promoteAfterSave && event.status === EVENT_STATUS.PUBLISHED) {
+        await promoteFromWaitlist(event._id, { reason: "capacity_increased" });
+    }
 
     const note = payload.updateNote && String(payload.updateNote).trim();
     if (event.status === EVENT_STATUS.PUBLISHED && note) {

@@ -21,6 +21,16 @@ const eventRegistrationSchema = new mongoose.Schema(
         registeredAt: {
             type: Date,
             default: Date.now
+        },
+        // Queue order for WAITLISTED registrations (first in, first promoted).
+        waitlistedAt: {
+            type: Date,
+            default: null
+        },
+        // Set when a waitlisted student was moved into a freed seat.
+        promotedAt: {
+            type: Date,
+            default: null
         }
     },
     { timestamps: true }
@@ -29,5 +39,6 @@ const eventRegistrationSchema = new mongoose.Schema(
 eventRegistrationSchema.index({ event: 1, user: 1 }, { unique: true });
 eventRegistrationSchema.index({ user: 1, status: 1 });
 eventRegistrationSchema.index({ event: 1, status: 1 });
+eventRegistrationSchema.index({ event: 1, status: 1, waitlistedAt: 1 });
 
 module.exports = mongoose.model("EventRegistration", eventRegistrationSchema);

@@ -1572,3 +1572,27 @@
         transition: none;
     }
 }
+
+/* Waitlist place (event registration panel) */
+.waitlist-spot {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    background: var(--warning-100);
+}
+
+.waitlist-number {
+    flex: none;
+    display: grid;
+    place-items: center;
+    min-width: 44px;
+    height: 44px;
+    padding: 0 6px;
+    border-radius: 12px;
+    background: #fff;
+    color: var(--warning-600);
+    font-weight: 700;
+    font-size: 1.1rem;
+}

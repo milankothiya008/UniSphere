@@ -1960,3 +1960,224 @@ a.next-up:hover {
     background: var(--surface-muted);
     border: 1px solid var(--border);
 }
+
+/* ---------------------------------------------------------------- Club insights (president) */
+.club-insights {
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+}
+
+.insight-tiles {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    padding: 12px 16px 4px;
+}
+
+.insight-tiles .stat .stat-value {
+    font-variant-numeric: normal;
+}
+
+.insight-chart {
+    margin: 12px 16px 16px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+}
+
+.insight-chart h3 {
+    font-size: 0.95rem;
+}
+
+/* Horizontal bar chart: label column + plot column sharing one x-scale */
+.reg-chart {
+    --reg-label: 190px;
+    margin-top: 14px;
+}
+
+.reg-chart-axis {
+    display: grid;
+    grid-template-columns: var(--reg-label) minmax(0, 1fr);
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.reg-chart-ticks {
+    position: relative;
+    height: 16px;
+    margin-right: 96px;
+}
+
+.reg-chart-ticks span {
+    position: absolute;
+    transform: translateX(-50%);
+    font-size: 0.72rem;
+    color: var(--text-subtle);
+    font-variant-numeric: tabular-nums;
+}
+
+.reg-chart-ticks span:first-child {
+    transform: none;
+}
+
+.reg-chart-rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.reg-chart-row {
+    display: grid;
+    grid-template-columns: var(--reg-label) minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    min-height: 44px;
+    padding: 4px 0;
+    color: var(--text);
+    text-decoration: none !important;
+    border-radius: var(--radius-sm);
+}
+
+.reg-chart-row:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.reg-chart-row.active {
+    background: var(--surface-muted);
+}
+
+.reg-chart-label {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding-left: 4px;
+}
+
+.reg-chart-label strong {
+    font-size: 0.86rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.reg-chart-label small {
+    font-size: 0.74rem;
+    color: var(--text-subtle);
+}
+
+.reg-chart-plot {
+    position: relative;
+    display: block;
+    height: 28px;
+    margin-right: 96px;
+}
+
+.reg-chart-grid i {
+    position: absolute;
+    top: -6px;
+    bottom: -6px;
+    width: 1px;
+    background: var(--border);
+}
+
+.reg-chart-track,
+.reg-chart-bar {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    height: 14px;
+    transform: translateY(-50%);
+    border-radius: 0 4px 4px 0;
+}
+
+.reg-chart-track {
+    background: var(--neutral-100);
+    box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.reg-chart-bar {
+    background: var(--ink-600);
+    min-width: 2px;
+    transition: width 0.3s ease;
+}
+
+.reg-chart-row.active .reg-chart-bar {
+    background: var(--ink-700);
+}
+
+.reg-chart-value {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    padding-left: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+}
+
+.reg-chart-wait {
+    font-weight: 500;
+    color: var(--warning-600);
+}
+
+.chart-tooltip {
+    position: absolute;
+    z-index: 5;
+    left: 0;
+    bottom: calc(100% + 6px);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 200px;
+    max-width: 280px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    background: var(--ink-900);
+    color: #fff;
+    font-size: 0.8rem;
+    box-shadow: var(--shadow-lg);
+    pointer-events: none;
+}
+
+.chart-tooltip span {
+    color: #d7defa;
+}
+
+.table .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .reg-chart-bar {
+        transition: none;
+    }
+}
+
+@media (max-width: 720px) {
+    .insight-tiles {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .reg-chart {
+        --reg-label: 1fr;
+    }
+
+    .reg-chart-axis {
+        display: none;
+    }
+
+    .reg-chart-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px;
+    }
+
+    .reg-chart-plot {
+        margin-right: 110px;
+    }
+}
