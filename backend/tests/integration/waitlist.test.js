@@ -122,14 +122,17 @@ describe("event waitlist", () => {
             expect(res.body.meta.event.waitlistCount).toBe(1);
         });
 
-        test("raising the capacity promotes waiting students immediately", async () => {
+        test("raising the capacity (once the mentor approves the change) promotes waiting students immediately", async () => {
             const extra = await makeStudent({ name: "Farah" });
             await register(extra, eventId);
             expect((await Event.findById(eventId)).waitlistCount).toBe(2);
 
             const res = await api(president).put(`/api/events/${eventId}`, { maxParticipants: 4 });
             expect(res.status).toBe(200);
-            const event = await Event.findById(eventId);
+            expect((await Event.findById(eventId)).maxParticipants).toBe(2);
+            await api(mentor).post(`/api/events/${eventId}/changes/approve`);
+            expect((await api(president).post(`/api/events/${eventId}/changes/publish`)).status).toBe(200);
+            const event = (await Event.findById(eventId)).toObject();
             expect(event).toMatchObject({ registeredCount: 4, waitlistCount: 0 });
             expect(await statusOf(esha, eventId)).toBe("REGISTERED");
             expect(await statusOf(extra, eventId)).toBe("REGISTERED");

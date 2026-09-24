@@ -1,9 +1,74 @@
-import { CalendarCheck2 } from "lucide-react";
-import { registrationApi } from "../api/endpoints";
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { CalendarCheck2, MailPlus } from "lucide-react";
+import { eventApi, registrationApi } from "../api/endpoints";
+import { useToast } from "../context/ToastContext";
+import { formatDate, timeAgo } from "../lib/format";
 import { useApi } from "../hooks/useApi";
 import { useQueryState } from "../hooks/useQueryState";
 import { EventCard } from "../components/events/EventCard";
-import { AsyncContent, ButtonLink, CardGridSkeleton, EmptyState, PageHeader, Tabs } from "../components/ui";
+import { AsyncContent, Avatar, Button, ButtonLink, Card, CardGridSkeleton, EmptyState, PageHeader, Tabs } from "../components/ui";
+
+// Team invites waiting for an answer, across all events.
+const TeamInvitesCard = ({ onAnswered }) => {
+    const toast = useToast();
+    const { data, reload } = useApi(() => registrationApi.invites(), []);
+    const [busy, setBusy] = useState(null);
+
+    if (!data?.length) {
+        return null;
+    }
+
+    const respond = async (invite, accept) => {
+        setBusy(`${invite.team._id}-${accept}`);
+        try {
+            const response = accept ? await eventApi.acceptTeamInvite(invite.event._id, invite.team._id) : await eventApi.declineTeamInvite(invite.event._id, invite.team._id);
+            toast.success(response.message);
+            reload({ silent: true });
+            onAnswered();
+        } catch (error) {
+            toast.error(error);
+            reload({ silent: true });
+        } finally {
+            setBusy(null);
+        }
+    };
+
+    return (
+        <Card
+            className="invites-card"
+            title={
+                <h2 className="row">
+                    <MailPlus size={18} /> Team invites · {data.length}
+                </h2>
+            }
+        >
+            <div className="stack-sm">
+                {data.map((invite) => (
+                    <div key={invite.team._id} className="team-invite">
+                        <Avatar name={invite.event.club?.name} src={invite.event.club?.logo} square />
+                        <div className="grow">
+                            <strong>
+                                {invite.team.leader?.name} invited you to "{invite.team.name}"
+                            </strong>
+                            <span className="subtle small">
+                                <Link to={`/events/${invite.event._id}`}>{invite.event.title}</Link> · {formatDate(invite.event.startAt)} · invited {timeAgo(invite.invitedAt)}
+                            </span>
+                        </div>
+                        <div className="team-invite-actions">
+                            <Button size="sm" onClick={() => respond(invite, true)} loading={busy === `${invite.team._id}-true`} disabled={Boolean(busy)}>
+                                Accept
+                            </Button>
+                            <Button size="sm" variant="secondary" onClick={() => respond(invite, false)} loading={busy === `${invite.team._id}-false`} disabled={Boolean(busy)}>
+                                Decline
+                            </Button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </Card>
+    );
+};
 
 const MyRegistrationsPage = () => {
     const [filters, setFilters] = useQueryState({ timeframe: "upcoming" });
@@ -17,6 +82,7 @@ const MyRegistrationsPage = () => {
                 description="Everything you've registered for, plus events you're on the waitlist for."
             />
             <div className="stack">
+                <TeamInvitesCard onAnswered={() => reload({ silent: true })} />
                 <Tabs
                     tabs={[
                         { value: "upcoming", label: "Upcoming" },
@@ -44,7 +110,13 @@ const MyRegistrationsPage = () => {
                         {data?.map((registration) => (
                             <EventCard
                                 key={registration._id}
-                                event={{ ...registration.event, myRegistration: registration.status || "REGISTERED", waitlistPosition: registration.waitlistPosition }}
+                                event={{
+                                    ...registration.event,
+                                    myRegistration: registration.status || "REGISTERED",
+                                    waitlistPosition: registration.waitlistPosition,
+                                    teamName: registration.team?.name,
+                                    teamRole: registration.teamRole
+                                }}
                                 showStatus={filters.timeframe === "past"}
                             />
                         ))}

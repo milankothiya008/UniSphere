@@ -78,3 +78,62 @@ describe("EventFormPage schedule rules", () => {
         );
     });
 });
+
+describe("EventFormPage editing a published event", () => {
+    const at = (days, time) => new Date(`${dayOffset(days)}T${time}:00+05:30`).toISOString();
+    const published = {
+        _id: "e1",
+        status: "PUBLISHED",
+        title: "Hack Night",
+        shortDescription: "An evening of building things together.",
+        description: "Teams build projects over one evening and demo them at the end.",
+        category: "TECHNOLOGY",
+        club: { _id: "c1", name: "Coding Club" },
+        venue: venues[0],
+        startAt: at(10, "10:00"),
+        endAt: at(10, "13:00"),
+        startTime: "10:00",
+        endTime: "13:00",
+        registrationStart: at(-1, "09:00"),
+        registrationEnd: at(8, "18:00"),
+        maxParticipants: 50,
+        registeredCount: 3,
+        waitlistCount: 0,
+        participationMode: "INDIVIDUAL",
+        eligibility: { departments: [], batches: [], notes: "" },
+        contact: {},
+        viewer: { canManage: true, canEdit: true }
+    };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        referenceApi.availableVenues.mockResolvedValue({ data: venues.map((venue) => ({ ...venue, available: true, bookedBy: [] })) });
+    });
+
+    test("every detail can be changed, and the changes go to the mentor for approval", async () => {
+        eventApi.get.mockResolvedValue({ data: published });
+        eventApi.update.mockResolvedValue({ message: "Changes sent to your faculty mentor for approval. The event stays as it is until they approve.", data: published });
+        renderWithRouter(<EventFormPage />, { route: "/events/e1/edit", path: "/events/:id/edit" });
+
+        const title = await screen.findByDisplayValue("Hack Night");
+        expect(title).toBe(screen.getByLabelText(/^title/i));
+        expect(title).not.toBeDisabled();
+        expect(screen.getByLabelText(/^date/i)).not.toBeDisabled();
+        expect(screen.getByLabelText(/^venue/i)).not.toBeDisabled();
+        expect(screen.getByText(/Your faculty mentor reviews the changes first/)).toBeInTheDocument();
+        // Students have registered, so the team settings stay as they are.
+        expect(screen.getByText("Can't be changed once students have registered.")).toBeInTheDocument();
+
+        await userEvent.clear(title);
+        await userEvent.type(title, "Hack Night 2.0");
+        await userEvent.selectOptions(screen.getByLabelText(/^venue/i), "v2");
+        await userEvent.type(screen.getByLabelText(/^message/i), "New hall!");
+        await userEvent.click(screen.getByRole("button", { name: /send changes for approval/i }));
+
+        await waitFor(() => expect(eventApi.update).toHaveBeenCalled());
+        const [id, body] = eventApi.update.mock.calls[0];
+        expect(id).toBe("e1");
+        expect(body).toMatchObject({ title: "Hack Night 2.0", venue: "v2", updateNote: "New hall!", eventDate: dayOffset(10) });
+        expect(body.participationMode).toBeUndefined();
+    });
+});

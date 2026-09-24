@@ -77,9 +77,21 @@ export const eventApi = {
     requestChanges: (id, comment) => api.post(`/events/${id}/request-changes`, { comment }),
     reject: (id, reason) => api.post(`/events/${id}/reject`, { reason }),
     publish: (id) => api.post(`/events/${id}/publish`),
+    // Changes to a published event: reviewed by the mentor, then published by the club.
+    approveChanges: (id, comment) => api.post(`/events/${id}/changes/approve`, { comment }),
+    requestChangesToEdit: (id, comment) => api.post(`/events/${id}/changes/request-changes`, { comment }),
+    rejectChanges: (id, reason) => api.post(`/events/${id}/changes/reject`, { reason }),
+    publishChanges: (id) => api.post(`/events/${id}/changes/publish`),
+    discardChanges: (id) => api.delete(`/events/${id}/changes`),
+    // Teams
+    teamCandidates: (id, search) => api.get(`/events/${id}/team/candidates`, { search }),
+    inviteToTeam: (id, users) => api.post(`/events/${id}/team/invites`, { users }),
+    removeTeamMember: (id, userId) => api.delete(`/events/${id}/team/members/${userId}`),
+    acceptTeamInvite: (id, teamId) => api.post(`/events/${id}/teams/${teamId}/accept`),
+    declineTeamInvite: (id, teamId) => api.post(`/events/${id}/teams/${teamId}/decline`),
     cancel: (id, reason) => api.post(`/events/${id}/cancel`, { reason }),
     complete: (id) => api.post(`/events/${id}/complete`),
-    register: (id) => api.post(`/events/${id}/register`),
+    register: (id, body) => api.post(`/events/${id}/register`, body),
     unregister: (id) => api.delete(`/events/${id}/register`),
     participants: (id, query) => api.get(`/events/${id}/registrations`, query),
     removeParticipant: (id, registrationId, reason) => api.delete(`/events/${id}/registrations/${registrationId}`, { reason }),
@@ -94,7 +106,8 @@ export const eventApi = {
 };
 
 export const registrationApi = {
-    mine: (query) => api.get("/registrations/me", query)
+    mine: (query) => api.get("/registrations/me", query),
+    invites: () => api.get("/registrations/invites")
 };
 
 export const resultApi = {

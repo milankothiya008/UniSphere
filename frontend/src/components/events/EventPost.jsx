@@ -62,6 +62,7 @@ const Burst = () => (
 
 const Capacity = ({ event }) => {
     const { registeredCount: going, maxParticipants: max, waitlistCount: waiting = 0 } = event;
+    const unit = event.participationMode === "TEAM" ? "teams" : "going";
     const fill = max ? Math.min(100, Math.round((going / max) * 100)) : null;
     const left = max ? Math.max(0, max - going) : null;
 
@@ -69,7 +70,7 @@ const Capacity = ({ event }) => {
         <div className="post-capacity">
             <div className="post-capacity-top">
                 <span className="post-going">
-                    <Users size={14} /> {max ? `${going} / ${max} going` : `${going} going`}
+                    <Users size={14} /> {max ? `${going} / ${max} ${unit}` : `${going} ${unit}`}
                 </span>
                 {max && left === 0 ? (
                     <span className="post-capacity-flag is-full">
@@ -188,6 +189,13 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
                 <Hourglass size={13} /> On the waitlist
             </Badge>
         );
+    } else if (canRegister && event.participationMode === "TEAM") {
+        // Teams are registered on the event page, where the leader names the team and invites teammates.
+        action = (
+            <Button size="sm" variant={full ? "secondary" : "primary"} onClick={() => navigate(`${link}?register=team`)} className="register-btn">
+                <Users size={15} /> {full ? "Join waitlist as a team" : "Register team"}
+            </Button>
+        );
     } else if (canRegister) {
         action = (
             <Button size="sm" variant={full ? "secondary" : "primary"} onClick={register} loading={pending} className="register-btn">
@@ -290,6 +298,11 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
                     </p>
                 )}
                 <div className="event-post-meta">
+                    {event.participationMode === "TEAM" && (
+                        <span>
+                            <Users size={14} /> Teams of {event.minTeamSize === event.maxTeamSize ? event.maxTeamSize : `${event.minTeamSize}–${event.maxTeamSize}`}
+                        </span>
+                    )}
                     <span>
                         <CalendarDays size={14} /> {formatDate(event.startAt)}
                     </span>

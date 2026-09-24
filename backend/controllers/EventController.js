@@ -29,7 +29,34 @@ const createEvent = asyncHandler(async (req, res) => {
 
 const updateEvent = asyncHandler(async (req, res) => {
     const event = await eventService.updateEvent(req.user, req.params.id, req.body);
-    sendSuccess(res, 200, "Event updated", event);
+    const message =
+        event.revision?.status === "PENDING_APPROVAL"
+            ? "Changes sent to your faculty mentor for approval. The event stays as it is until they approve."
+            : event.status === "PENDING_APPROVAL"
+              ? "Changes saved and sent to your faculty mentor for approval"
+              : "Event updated";
+    sendSuccess(res, 200, message, event);
+});
+
+// Changes to a published event: reviewed by the mentor, then published by the club.
+const approveChanges = asyncHandler(async (req, res) => {
+    sendSuccess(res, 200, "Changes approved", await eventService.approveEventChanges(req.user, req.params.id, req.body.comment));
+});
+
+const requestChangesToEdit = asyncHandler(async (req, res) => {
+    sendSuccess(res, 200, "Changes requested", await eventService.requestEventChangesRevision(req.user, req.params.id, req.body.comment));
+});
+
+const rejectChanges = asyncHandler(async (req, res) => {
+    sendSuccess(res, 200, "Changes rejected", await eventService.rejectEventChanges(req.user, req.params.id, req.body.reason));
+});
+
+const publishChanges = asyncHandler(async (req, res) => {
+    sendSuccess(res, 200, "Changes published — registered students have been notified", await eventService.publishEventChanges(req.user, req.params.id));
+});
+
+const discardChanges = asyncHandler(async (req, res) => {
+    sendSuccess(res, 200, "Pending changes discarded", await eventService.discardEventChanges(req.user, req.params.id));
 });
 
 const submitEvent = asyncHandler(async (req, res) => {
@@ -74,6 +101,11 @@ module.exports = {
     getEvent,
     createEvent,
     updateEvent,
+    approveChanges,
+    requestChangesToEdit,
+    rejectChanges,
+    publishChanges,
+    discardChanges,
     submitEvent,
     approveEvent,
     requestChanges,

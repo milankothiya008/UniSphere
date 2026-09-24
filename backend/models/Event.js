@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { EVENT_STATUS } = require("../constants/Statuses");
+const { EVENT_STATUS, REVISION_STATUS, PARTICIPATION_MODES } = require("../constants/Statuses");
 const { EVENT_CATEGORIES } = require("../constants/Categories");
 
 const eventSchema = new mongoose.Schema(
@@ -89,6 +89,25 @@ const eventSchema = new mongoose.Schema(
             default: 0,
             min: 0
         },
+        // Individual events take one student per registration; team events take a team led by the student who
+        // registers (see TeamService). For team events maxParticipants is the number of teams.
+        participationMode: {
+            type: String,
+            enum: Object.values(PARTICIPATION_MODES),
+            default: PARTICIPATION_MODES.INDIVIDUAL
+        },
+        minTeamSize: {
+            type: Number,
+            default: 1,
+            min: 1,
+            max: 20
+        },
+        maxTeamSize: {
+            type: Number,
+            default: 1,
+            min: 1,
+            max: 20
+        },
         eligibility: {
             departments: { type: [String], default: [] },
             batches: { type: [String], default: [] },
@@ -157,6 +176,25 @@ const eventSchema = new mongoose.Schema(
         cancellationReason: {
             type: String,
             default: null
+        },
+        // Proposed changes to a published event. The live event stays as it is until the faculty mentor
+        // approves the changes and the club publishes them (see EventService revision functions).
+        revision: {
+            type: new mongoose.Schema(
+                {
+                    status: { type: String, enum: Object.values(REVISION_STATUS), required: true },
+                    changes: { type: mongoose.Schema.Types.Mixed, default: {} },
+                    fields: { type: [String], default: [] },
+                    note: { type: String, default: "" },
+                    requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+                    requestedAt: { type: Date, default: Date.now },
+                    reviewComment: { type: String, default: null },
+                    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+                    reviewedAt: { type: Date, default: null }
+                },
+                { _id: false }
+            ),
+            default: null
         }
     },
     { timestamps: true }
@@ -166,11 +204,16 @@ eventSchema.index({ club: 1, status: 1 });
 eventSchema.index({ status: 1, startAt: 1 });
 eventSchema.index({ venue: 1, startAt: 1, endAt: 1 });
 eventSchema.index({ registrationStart: 1, registrationEnd: 1 });
+eventSchema.index({ club: 1, "revision.status": 1 });
 
 // Mongoose 9 middleware no longer receives `next`; throwing or invalidating is enough.
 eventSchema.pre("validate", function () {
     if (this.startAt && this.endAt && this.startAt >= this.endAt) {
         this.invalidate("endAt", "Event end must be after event start");
+    }
+
+    if (this.minTeamSize > this.maxTeamSize) {
+        this.invalidate("minTeamSize", "Minimum team size cannot be larger than the maximum");
     }
 
     if (this.registrationStart && this.registrationEnd && this.registrationStart >= this.registrationEnd) {

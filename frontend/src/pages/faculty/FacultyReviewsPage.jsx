@@ -3,7 +3,7 @@ import { ClipboardCheck, FileText } from "lucide-react";
 import { clubRequestApi, eventApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { EventRow } from "../../components/events/EventCard";
-import { AsyncContent, Avatar, Card, EmptyState, PageHeader, StatusBadge } from "../../components/ui";
+import { AsyncContent, Avatar, Badge, Card, EmptyState, PageHeader, StatusBadge } from "../../components/ui";
 import { departmentsLabel, humanize, timeAgo } from "../../lib/format";
 
 const FacultyReviewsPage = () => {
@@ -15,7 +15,7 @@ const FacultyReviewsPage = () => {
             <PageHeader
                 eyebrow={<><ClipboardCheck size={14} /> Faculty</>}
                 title="Reviews"
-                description="Events submitted by your mentored clubs and club proposals waiting for a faculty decision."
+                description="New events and edits to published events from the clubs you mentor, plus club proposals waiting for a faculty decision."
             />
             <div className="grid-2" style={{ alignItems: "start" }}>
                 <Card title={`Events awaiting approval${events.data ? ` (${events.data.length})` : ""}`} padded={false}>
@@ -28,7 +28,17 @@ const FacultyReviewsPage = () => {
                     >
                         <div className="list-rows">
                             {events.data?.map((event) => (
-                                <EventRow key={event._id} event={event} right={<span className="subtle nowrap">{timeAgo(event.submittedAt || event.updatedAt)}</span>} />
+                                <EventRow
+                                    key={event._id}
+                                    event={event}
+                                    right={
+                                        event.revisionStatus === "PENDING_APPROVAL" ? (
+                                            <Badge tone="violet">Edit to review</Badge>
+                                        ) : (
+                                            <span className="subtle nowrap">{timeAgo(event.submittedAt || event.updatedAt)}</span>
+                                        )
+                                    }
+                                />
                             ))}
                         </div>
                     </AsyncContent>

@@ -4,6 +4,7 @@ import { eventApi, feedApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { Alert, AsyncContent, Avatar, Badge, Card, PageHeader, StatusBadge } from "../../components/ui";
 import { EventActions } from "../../components/events/EventActions";
+import { EventChanges } from "../../components/events/EventChanges";
 import { RegistrationPanel } from "../../components/events/RegistrationPanel";
 import { Podium } from "../../components/feed/FeedCard";
 import { CategoryArt } from "../../components/events/EventCard";
@@ -190,6 +191,8 @@ const EventDetailPage = () => {
                                 </Alert>
                             )}
 
+                            <EventChanges event={event} onChange={(updated) => setData(updated)} />
+
                             <Card title="About this event">
                                 <p className="prose">{event.description}</p>
                             </Card>
@@ -243,8 +246,14 @@ const EventDetailPage = () => {
                                     <div>
                                         <Users size={18} />
                                         <span>
-                                            <dt>Capacity</dt>
-                                            <dd>{event.maxParticipants ? `${event.maxParticipants} participants` : "No limit"}</dd>
+                                            <dt>{event.participationMode === "TEAM" ? "Teams" : "Capacity"}</dt>
+                                            <dd>
+                                                {event.participationMode === "TEAM"
+                                                    ? `${event.maxParticipants ? `Up to ${event.maxParticipants} teams` : "No team limit"} · ${event.minTeamSize === event.maxTeamSize ? event.maxTeamSize : `${event.minTeamSize}–${event.maxTeamSize}`} members each`
+                                                    : event.maxParticipants
+                                                      ? `${event.maxParticipants} participants`
+                                                      : "No limit"}
+                                            </dd>
                                         </span>
                                     </div>
                                     <div>

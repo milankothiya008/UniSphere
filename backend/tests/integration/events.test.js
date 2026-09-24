@@ -235,13 +235,8 @@ describe("event lifecycle", () => {
         expect((await api(outsider).get(`/api/events/${eventId}`)).status).toBe(200);
     });
 
-    test("published events lock schedule fields but accept updates that reach the feed", async () => {
-        expect((await api(president).put(`/api/events/${eventId}`, { startTime: "15:00" })).status).toBe(409);
-
-        const res = await api(president).put(`/api/events/${eventId}`, {
-            rules: "Bring a laptop and charger.",
-            updateNote: "Please bring your charger!"
-        });
+    test("an update note on a published event is posted straight to the event page", async () => {
+        const res = await api(president).put(`/api/events/${eventId}`, { updateNote: "Please bring your charger!" });
         expect(res.status).toBe(200);
         expect(await FeedPost.exists({ event: eventId, type: "EVENT_UPDATE" })).toBeTruthy();
     });

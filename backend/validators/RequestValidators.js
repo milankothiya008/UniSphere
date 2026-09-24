@@ -164,6 +164,9 @@ const eventFields = (optional = false) => {
         body("organizer").optional({ values: "falsy" }).isMongoId(),
         body("registrationClosed").optional().isBoolean(),
         body("updateNote").optional().isString().isLength({ max: 2000 }),
+        body("participationMode").optional().isIn(["INDIVIDUAL", "TEAM"]).withMessage("Choose individual or team entry"),
+        body("minTeamSize").optional({ values: "null" }).isInt({ min: 1, max: 20 }).withMessage("Minimum team size must be 1-20"),
+        body("maxTeamSize").optional({ values: "null" }).isInt({ min: 1, max: 20 }).withMessage("Maximum team size must be 1-20"),
         optionalUrl("poster")
     ];
 };

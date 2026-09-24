@@ -1,0 +1,535 @@
+/* ================================================================ Team registration & event change review */
+
+/* ---------------------------------------------------------------- Student picker */
+.student-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.picked-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.picked-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 6px 4px 4px;
+    border-radius: 999px;
+    background: var(--ink-50);
+    border: 1px solid var(--ink-100);
+    font-size: 0.85rem;
+    font-weight: 600;
+    animation: story-pop 0.3s var(--ease-spring) both;
+}
+
+.picked-chip .avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 0.62rem;
+}
+
+.picked-chip button {
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.picked-chip button:hover {
+    background: var(--ink-100);
+    color: var(--text);
+}
+
+.picker-search {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 12px;
+    min-height: 42px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--text-subtle);
+    transition: border-color 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out);
+}
+
+.picker-search:focus-within {
+    border-color: var(--ink-500);
+    box-shadow: 0 0 0 4px rgba(60, 91, 214, 0.14);
+}
+
+.picker-search.is-disabled {
+    background: var(--surface-muted);
+}
+
+.picker-search input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    font: inherit;
+    color: var(--text);
+}
+
+.picker-results {
+    display: flex;
+    flex-direction: column;
+    max-height: 240px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    animation: rise-in 0.2s var(--ease-out);
+}
+
+.picker-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    background: none;
+    font: inherit;
+    text-align: left;
+    color: var(--ink-600);
+    cursor: pointer;
+}
+
+.picker-option:last-child {
+    border-bottom: 0;
+}
+
+.picker-option:hover:not(:disabled) {
+    background: var(--ink-50);
+}
+
+.picker-option:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.picker-option strong {
+    display: block;
+    color: var(--text);
+    font-size: 0.9rem;
+}
+
+.picker-option small {
+    color: var(--text-muted);
+    font-size: 0.77rem;
+}
+
+.picker-empty {
+    margin: 0;
+    padding: 14px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+/* ---------------------------------------------------------------- Team card (registration panel) */
+.team-rule {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    width: fit-content;
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: var(--violet-100);
+    color: var(--violet-600);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.team-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background:
+        radial-gradient(260px 120px at 100% 0%, rgba(124, 58, 237, 0.08), transparent 70%),
+        var(--surface);
+}
+
+.team-card-head,
+.team-invite {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+}
+
+.team-card-head strong,
+.team-invite strong {
+    display: block;
+    font-size: 0.95rem;
+}
+
+.team-card-head .subtle,
+.team-invite .subtle {
+    display: block;
+}
+
+.team-badge {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    color: #fff;
+    background: linear-gradient(135deg, #7c3aed, #3c5bd6);
+    box-shadow: 0 8px 18px -10px rgba(124, 58, 237, 0.8);
+}
+
+.team-meter {
+    display: flex;
+    gap: 5px;
+}
+
+.team-meter span {
+    flex: 1;
+    height: 6px;
+    border-radius: 6px;
+    background: var(--neutral-100);
+    transition: background 0.4s var(--ease-out);
+}
+
+.team-meter span.is-needed {
+    background: repeating-linear-gradient(45deg, var(--warning-100), var(--warning-100) 4px, #fff3d6 4px, #fff3d6 8px);
+}
+
+.team-meter span.is-filled {
+    background: linear-gradient(90deg, #7c3aed, #3c5bd6);
+}
+
+.team-roster {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.team-roster li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 6px;
+    border-radius: 10px;
+    animation: rise-in 0.3s var(--ease-out) both;
+}
+
+.team-roster li:hover {
+    background: var(--surface-muted);
+}
+
+.team-roster li strong {
+    display: block;
+    font-size: 0.88rem;
+}
+
+.team-roster li small {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-muted);
+    font-size: 0.76rem;
+}
+
+.team-roster li.is-invited .avatar {
+    opacity: 0.55;
+    outline: 2px dashed var(--ink-100);
+    outline-offset: 1px;
+}
+
+.team-role {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--gold-100);
+    color: var(--gold-600);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.team-hint {
+    margin: 0;
+    padding: 9px 11px;
+    border-radius: 10px;
+    background: var(--warning-100);
+    color: #8a5a00;
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.team-invite {
+    padding: 12px;
+    border: 1px solid var(--ink-100);
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--ink-50), #f4f0ff);
+    animation: rise-in 0.35s var(--ease-out) both;
+}
+
+.team-invite-actions {
+    display: flex;
+    gap: 6px;
+    flex: none;
+}
+
+.invites-card {
+    border-color: var(--ink-100);
+    box-shadow: 0 16px 36px -26px rgba(60, 91, 214, 0.6);
+}
+
+/* ---------------------------------------------------------------- Team settings in the event form */
+.team-settings {
+    display: grid;
+    gap: 12px;
+    margin-top: 18px;
+    padding: 14px;
+    border: 1px dashed var(--border);
+    border-radius: 14px;
+    background: var(--surface-muted);
+}
+
+.team-settings .segmented button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ---------------------------------------------------------------- Participants: teams */
+.team-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 12px;
+}
+
+.team-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 13px;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--success-600);
+    border-radius: 12px;
+    background: var(--surface);
+}
+
+.team-summary.is-incomplete {
+    border-left-color: var(--danger-600);
+}
+
+.team-summary-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.team-summary-members {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.team-summary-members span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--neutral-100);
+    font-size: 0.76rem;
+}
+
+.event-card-team {
+    color: var(--violet-600);
+    font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- Proposed changes to a published event */
+.changes-card {
+    border-color: var(--violet-100);
+    box-shadow: 0 18px 40px -30px rgba(124, 58, 237, 0.6);
+}
+
+.changes-card.is-approved {
+    border-color: var(--success-100);
+}
+
+.changes-card.is-rejected {
+    border-color: var(--danger-100);
+}
+
+.change-list {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.change-row {
+    display: grid;
+    grid-template-columns: 170px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.change-row:last-child {
+    border-bottom: 0;
+}
+
+.change-label {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.change-values {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.change-from {
+    color: var(--text-subtle);
+    text-decoration: line-through;
+    text-decoration-color: rgba(220, 38, 38, 0.45);
+}
+
+.change-to {
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: var(--success-100);
+    color: #0b5e41;
+    font-weight: 600;
+}
+
+.change-arrow {
+    color: var(--text-subtle);
+    flex: none;
+}
+
+.change-row.is-long .change-values {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+}
+
+.change-row.is-long .change-arrow {
+    transform: rotate(90deg);
+    align-self: center;
+}
+
+.change-row.is-long .change-from,
+.change-row.is-long .change-to {
+    white-space: pre-line;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    padding: 8px 10px;
+    border-radius: 8px;
+}
+
+.change-row.is-long .change-from {
+    background: var(--danger-100);
+    color: var(--text-muted);
+    text-decoration: none;
+}
+
+.change-poster {
+    display: block;
+    width: 90px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 6px;
+}
+
+.change-note,
+.change-review {
+    padding: 11px 13px;
+    border-radius: 12px;
+    background: var(--surface-muted);
+    border: 1px solid var(--border);
+    font-size: 0.88rem;
+}
+
+.change-note p {
+    margin: 4px 0 0;
+    color: var(--text-muted);
+}
+
+.change-review.is-needs_changes {
+    background: var(--warning-100);
+    border-color: transparent;
+}
+
+.change-review.is-rejected {
+    background: var(--danger-100);
+    border-color: transparent;
+}
+
+.change-review.is-approved {
+    background: var(--success-100);
+    border-color: transparent;
+}
+
+.change-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+@media (max-width: 720px) {
+    .change-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 6px;
+    }
+
+    .team-invite {
+        flex-wrap: wrap;
+    }
+
+    .team-invite-actions {
+        width: 100%;
+    }
+
+    .team-invite-actions .btn {
+        flex: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .picked-chip,
+    .picker-results,
+    .team-roster li,
+    .team-invite {
+        animation: none;
+    }
+}

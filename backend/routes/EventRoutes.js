@@ -2,6 +2,7 @@ const express = require("express");
 const e = require("../controllers/EventController");
 const registration = require("../controllers/RegistrationController");
 const result = require("../controllers/ResultController");
+const team = require("../controllers/TeamController");
 const { protect, optionalAuth, requireVerified } = require("../middleware/Auth");
 const validate = require("../middleware/Validate");
 const {
@@ -39,8 +40,31 @@ router.post("/:id/publish", ...auth, id, validate, e.publishEvent);
 router.post("/:id/cancel", ...auth, id, body("reason").optional().isString().isLength({ max: 1000 }), validate, e.cancelEvent);
 router.post("/:id/complete", ...auth, id, validate, e.completeEvent);
 
+// Changes to a published event (the live event is untouched until they are published)
+router.post("/:id/changes/approve", ...auth, id, optionalCommentRules, validate, e.approveChanges);
+router.post("/:id/changes/request-changes", ...auth, id, commentRules, validate, e.requestChangesToEdit);
+router.post("/:id/changes/reject", ...auth, id, rejectRules, validate, e.rejectChanges);
+router.post("/:id/changes/publish", ...auth, id, validate, e.publishChanges);
+router.delete("/:id/changes", ...auth, id, validate, e.discardChanges);
+
 // Registration and participants
-router.post("/:id/register", ...auth, id, validate, registration.register);
+router.post(
+    "/:id/register",
+    ...auth,
+    id,
+    body("teamName").optional().isString().isLength({ max: 60 }),
+    body("invitees").optional().isArray({ max: 19 }).withMessage("Too many invites"),
+    body("invitees.*").isMongoId().withMessage("Invalid student"),
+    validate,
+    registration.register
+);
+
+// Teams (team events): the leader invites and manages members; invitees accept or decline.
+router.get("/:id/team/candidates", ...auth, id, validate, team.candidates);
+router.post("/:id/team/invites", ...auth, id, body("users").isArray({ min: 1, max: 19 }).withMessage("Choose students to invite"), body("users.*").isMongoId(), validate, team.invite);
+router.delete("/:id/team/members/:userId", ...auth, id, mongoIdParam("userId"), validate, team.removeMember);
+router.post("/:id/teams/:teamId/accept", ...auth, id, mongoIdParam("teamId"), validate, team.accept);
+router.post("/:id/teams/:teamId/decline", ...auth, id, mongoIdParam("teamId"), validate, team.decline);
 router.delete("/:id/register", ...auth, id, validate, registration.unregister);
 router.get("/:id/registrations", ...auth, id, validate, registration.list);
 router.delete("/:id/registrations/:registrationId", ...auth, id, mongoIdParam("registrationId"), validate, registration.removeParticipant);

@@ -18,7 +18,6 @@ import { eventApi } from "../../api/endpoints";
 import { useToast } from "../../context/ToastContext";
 import { Button, Card, ConfirmDialog } from "../ui";
 
-const EDITABLE = ["DRAFT", "NEEDS_CHANGES", "APPROVED", "PUBLISHED"];
 const CANCELLABLE = ["DRAFT", "PENDING_APPROVAL", "NEEDS_CHANGES", "APPROVED", "PUBLISHED"];
 
 // Club-side and mentor-side controls for an event. Visibility follows the `viewer` flags from the API;
@@ -53,7 +52,8 @@ export const EventActions = ({ event, onChange }) => {
 
     const staffActions = [];
 
-    if (viewer.canManage && EDITABLE.includes(event.status)) {
+    // Everything can be edited until the event starts; approved and published events go back to the mentor.
+    if (viewer.canEdit && !event.revision) {
         staffActions.push(
             <Button key="edit" variant="secondary" block onClick={() => navigate(`/events/${event._id}/edit`)}>
                 <FilePenLine size={16} /> {["APPROVED", "PUBLISHED"].includes(event.status) ? "Edit details" : "Edit draft"}

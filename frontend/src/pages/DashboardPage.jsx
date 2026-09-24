@@ -94,7 +94,17 @@ const FacultyDashboard = ({ user, data }) => {
                     {faculty.eventsToReview.length ? (
                         <div className="list-rows">
                             {faculty.eventsToReview.map((event) => (
-                                <EventRow key={event._id} event={event} right={<span className="subtle nowrap">{timeAgo(event.submittedAt)}</span>} />
+                                <EventRow
+                                    key={event._id}
+                                    event={event}
+                                    right={
+                                        event.revision?.status === "PENDING_APPROVAL" ? (
+                                            <span className="badge badge-violet">Edit to review</span>
+                                        ) : (
+                                            <span className="subtle nowrap">{timeAgo(event.submittedAt)}</span>
+                                        )
+                                    }
+                                />
                             ))}
                         </div>
                     ) : (

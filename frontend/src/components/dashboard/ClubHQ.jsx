@@ -92,6 +92,17 @@ const actionItems = (workspace) => {
     workspace.needsChanges.forEach((event) =>
         items.push({ key: `nc-${event._id}`, icon: PencilLine, tone: "violet", title: event.title, detail: "Mentor requested changes", to: `/events/${event._id}` })
     );
+    // Edits to published events: the mentor's answer needs the club's next step.
+    (workspace.changesInReview || []).forEach((event) => {
+        const status = event.revision?.status;
+        if (status === "APPROVED") {
+            items.push({ key: `cp-${event._id}`, icon: Megaphone, tone: "success", title: event.title, detail: "Changes approved — publish them", to: `/events/${event._id}` });
+        } else if (status === "NEEDS_CHANGES" || status === "REJECTED") {
+            items.push({ key: `cn-${event._id}`, icon: PencilLine, tone: "violet", title: event.title, detail: status === "REJECTED" ? "Mentor rejected your changes" : "Mentor asked for changes to your edit", to: `/events/${event._id}` });
+        } else if (status === "PENDING_APPROVAL") {
+            items.push({ key: `cw-${event._id}`, icon: Hourglass, tone: "neutral", title: event.title, detail: "Edit waiting for mentor approval", to: `/events/${event._id}` });
+        }
+    });
     workspace.readyToPublish.forEach((event) =>
         items.push({ key: `rp-${event._id}`, icon: Megaphone, tone: "info", title: event.title, detail: "Approved — ready to publish", to: `/events/${event._id}` })
     );

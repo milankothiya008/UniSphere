@@ -20,7 +20,7 @@ const { getStats } = require("./AdminService");
 const { getMyRegistrations } = require("./RegistrationService");
 const { registrationWindowState, listEvents } = require("./EventService");
 
-const eventCard = "title startAt endAt startTime endTime status registeredCount maxParticipants waitlistCount poster club venue category registrationEnd registrationStart registrationClosed";
+const eventCard = "title startAt endAt startTime endTime status registeredCount maxParticipants waitlistCount poster club venue category registrationEnd registrationStart registrationClosed participationMode minTeamSize maxTeamSize";
 
 const withState = (events) => events.map((event) => ({ ...event.toObject(), registrationState: registrationWindowState(event) }));
 
@@ -93,7 +93,7 @@ const clubWorkspace = async (membership) => {
                 ]
             }
         })
-            .select(eventCard + " reviewComment")
+            .select(eventCard + " reviewComment revision.status revision.fields revision.reviewComment")
             .populate("venue", "name")
             .sort({ startAt: 1 }),
         Event.find({ club: clubId, status: EVENT_STATUS.COMPLETED }).select("_id title startAt").sort({ startAt: -1 }).limit(20)
@@ -113,6 +113,8 @@ const clubWorkspace = async (membership) => {
         needsChanges: byStatus(EVENT_STATUS.NEEDS_CHANGES),
         pendingApproval: byStatus(EVENT_STATUS.PENDING_APPROVAL),
         readyToPublish: byStatus(EVENT_STATUS.APPROVED),
+        // Edits to published events: waiting for the mentor, sent back, or approved and ready to go live.
+        changesInReview: withState(events.filter((event) => event.revision?.status)),
         upcoming: byStatus(EVENT_STATUS.PUBLISHED).filter((event) => event.endAt > now),
         awaitingCompletion: byStatus(EVENT_STATUS.PUBLISHED).filter((event) => event.endAt <= now),
         resultsPending: has(CLUB_PERMISSIONS.MANAGE_RESULTS)
@@ -227,8 +229,8 @@ const facultyDashboard = async (actor) => {
         ClubCreationRequest.find({ verifiedBy: actor._id, status: CLUB_REQUEST_STATUS.FACULTY_VERIFIED })
             .select("name status verifiedAt")
             .limit(10),
-        Event.find({ club: { $in: clubIds }, status: EVENT_STATUS.PENDING_APPROVAL })
-            .select(eventCard + " submittedAt")
+        Event.find({ club: { $in: clubIds }, $or: [{ status: EVENT_STATUS.PENDING_APPROVAL }, { "revision.status": "PENDING_APPROVAL" }] })
+            .select(eventCard + " submittedAt revision.status revision.fields revision.requestedAt")
             .populate("club", "name logo")
             .populate("venue", "name")
             .sort({ submittedAt: 1 }),

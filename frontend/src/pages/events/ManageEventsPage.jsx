@@ -5,8 +5,12 @@ import { useApi } from "../../hooks/useApi";
 import { useQueryState } from "../../hooks/useQueryState";
 import { useAuth } from "../../context/AuthContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
-import { AsyncContent, ButtonLink, Card, EmptyState, PageHeader, Pagination, StatusBadge, Tabs } from "../../components/ui";
+import { AsyncContent, Badge, ButtonLink, Card, EmptyState, PageHeader, Pagination, StatusBadge, Tabs } from "../../components/ui";
 import { formatDate, formatTimeRange } from "../../lib/format";
+
+// Edits to published events waiting on (or back from) the faculty mentor.
+const REVISION_LABELS = { PENDING_APPROVAL: "Changes awaiting approval", NEEDS_CHANGES: "Changes sent back", APPROVED: "Changes approved", REJECTED: "Changes rejected" };
+const REVISION_TONES = { PENDING_APPROVAL: "violet", NEEDS_CHANGES: "warning", APPROVED: "success", REJECTED: "danger" };
 
 const GROUPS = [
     { value: "attention", label: "Drafts & changes", statuses: "DRAFT,NEEDS_CHANGES" },
@@ -107,11 +111,14 @@ const ManageEventsPage = () => {
                                                 {event.maxParticipants ? ` / ${event.maxParticipants}` : ""}
                                             </td>
                                             <td>
-                                                <StatusBadge status={event.status} />
+                                                <div className="stack-sm" style={{ gap: 4, alignItems: "flex-start" }}>
+                                                    <StatusBadge status={event.status} />
+                                                    {event.revisionStatus && <Badge tone={REVISION_TONES[event.revisionStatus]}>{REVISION_LABELS[event.revisionStatus]}</Badge>}
+                                                </div>
                                             </td>
                                             <td className="actions">
                                                 <Link to={`/events/${event._id}`} className="btn btn-secondary btn-sm">
-                                                    {event.status === "PENDING_APPROVAL" && isFaculty ? "Review" : "Open"}
+                                                    {(event.status === "PENDING_APPROVAL" || event.revisionStatus === "PENDING_APPROVAL") && isFaculty ? "Review" : "Open"}
                                                 </Link>
                                             </td>
                                         </tr>

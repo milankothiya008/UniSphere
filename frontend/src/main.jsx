@@ -13,6 +13,7 @@ import "./styles/dashboard.css";
 import "./styles/feed.css";
 import "./styles/pages.css";
 import "./styles/stories.css";
+import "./styles/teams.css";
 
 createRoot(document.getElementById("root")).render(
     <StrictMode>

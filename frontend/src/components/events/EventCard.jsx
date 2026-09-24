@@ -55,6 +55,12 @@ export const EventCard = ({ event, showStatus = false }) => (
                 <h3>{event.title}</h3>
             </div>
             <div className="event-card-meta">
+                {event.teamName && (
+                    <span className="event-card-team">
+                        <Users size={14} /> {event.teamName}
+                        {event.teamRole === "LEADER" ? " · leader" : ""}
+                    </span>
+                )}
                 <span>
                     <CalendarDays size={14} /> {formatDate(event.startAt)}
                 </span>
@@ -73,6 +79,7 @@ export const EventCard = ({ event, showStatus = false }) => (
                     <Users size={13} />
                     {event.registeredCount ?? 0}
                     {event.maxParticipants ? ` / ${event.maxParticipants}` : ""}
+                    {event.participationMode === "TEAM" ? " teams" : ""}
                 </span>
             </div>
         </div>

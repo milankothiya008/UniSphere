@@ -123,18 +123,22 @@ export const Segmented = ({ options, value, onChange, label }) => (
     </div>
 );
 
-export const CapacityBar = ({ registered = 0, max }) => {
+// `teams` switches the wording for team events, where the limit counts teams.
+export const CapacityBar = ({ registered = 0, max, teams = false }) => {
+    const unit = teams ? (registered === 1 ? "team" : "teams") : "registered";
     if (!max) {
-        return <span className="subtle">{registered} registered · no limit</span>;
+        return <span className="subtle">{registered} {unit} · no limit</span>;
     }
     const percent = Math.min(100, Math.round((registered / max) * 100));
     return (
         <div className="stack-sm" style={{ gap: 5 }}>
             <div className="row-between subtle">
                 <span>
-                    {registered} / {max} registered
+                    {registered} / {max} {teams ? "teams" : "registered"}
                 </span>
-                <span>{Math.max(0, max - registered)} seats left</span>
+                <span>
+                    {Math.max(0, max - registered)} {teams ? "places" : "seats"} left
+                </span>
             </div>
             <div className={`progress ${percent >= 100 ? "full" : ""}`}>
                 <span style={{ width: `${percent}%` }} />

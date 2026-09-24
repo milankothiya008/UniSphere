@@ -15,14 +15,23 @@ const MAX_PROMOTIONS_PER_RUN = 500;
 
 const queueOrder = { waitlistedAt: 1, _id: 1 };
 
+// Places in the queue belong to individual students or to whole teams (held by the team leader);
+// team members' registrations simply follow their leader's.
+const QUEUE_ENTRY = { teamRole: { $ne: "MEMBER" } };
+
 // 1-based place in the queue, or null when the registration is not waitlisted.
 const waitlistPosition = async (registration) => {
     if (!registration || registration.status !== REGISTRATION_STATUS.WAITLISTED) {
         return null;
     }
+    if (registration.teamRole === "MEMBER") {
+        const leader = await EventRegistration.findOne({ team: registration.team, teamRole: "LEADER" });
+        return leader ? waitlistPosition(leader) : null;
+    }
     const ahead = await EventRegistration.countDocuments({
         event: registration.event,
         status: REGISTRATION_STATUS.WAITLISTED,
+        ...QUEUE_ENTRY,
         $or: [
             { waitlistedAt: { $lt: registration.waitlistedAt } },
             { waitlistedAt: registration.waitlistedAt, _id: { $lt: registration._id } }
@@ -60,7 +69,7 @@ const promoteFromWaitlist = async (eventId, { reason = "seat_released" } = {}) =
                 break;
             }
 
-            const next = await EventRegistration.findOne({ event: event._id, status: REGISTRATION_STATUS.WAITLISTED }).sort(queueOrder);
+            const next = await EventRegistration.findOne({ event: event._id, status: REGISTRATION_STATUS.WAITLISTED, ...QUEUE_ENTRY }).sort(queueOrder);
             if (!next) {
                 break;
             }
@@ -95,8 +104,19 @@ const promoteFromWaitlist = async (eventId, { reason = "seat_released" } = {}) =
                 metadata: { eventId: event._id, reason }
             });
 
+            // A team moves in together: the members who already accepted follow their leader.
+            const teammates = claimed.team
+                ? await EventRegistration.find({ team: claimed.team, teamRole: "MEMBER", status: REGISTRATION_STATUS.WAITLISTED }).select("user")
+                : [];
+            if (teammates.length) {
+                await EventRegistration.updateMany(
+                    { _id: { $in: teammates.map((row) => row._id) }, status: REGISTRATION_STATUS.WAITLISTED },
+                    { $set: { status: REGISTRATION_STATUS.REGISTERED, registeredAt: now, promotedAt: now } }
+                );
+            }
+
             // Always emailed: this is the confirmation of a seat they asked for.
-            await notify(claimed.user, {
+            await notify([claimed.user, ...teammates.map((row) => row.user)], {
                 type: NOTIFICATION_TYPES.REGISTRATION_CONFIRMED,
                 title: `You're in! A spot opened up for ${event.title}`,
                 message: `You've moved off the waitlist and are now registered. See you on ${formatDateKey(event.eventDate)} at ${event.startTime}. If you can no longer make it, cancel so the next person gets your seat.`,
@@ -111,4 +131,4 @@ const promoteFromWaitlist = async (eventId, { reason = "seat_released" } = {}) =
     return promoted;
 };
 
-module.exports = { promoteFromWaitlist, waitlistPosition, reserveSeat, releaseSeat, adjustWaitlistCount, queueOrder };
+module.exports = { promoteFromWaitlist, waitlistPosition, reserveSeat, releaseSeat, adjustWaitlistCount, queueOrder, QUEUE_ENTRY };

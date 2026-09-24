@@ -7,7 +7,9 @@ const {
     REGISTRATION_STATUS,
     PUBLIC_EVENT_STATUSES,
     AUDIT_ACTIONS,
-    NOTIFICATION_TYPES
+    NOTIFICATION_TYPES,
+    PARTICIPATION_MODES,
+    TEAM_MEMBER_STATUS
 } = require("../constants/Statuses");
 const { CLUB_PERMISSIONS } = require("../constants/Permissions");
 const { searchRegex } = require("../utils/Query");
@@ -21,6 +23,8 @@ const {
 const { recordAudit } = require("./AuditService");
 const { notify } = require("./NotificationService");
 const { promoteFromWaitlist, waitlistPosition, reserveSeat, releaseSeat, adjustWaitlistCount } = require("./WaitlistService");
+const teams = require("./TeamService");
+const Team = require("../models/Team");
 
 const findEvent = async (eventId) => {
     const event = await Event.findById(eventId);
@@ -73,17 +77,17 @@ const assertCanRegister = (actor, event, now = new Date()) => {
 const eventDateLabel = (event) => `${formatDateKey(event.eventDate)} at ${event.startTime}`;
 
 // Puts the student in the queue for a full event (re-using a cancelled registration if there is one).
-const joinWaitlist = async (actor, event, existing) => {
+const joinWaitlist = async (actor, event, existing, teamFields) => {
     const now = new Date();
     let registration;
     try {
         registration = existing
             ? await EventRegistration.findOneAndUpdate(
                   { _id: existing._id, status: REGISTRATION_STATUS.CANCELLED },
-                  { $set: { status: REGISTRATION_STATUS.WAITLISTED, waitlistedAt: now, promotedAt: null } },
+                  { $set: { status: REGISTRATION_STATUS.WAITLISTED, waitlistedAt: now, promotedAt: null, ...teamFields } },
                   { returnDocument: "after" }
               )
-            : await EventRegistration.create({ event: event._id, user: actor._id, status: REGISTRATION_STATUS.WAITLISTED, waitlistedAt: now });
+            : await EventRegistration.create({ event: event._id, user: actor._id, status: REGISTRATION_STATUS.WAITLISTED, waitlistedAt: now, ...teamFields });
     } catch (error) {
         if (error.code === 11000) {
             throw new AppError("You are already registered or on the waitlist for this event", 409, ERROR_CODES.DUPLICATE_REGISTRATION);
@@ -117,8 +121,10 @@ const joinWaitlist = async (actor, event, existing) => {
     const position = await waitlistPosition(current);
     await notify(actor._id, {
         type: NOTIFICATION_TYPES.WAITLISTED,
-        title: `You're #${position} on the waitlist for ${event.title}`,
-        message: "The event is full. If a seat frees up you'll be registered automatically and we'll email you.",
+        title: `${teamFields.team ? "Your team is" : "You're"} #${position} on the waitlist for ${event.title}`,
+        message: teamFields.team
+            ? "The event is full. If a place frees up your whole team is registered automatically and we'll email everyone."
+            : "The event is full. If a seat frees up you'll be registered automatically and we'll email you.",
         link: `/events/${event._id}`,
         email: true
     });
@@ -134,7 +140,11 @@ const joinWaitlist = async (actor, event, existing) => {
     };
 };
 
-const registerForEvent = async (actor, eventId) => {
+/**
+ * Registers a student. For team events the student registers a team as its leader (body.teamName, and
+ * optionally body.invitees: students to invite); the team takes one place and teammates join by accepting.
+ */
+const registerForEvent = async (actor, eventId, body = {}) => {
     assertVerified(actor);
     assertStudent(actor, "Only students can register for events");
 
@@ -151,6 +161,24 @@ const registerForEvent = async (actor, eventId) => {
         throw new AppError(`You are already on the waitlist (#${position})`, 409, ERROR_CODES.DUPLICATE_REGISTRATION);
     }
 
+    if (event.participationMode !== PARTICIPATION_MODES.TEAM) {
+        return takePlace(actor, event, existing, { team: null, teamRole: null });
+    }
+
+    const { team, invitees } = await teams.createTeam(actor, event, { teamName: body.teamName, invitees: body.invitees });
+    let result;
+    try {
+        result = await takePlace(actor, event, existing, { team: team._id, teamRole: "LEADER" }, team);
+    } catch (error) {
+        await teams.discardTeam(team);
+        throw error;
+    }
+    await teams.afterTeamCreated(team, event, actor, invitees);
+    return { ...result, team: await teams.getTeamView(team._id, event) };
+};
+
+// Takes a place (or a waitlist spot) for one registration: a student, or a team through its leader.
+const takePlace = async (actor, event, existing, teamFields, team = null) => {
     // Students already waiting keep their place: a newcomer only gets a seat directly when nobody is queued.
     const queueExists = await EventRegistration.exists({ event: event._id, status: REGISTRATION_STATUS.WAITLISTED });
 
@@ -158,7 +186,7 @@ const registerForEvent = async (actor, eventId) => {
     const reserved = queueExists ? null : await reserveSeat(event);
 
     if (!reserved) {
-        return joinWaitlist(actor, event, existing);
+        return joinWaitlist(actor, event, existing, teamFields);
     }
 
     let registration;
@@ -167,7 +195,7 @@ const registerForEvent = async (actor, eventId) => {
             // Unique (event, user) index plus the status guard stop two parallel re-registrations.
             registration = await EventRegistration.findOneAndUpdate(
                 { _id: existing._id, status: REGISTRATION_STATUS.CANCELLED },
-                { $set: { status: REGISTRATION_STATUS.REGISTERED, registeredAt: new Date(), waitlistedAt: null, promotedAt: null } },
+                { $set: { status: REGISTRATION_STATUS.REGISTERED, registeredAt: new Date(), waitlistedAt: null, promotedAt: null, ...teamFields } },
                 { returnDocument: "after" }
             );
             if (!registration) {
@@ -177,7 +205,8 @@ const registerForEvent = async (actor, eventId) => {
             registration = await EventRegistration.create({
                 event: event._id,
                 user: actor._id,
-                status: REGISTRATION_STATUS.REGISTERED
+                status: REGISTRATION_STATUS.REGISTERED,
+                ...teamFields
             });
         }
     } catch (error) {
@@ -200,8 +229,10 @@ const registerForEvent = async (actor, eventId) => {
 
     await notify(actor._id, {
         type: NOTIFICATION_TYPES.REGISTRATION_CONFIRMED,
-        title: `You're registered for ${event.title}`,
-        message: `See you on ${eventDateLabel(event)}.`,
+        title: team ? `"${team.name}" is registered for ${event.title}` : `You're registered for ${event.title}`,
+        message: team
+            ? `You're the team leader. Your teammates join by accepting your invites; teams need at least ${event.minTeamSize} member${event.minTeamSize === 1 ? "" : "s"}. See you on ${eventDateLabel(event)}.`
+            : `See you on ${eventDateLabel(event)}.`,
         link: `/events/${event._id}`,
         email: true
     });
@@ -221,6 +252,13 @@ const cancelRegistration = async (actor, eventId) => {
 
     if (event.status !== EVENT_STATUS.PUBLISHED || event.startAt <= new Date()) {
         throw new AppError("Registrations can only be cancelled before the event starts", 409, ERROR_CODES.INVALID_STATE);
+    }
+
+    const current = await EventRegistration.findOne({ event: event._id, user: actor._id, status: { $in: [REGISTRATION_STATUS.REGISTERED, REGISTRATION_STATUS.WAITLISTED] } });
+    if (current?.teamRole === "MEMBER") {
+        const left = await teams.leaveTeam(actor, event, current);
+        const fresh = await Event.findById(event._id).select("registeredCount maxParticipants waitlistCount");
+        return { ...left, leftWaitlist: false, promoted: 0, registeredCount: fresh.registeredCount, maxParticipants: fresh.maxParticipants, waitlistCount: fresh.waitlistCount };
     }
 
     const registration = await EventRegistration.findOneAndUpdate(
@@ -250,9 +288,20 @@ const cancelRegistration = async (actor, eventId) => {
         metadata: { eventId: event._id }
     });
 
+    if (registration.teamRole === "LEADER") {
+        await teams.disbandTeam(registration.team, event, { actor });
+    }
+
     const promoted = wasWaitlisted ? 0 : await promoteFromWaitlist(event._id, { reason: "registration_cancelled" });
     const fresh = await Event.findById(event._id).select("registeredCount maxParticipants waitlistCount");
-    return { leftWaitlist: wasWaitlisted, promoted, registeredCount: fresh.registeredCount, maxParticipants: fresh.maxParticipants, waitlistCount: fresh.waitlistCount };
+    return {
+        leftWaitlist: wasWaitlisted,
+        disbandedTeam: registration.teamRole === "LEADER",
+        promoted,
+        registeredCount: fresh.registeredCount,
+        maxParticipants: fresh.maxParticipants,
+        waitlistCount: fresh.waitlistCount
+    };
 };
 
 const listParticipants = async (actor, eventId, query = {}) => {
@@ -261,10 +310,13 @@ const listParticipants = async (actor, eventId, query = {}) => {
 
     const registrations = await EventRegistration.find({ event: event._id, status: REGISTRATION_STATUS.REGISTERED })
         .populate("user", "name email departmentCode batchCode")
+        .populate("team", "name size")
         .sort({ registeredAt: 1 });
 
-    const queued = await EventRegistration.find({ event: event._id, status: REGISTRATION_STATUS.WAITLISTED })
+    // The waitlist lists places in the queue: students, or teams through their leader.
+    const queued = await EventRegistration.find({ event: event._id, status: REGISTRATION_STATUS.WAITLISTED, teamRole: { $ne: "MEMBER" } })
         .populate("user", "name email departmentCode batchCode")
+        .populate("team", "name size")
         .sort({ waitlistedAt: 1, _id: 1 });
 
     let items = registrations.filter((registration) => registration.user);
@@ -277,16 +329,25 @@ const listParticipants = async (actor, eventId, query = {}) => {
         waitlist = waitlist.filter(matches);
     }
 
+    const isTeamEvent = event.participationMode === PARTICIPATION_MODES.TEAM;
+    const teamList = isTeamEvent
+        ? await Promise.all((await Team.find({ event: event._id, status: "ACTIVE" }).select("_id").sort({ createdAt: 1 }).lean()).map((team) => teams.getTeamView(team._id, event)))
+        : [];
+
     return {
         items,
         waitlist,
+        teams: teamList,
         event: {
             _id: event._id,
             title: event.title,
             status: event.status,
             registeredCount: event.registeredCount,
             maxParticipants: event.maxParticipants,
-            waitlistCount: event.waitlistCount
+            waitlistCount: event.waitlistCount,
+            participationMode: event.participationMode,
+            minTeamSize: event.minTeamSize,
+            maxTeamSize: event.maxTeamSize
         }
     };
 };
@@ -308,6 +369,40 @@ const removeParticipant = async (actor, eventId, registrationId, reason = null) 
         throw new AppError("Registration not found", 404, ERROR_CODES.NOT_FOUND);
     }
 
+    if (registration.teamRole === "MEMBER") {
+        const team = await Team.findOneAndUpdate(
+            { _id: registration.team, members: { $elemMatch: { user: registration.user, status: TEAM_MEMBER_STATUS.ACCEPTED } } },
+            { $set: { "members.$.status": TEAM_MEMBER_STATUS.REMOVED, "members.$.respondedAt": new Date() }, $inc: { size: -1 } },
+            { returnDocument: "after" }
+        );
+        await recordAudit({
+            action: AUDIT_ACTIONS.PARTICIPANT_REMOVED,
+            actor: actor._id,
+            targetType: "EventRegistration",
+            targetId: registration._id,
+            fromState: registration.status,
+            toState: REGISTRATION_STATUS.CANCELLED,
+            reason,
+            metadata: { eventId: event._id, userId: registration.user, teamId: registration.team }
+        });
+        await notify(registration.user, {
+            type: NOTIFICATION_TYPES.REGISTRATION_REMOVED,
+            title: `The organisers removed you from ${team ? `"${team.name}" for ` : ""}${event.title}`,
+            message: reason || "",
+            link: `/events/${event._id}`,
+            email: true
+        });
+        if (team) {
+            await notify(team.leader, {
+                type: NOTIFICATION_TYPES.TEAM_UPDATE,
+                title: `The organisers removed a member from "${team.name}"`,
+                message: reason || "",
+                link: `/events/${event._id}`
+            });
+        }
+        return;
+    }
+
     const wasWaitlisted = registration.status === REGISTRATION_STATUS.WAITLISTED;
     if (wasWaitlisted) {
         await adjustWaitlistCount(event._id, -1);
@@ -325,6 +420,10 @@ const removeParticipant = async (actor, eventId, registrationId, reason = null) 
         reason,
         metadata: { eventId: event._id, userId: registration.user }
     });
+
+    if (registration.teamRole === "LEADER") {
+        await teams.disbandTeam(registration.team, event, { actor, byOrganiser: true, reason });
+    }
 
     if (!wasWaitlisted) {
         await promoteFromWaitlist(event._id, { reason: "participant_removed" });
@@ -358,12 +457,13 @@ const getMyRegistrations = async (actor, query = {}) => {
     const registrations = await EventRegistration.find({ user: actor._id, status: { $in: statuses } })
         .populate({
             path: "event",
-            select: "title shortDescription poster startAt endAt startTime endTime status club venue registeredCount maxParticipants category",
+            select: "title shortDescription poster startAt endAt startTime endTime status club venue registeredCount maxParticipants category participationMode minTeamSize maxTeamSize",
             populate: [
                 { path: "club", select: "name logo" },
                 { path: "venue", select: "name location" }
             ]
         })
+        .populate("team", "name size")
         .sort({ registeredAt: -1 });
 
     const now = new Date();
