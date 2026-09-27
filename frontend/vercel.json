@@ -1,8 +1,10 @@
 {
     "$schema": "https://openapi.vercel.sh/vercel.json",
+    "framework": "vite",
+    "outputDirectory": "dist",
     "rewrites": [
-        { "source": "/api/:path*", "destination": "https://REPLACE-WITH-YOUR-RAILWAY-DOMAIN.up.railway.app/api/:path*" },
-        { "source": "/uploads/:path*", "destination": "https://REPLACE-WITH-YOUR-RAILWAY-DOMAIN.up.railway.app/uploads/:path*" },
+        { "source": "/api/:path*", "destination": "https://unisphere-production-3a32.up.railway.app/api/:path*" },
+        { "source": "/uploads/:path*", "destination": "https://unisphere-production-3a32.up.railway.app/uploads/:path*" },
         { "source": "/(.*)", "destination": "/index.html" }
     ]
 }
