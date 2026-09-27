@@ -12,8 +12,12 @@ const DEV_INBOX_LIMIT = 100;
 const devInbox = [];
 let devInboxSequence = 0;
 
-// "smtp" delivers real email; "preview" captures it in the development inbox; "disabled" drops it (production without SMTP).
+// "brevo" and "smtp" deliver real email; "preview" captures it in the development inbox; "disabled" drops it
+// (production with no email provider).
 const deliveryMode = () => {
+    if (env.brevoApiKey) {
+        return "brevo";
+    }
     if (env.smtp.host) {
         return "smtp";
     }
@@ -103,11 +107,42 @@ const layout = ({ heading, paragraphs = [], action = null, code = null, footnote
     </div>`;
 };
 
-// Delivers one message and throws when the SMTP server refuses it, so the queue can retry.
+// "CampusConnect <team@example.com>" -> { name, email }
+const parseAddress = (value) => {
+    const match = /^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/.exec(String(value || ""));
+    return match ? { name: match[1].trim() || undefined, email: match[2].trim() } : { email: String(value || "").trim() };
+};
+
+// Sends through Brevo's HTTPS API (port 443), which works where outgoing SMTP ports are blocked.
+const deliverWithBrevo = async ({ to, subject, html, text, headers }) => {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: { "api-key": env.brevoApiKey, "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({
+            sender: parseAddress(env.mailFrom),
+            to: [{ email: to }],
+            subject,
+            htmlContent: html,
+            textContent: text,
+            ...(headers ? { headers } : {})
+        })
+    });
+    if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(`Brevo refused the email (${response.status} ${body.code || ""} ${body.message || ""})`.trim());
+    }
+};
+
+// Delivers one message and throws when the provider refuses it, so the queue can retry.
 // `code` is only used to show one-time codes in the test outbox and the development inbox.
 const deliver = async ({ to, subject, html, text, code = null, headers = undefined }) => {
     if (env.isTest) {
         outbox.push({ to, subject, html, text, code, headers });
+        return;
+    }
+
+    if (env.brevoApiKey) {
+        await deliverWithBrevo({ to, subject, html, text, headers });
         return;
     }
 
@@ -186,7 +221,12 @@ const checkMailConfiguration = async () => {
     }
 
     if (mode === "disabled") {
-        logger.warn("SMTP is not configured: verification and reset emails cannot be delivered.");
+        logger.warn("No email provider is configured (BREVO_API_KEY or SMTP_*): verification and reset emails cannot be delivered.");
+        return mode;
+    }
+
+    if (mode === "brevo") {
+        logger.info("Emails are delivered through the Brevo API", { from: parseAddress(env.mailFrom).email });
         return mode;
     }
 
@@ -210,5 +250,7 @@ module.exports = {
     deliveryMode,
     listDevInbox,
     checkMailConfiguration,
+    parseAddress,
+    deliverWithBrevo,
     outbox
 };

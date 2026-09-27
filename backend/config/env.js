@@ -53,6 +53,10 @@ const env = {
         pass: process.env.SMTP_PASS || ""
     },
     mailFrom: process.env.MAIL_FROM || "CampusConnect <no-reply@campusconnect.local>",
+    // Brevo's HTTPS email API, for hosts that block outgoing SMTP (e.g. Railway's free and Hobby plans).
+    brevoApiKey: process.env.BREVO_API_KEY || "",
+    // Proxies in front of the API (1 = the host's load balancer; 2 when the frontend's host also proxies /api).
+    trustProxy: /^\d+$/.test(process.env.TRUST_PROXY || "") ? Number(process.env.TRUST_PROXY) : process.env.TRUST_PROXY === "false" ? false : 1,
     cloudinary: {
         cloudName: process.env.CLOUDINARY_CLOUD_NAME || "",
         apiKey: process.env.CLOUDINARY_API_KEY || "",

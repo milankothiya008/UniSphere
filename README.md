@@ -181,6 +181,14 @@ Integration tests cover authentication, the full club lifecycle, membership and 
 - Transactions are used automatically when MongoDB runs as a replica set.
 - Existing data from the earlier `COORDINATOR` / `UNIVERSITY_ADMIN` role model, and clubs / club requests stored with a single `departmentCode`, are migrated automatically on startup.
 
+### Frontend on Vercel, backend on Railway
+
+- **Backend (Railway):** deploy the repo with **Root Directory** `backend`; Railway runs `npm start` and provides `PORT`. Use MongoDB Atlas (or Railway's MongoDB) for `MONGO_URI`, and set the variables from `.env.example` with `NODE_ENV=production`, `CLIENT_URL=<your Vercel production URL>` and `TRUST_PROXY=2`.
+- **Email:** Railway's free and Hobby plans block outgoing SMTP, so set `BREVO_API_KEY` (Brevo's free plan, sender = a verified address in `MAIL_FROM`).
+- **Uploads:** Railway's disk is wiped on every deploy, so set the `CLOUDINARY_*` variables (or mount a Railway volume and point `UPLOAD_DIR` at it).
+- **Frontend (Vercel):** Root Directory `frontend`. `frontend/vercel.json` forwards `/api` and `/uploads` to the Railway domain (replace the placeholder), so the browser only talks to the Vercel domain: the sign-in cookie stays first-party and no CORS setup is needed. It also serves `index.html` for every page, so refreshing a deep link works.
+- Load the reference data once with `npm run seed` against the production database (e.g. `railway run npm run seed`).
+
 ## Out of scope (for now)
 
 Attendance tracking and photo galleries are intentionally not part of this version.

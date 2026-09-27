@@ -38,7 +38,8 @@ validateEnv();
 
 const app = express();
 
-app.set("trust proxy", 1);
+// Number of proxies in front of the API, so rate limits see each visitor's own IP (see TRUST_PROXY in .env.example).
+app.set("trust proxy", env.trustProxy);
 app.use(
     helmet({
         // Uploaded images are loaded by the frontend, which may run on another origin in development.
@@ -88,7 +89,8 @@ if (deliveryMode() === "preview") {
 }
 
 app.get("/api/health", (req, res) => {
-    res.json({ success: true, message: "CampusConnect API is running", data: { emailDelivery: deliveryMode() } });
+    // `ip` is the caller's own address as the API sees it: handy for checking TRUST_PROXY after deploying.
+    res.json({ success: true, message: "CampusConnect API is running", data: { emailDelivery: deliveryMode(), ip: req.ip } });
 });
 
 // In production the built React app is served from the same origin as the API.
