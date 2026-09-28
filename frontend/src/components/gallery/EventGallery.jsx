@@ -7,10 +7,11 @@ import { useGalleryUploader } from "../../hooks/useGalleryUploader";
 import { useToast } from "../../context/ToastContext";
 import { ACCEPT_MEDIA } from "../../lib/mediaUpload";
 import { plural } from "../../lib/format";
-import { Button, Card, ConfirmDialog, EmptyState, Modal, Tabs } from "../ui";
+import { Button, Card, ConfirmDialog, EmptyState, Skeleton, Tabs } from "../ui";
 import { GalleryViewer } from "./GalleryViewer";
 
-const PREVIEW_COUNT = 9;
+// From this many photos the newest is shown large, mosaic-style.
+const FEATURE_FROM = 9;
 const LEAVE_MS = 260;
 
 const duration = (seconds) => {
@@ -27,9 +28,9 @@ const describe = (items) => {
 const newestFirst = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
 
 // One square in the grid. Thumbnails fade in as they load; videos carry a play badge and their length.
-const Tile = ({ item, index = 0, onOpen, more = 0, selectable = false, selected = false, onToggle, leaving = false, showUploader = true }) => (
+const Tile = ({ item, index = 0, onOpen, selectable = false, selected = false, onToggle, leaving = false }) => (
     <div className={`gallery-tile ${selected ? "is-selected" : ""} ${leaving ? "is-leaving" : ""}`} style={{ "--i": Math.min(index, 12) }}>
-        <button type="button" className="gallery-tile-open" onClick={onOpen} aria-label={more ? `Show all — ${more} more` : `Open ${item.kind === "VIDEO" ? "video" : "photo"} by ${item.uploader.name}`}>
+        <button type="button" className="gallery-tile-open" onClick={onOpen} aria-label={`Open ${item.kind === "VIDEO" ? "video" : "photo"} by ${item.uploader.name}`}>
             {item.thumb ? (
                 <img src={item.thumb} alt="" loading="lazy" decoding="async" onLoad={(event) => event.currentTarget.classList.add("is-loaded")} />
             ) : (
@@ -43,13 +44,10 @@ const Tile = ({ item, index = 0, onOpen, more = 0, selectable = false, selected 
                 </span>
             )}
             {item.kind === "VIDEO" && item.duration ? <span className="gallery-tile-duration">{duration(item.duration)}</span> : null}
-            {showUploader && !more && (
-                <span className="gallery-tile-by">
-                    {item.uploader.name}
-                    {selectable && <small>{item.uploaderRole === "PARTICIPANT" ? "Participant" : "Member"}</small>}
-                </span>
-            )}
-            {more > 0 && <span className="gallery-tile-more">+{more}</span>}
+            <span className="gallery-tile-by">
+                {item.uploader.name}
+                {selectable && <small>{item.uploaderRole === "PARTICIPANT" ? "Participant" : "Member"}</small>}
+            </span>
         </button>
         {selectable && (
             <button type="button" className="gallery-check" onClick={onToggle} aria-pressed={selected} aria-label={selected ? "Deselect" : "Select"}>
@@ -135,13 +133,12 @@ const UploadTray = ({ uploader, moderated }) => {
 };
 
 /**
- * The event's photo and video gallery, on the event page. Club members (from publishing) and checked-in
+ * An event's photo and video gallery (the /gallery/:eventId page). Club members (from publishing) and checked-in
  * participants (from the start of the event) add files; the president and vice-president approve them.
  */
 export const EventGallery = ({ event }) => {
     const toast = useToast();
     const [params, setParams] = useSearchParams();
-    const sectionRef = useRef(null);
     const inputRef = useRef(null);
     const visible = ["PUBLISHED", "COMPLETED"].includes(event.status);
     const { data, meta, loading, reload, setData } = useApi(() => galleryApi.list(event._id, { limit: 24 }), [event._id], { enabled: visible });
@@ -153,7 +150,6 @@ export const EventGallery = ({ event }) => {
     const [leaving, setLeaving] = useState(() => new Set());
     const [busy, setBusy] = useState(false);
     const [dragging, setDragging] = useState(false);
-    const [showAll, setShowAll] = useState(false);
     const [page, setPage] = useState({ number: 1, loading: false });
 
     const access = data?.viewer || {};
@@ -177,17 +173,15 @@ export const EventGallery = ({ event }) => {
                 : toast.success(`Sent ${describe(items)} for review — they'll appear once the president or vice-president approves them.`)
     });
 
-    // Links from notifications and the dashboard: ?gallery=review opens the review queue, ?gallery=1 the gallery.
+    // Links from notifications and the dashboard: ?review=1 opens the review queue.
     useEffect(() => {
-        const target = params.get("gallery");
-        if (!target || !data) {
+        if (params.get("review") !== "1" || !data) {
             return;
         }
-        if (target === "review" && access.canModerate) {
+        if (access.canModerate) {
             setTab("review");
         }
-        requestAnimationFrame(() => sectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }));
-        params.delete("gallery");
+        params.delete("review");
         setParams(params, { replace: true });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [params, data]);
@@ -310,18 +304,20 @@ export const EventGallery = ({ event }) => {
           }
         : {};
 
-    if (!visible || (loading && !data) || !data) {
+    if (!visible) {
         return null;
     }
-    // Nothing to show and nothing this person can do: leave the event page uncluttered.
-    if (!approvedCount && !access.canUpload && !access.canModerate && !mine.length) {
-        return null;
+    if ((loading && !data) || !data) {
+        return (
+            <div className="gallery-grid" aria-busy="true">
+                {Array.from({ length: 8 }, (_, index) => (
+                    <Skeleton key={index} height="100%" style={{ aspectRatio: "1", borderRadius: 14 }} />
+                ))}
+            </div>
+        );
     }
 
-    const preview = approved.slice(0, PREVIEW_COUNT);
-    const hidden = approvedCount - PREVIEW_COUNT;
-    // The big first tile only when the mosaic fills its rows exactly (on both the 4- and 3-column grid).
-    const featured = preview.length === PREVIEW_COUNT;
+    const featured = approved.length >= FEATURE_FROM;
     const viewerItems = viewer ? (viewer.list === "pending" ? pending : approved) : [];
     const selection = pending.filter((item) => selected.has(item._id));
     const tabs = [
@@ -330,7 +326,7 @@ export const EventGallery = ({ event }) => {
     ];
 
     return (
-        <section id="gallery" ref={sectionRef} className={`gallery-section ${dragging ? "is-dragging" : ""}`} {...dragProps}>
+        <section id="gallery" className={`gallery-section ${dragging ? "is-dragging" : ""}`} {...dragProps}>
             <Card
                 title={
                     <h2 className="row">
@@ -355,35 +351,34 @@ export const EventGallery = ({ event }) => {
 
                     {tab === "gallery" && (
                         <>
-                            {preview.length > 0 ? (
+                            {approved.length > 0 ? (
                                 <div className={`gallery-grid ${featured ? "has-feature" : ""}`}>
-                                    {preview.map((item, index) => (
-                                        <Tile
-                                            key={item._id}
-                                            item={item}
-                                            index={index}
-                                            more={index === PREVIEW_COUNT - 1 && hidden > 0 ? hidden + 1 : 0}
-                                            onOpen={() => (index === PREVIEW_COUNT - 1 && hidden > 0 ? setShowAll(true) : setViewer({ list: "approved", index }))}
-                                        />
+                                    {approved.map((item, index) => (
+                                        <Tile key={item._id} item={item} index={index % 24} onOpen={() => setViewer({ list: "approved", index })} />
                                     ))}
                                 </div>
+                            ) : access.canUpload ? (
+                                <button type="button" className="gallery-empty" onClick={pick}>
+                                    <span className="gallery-empty-icon">
+                                        <ImagePlus size={26} />
+                                    </span>
+                                    <strong>No photos yet</strong>
+                                    <span>Share photos and videos from the event — tap here or drop files.</span>
+                                </button>
                             ) : (
-                                access.canUpload && (
-                                    <button type="button" className="gallery-empty" onClick={pick}>
-                                        <span className="gallery-empty-icon">
-                                            <ImagePlus size={26} />
-                                        </span>
-                                        <strong>No photos yet</strong>
-                                        <span>Share photos and videos from the event — tap here or drop files.</span>
-                                    </button>
-                                )
+                                <EmptyState
+                                    icon={Images}
+                                    title="No photos yet"
+                                    description={
+                                        access.canModerate
+                                            ? "Uploads from members and checked-in participants will wait here for your approval."
+                                            : access.hint || "Club members and checked-in participants share their photos and videos here."
+                                    }
+                                />
                             )}
-                            {!preview.length && !access.canUpload && access.canModerate && !pending.length && (
-                                <EmptyState icon={Images} title="No photos yet" description="Uploads from members and checked-in participants will wait here for your approval." />
-                            )}
-                            {approvedCount > PREVIEW_COUNT && (
-                                <Button variant="ghost" size="sm" onClick={() => setShowAll(true)}>
-                                    <Images size={15} /> View all {approvedCount}
+                            {moreToLoad && (
+                                <Button variant="secondary" block loading={page.loading} onClick={loadMore}>
+                                    Load more
                                 </Button>
                             )}
                         </>
@@ -451,7 +446,7 @@ export const EventGallery = ({ event }) => {
                             <ShieldCheck size={14} /> New uploads appear after the club's president or vice-president approves them.
                         </p>
                     )}
-                    {!access.canUpload && access.hint && approvedCount > 0 && <p className="gallery-note">{access.hint}</p>}
+                    {!access.canUpload && access.hint && approved.length > 0 && <p className="gallery-note">{access.hint}</p>}
                 </div>
 
                 {dragging && (
@@ -462,20 +457,6 @@ export const EventGallery = ({ event }) => {
                 )}
             </Card>
 
-            <Modal open={showAll} onClose={() => setShowAll(false)} size="lg" title={`Photos & videos · ${approvedCount}`} description={event.title}>
-                <div className="stack">
-                    <div className="gallery-grid is-all">
-                        {approved.map((item, index) => (
-                            <Tile key={item._id} item={item} index={index % 12} showUploader={false} onOpen={() => setViewer({ list: "approved", index })} />
-                        ))}
-                    </div>
-                    {moreToLoad && (
-                        <Button variant="secondary" block loading={page.loading} onClick={loadMore}>
-                            Load more
-                        </Button>
-                    )}
-                </div>
-            </Modal>
 
             {viewer && viewerItems.length > 0 && (
                 <GalleryViewer

@@ -117,7 +117,7 @@ const actionItems = (workspace) => {
             tone: "info",
             title: `${plural(event.pending, "gallery upload")} to review`,
             detail: event.title,
-            to: `/events/${event._id}?gallery=review`
+            to: `/gallery/${event._id}?review=1`
         })
     );
     workspace.readyToPublish.forEach((event) =>

@@ -167,7 +167,7 @@ describe("event gallery", () => {
             expect(forPresident).toHaveLength(2); // one for the member, one for Asha
             expect(notices.some((notice) => String(notice.user) === String(vice._id))).toBe(true);
             expect(notices.some((notice) => String(notice.user) === String(coordinator._id))).toBe(false);
-            expect(forPresident[0].link).toBe(`/events/${eventId}?gallery=review`);
+            expect(forPresident[0].link).toBe(`/gallery/${eventId}?review=1`);
 
             await add(member);
             expect(await Notification.countDocuments({ type: "GALLERY_SUBMITTED", user: president._id })).toBe(2);
@@ -219,6 +219,49 @@ describe("event gallery", () => {
             expect(added.body.message).toBe("Added to the gallery");
             expect(added.body.data.status).toBe("APPROVED");
             expect((await gallery(null)).body.data.counts.approved).toBe(3);
+        });
+    });
+
+    describe("the Gallery section", () => {
+        test("lists public events with their photo and video counts, cover and search", async () => {
+            const list = await request(app).get("/api/gallery");
+            expect(list.status).toBe(200);
+            const walk = list.body.data.find((card) => card.event.title === "Heritage Walk");
+            expect(walk).toMatchObject({ photos: 3, videos: 0, pending: 0, event: { club: { name: "Photo Club" } } });
+            expect(walk.cover).toMatch(/\/uploads\/gallery\//);
+            expect(walk.previews.length).toBeGreaterThan(0);
+            expect(list.body.data.some((card) => card.event.title === "Draft Event")).toBe(false);
+            expect(list.body.meta.counts).toMatchObject({ all: 2, photos: 1, review: 0 });
+            expect(list.body.meta.canReview).toBe(false);
+
+            // Events with photos are listed first.
+            expect(list.body.data[0].event.title).toBe("Heritage Walk");
+            expect(list.body.meta.total).toBe(2);
+            const paged = await request(app).get("/api/gallery?limit=1&page=2");
+            expect(paged.body.data.map((card) => card.event.title)).toEqual(["Other Event"]);
+
+            const withPhotos = await request(app).get("/api/gallery?show=photos");
+            expect(withPhotos.body.data.map((card) => card.event.title)).toEqual(["Heritage Walk"]);
+            const searched = await request(app).get("/api/gallery?search=other");
+            expect(searched.body.data.map((card) => card.event.title)).toEqual(["Other Event"]);
+            expect((await request(app).get("/api/gallery?show=everything")).status).toBe(400);
+        });
+
+        test("the president and VP see what's waiting for them; others don't", async () => {
+            await add(member);
+            const forVice = await api(vice).get("/api/gallery?show=review");
+            expect(forVice.body.meta).toMatchObject({ canReview: true, counts: { review: 1 } });
+            expect(forVice.body.data).toHaveLength(1);
+            expect(forVice.body.data[0]).toMatchObject({ pending: 1, event: { title: "Heritage Walk" } });
+
+            const forMember = await api(member).get("/api/gallery");
+            expect(forMember.body.meta.canReview).toBe(false);
+            expect(forMember.body.data.find((card) => card.event.title === "Heritage Walk").pending).toBe(0);
+        });
+
+        test("the event page carries how many photos are in its gallery", async () => {
+            const detail = await request(app).get(`/api/events/${eventId}`);
+            expect(detail.body.data.galleryCount).toBe(3);
         });
     });
 

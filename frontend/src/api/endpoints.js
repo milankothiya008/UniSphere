@@ -150,6 +150,7 @@ export const uploadApi = {
 };
 
 export const galleryApi = {
+    events: (query) => api.get("/gallery", query),
     list: (eventId, query) => api.get(`/events/${eventId}/gallery`, query),
     uploadTickets: (eventId, kinds) => api.post(`/events/${eventId}/gallery/uploads`, { kinds }),
     add: (eventId, media) => api.post(`/events/${eventId}/gallery`, { media }),

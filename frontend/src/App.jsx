@@ -20,6 +20,8 @@ const FeedPage = lazy(() => import("./pages/FeedPage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const ResultsPage = lazy(() => import("./pages/ResultsPage"));
+const GalleryPage = lazy(() => import("./pages/gallery/GalleryPage"));
+const EventGalleryPage = lazy(() => import("./pages/gallery/EventGalleryPage"));
 const MyRegistrationsPage = lazy(() => import("./pages/MyRegistrationsPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const DevInboxPage = lazy(() => import("./pages/dev/DevInboxPage"));
@@ -91,6 +93,8 @@ const App = () => (
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/results" element={<ResultsPage />} />
                 <Route path="/results/:eventId" element={<ResultDetailPage />} />
+                <Route path="/gallery" element={<GalleryPage />} />
+                <Route path="/gallery/:eventId" element={<EventGalleryPage />} />
 
                 <Route path="/events" element={<Navigate to="/feed" replace />} />
                 <Route path="/events/manage" element={<ManageEventsPage />} />

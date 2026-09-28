@@ -209,26 +209,6 @@
     font-variant-numeric: tabular-nums;
 }
 
-/* "+12": the last preview tile opens the full gallery. */
-.gallery-tile-more {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    display: grid;
-    place-items: center;
-    background: rgba(12, 21, 56, 0.62);
-    backdrop-filter: blur(2px);
-    font-family: var(--font-display);
-    font-size: 1.6rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 0.25s ease;
-}
-
-.gallery-tile:hover .gallery-tile-more {
-    background: rgba(12, 21, 56, 0.72);
-}
-
 /* Selection (review queue) */
 .gallery-check {
     position: absolute;
@@ -836,6 +816,115 @@ img.gv-media.is-loaded {
     color: rgba(255, 255, 255, 0.7);
 }
 
+/* ---------------------------------------------------------------- Gallery section: event cards */
+.gallery-card {
+    animation: gallery-in 0.45s var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 50ms);
+}
+
+.gallery-card-media {
+    overflow: hidden;
+}
+
+.gallery-card-media > img,
+.gallery-card-collage img {
+    transition: transform 0.6s var(--ease-out);
+}
+
+.gallery-card:hover .gallery-card-media > img,
+.gallery-card:hover .gallery-card-collage img.is-main {
+    transform: scale(1.05);
+}
+
+/* Latest three photos: one large, two stacked. */
+.gallery-card-collage {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 3px;
+    height: 100%;
+    background: var(--surface);
+}
+
+.gallery-card-collage img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    min-height: 0;
+}
+
+.gallery-card-collage img.is-main {
+    grid-row: span 2;
+}
+
+.gallery-card-chips {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.gallery-card-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(5, 8, 26, 0.62);
+    color: #fff;
+    font-size: 0.76rem;
+    font-weight: 650;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.gallery-card-chip.is-empty {
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--text-muted);
+}
+
+.gallery-card-chip.is-review {
+    background: var(--gold-500);
+    color: var(--ink-900);
+}
+
+/* ---------------------------------------------------------------- Event gallery page */
+.gallery-page-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+}
+
+.gallery-page-meta > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* The "Photo gallery" button on the event page. */
+.btn.gallery-link {
+    justify-content: flex-start;
+    gap: 10px;
+}
+
+.btn.gallery-link .gallery-count {
+    margin-left: 2px;
+}
+
+.btn.gallery-link .gallery-link-go {
+    margin-left: auto;
+    color: var(--text-subtle);
+    transition: transform 0.2s var(--ease-out);
+}
+
+.btn.gallery-link:hover .gallery-link-go {
+    transform: translateX(3px);
+}
+
 /* ---------------------------------------------------------------- Motion */
 @keyframes gallery-in {
     from {
@@ -890,6 +979,15 @@ img.gv-media.is-loaded {
         flex-wrap: wrap;
     }
 
+    /* Selection on the first line, Decline / Approve side by side below. */
+    .gallery-review-bar > .grow {
+        flex-basis: calc(100% - 40px);
+    }
+
+    .gallery-review-bar > .btn {
+        flex: 1 1 0;
+    }
+
     .gv-stage {
         padding: 0 8px;
     }
@@ -919,6 +1017,7 @@ img.gv-media.is-loaded {
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .gallery-card,
     .gallery-tile,
     .gallery-tile img,
     .gallery-empty-icon,

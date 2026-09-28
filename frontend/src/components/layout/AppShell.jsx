@@ -10,6 +10,7 @@ import {
     FileText,
     GraduationCap,
     Home,
+    Images,
     LayoutDashboard,
     LogOut,
     MapPin,
@@ -65,6 +66,7 @@ const Sidebar = () => {
                     <NavItem to="/feed" icon={Newspaper} label="Campus feed" />
                     <NavItem to="/clubs" icon={Building2} label="Clubs" end />
                     <NavItem to="/results" icon={Award} label="Results" />
+                    <NavItem to="/gallery" icon={Images} label="Gallery" />
                 </NavSection>
 
                 {isStudent && (

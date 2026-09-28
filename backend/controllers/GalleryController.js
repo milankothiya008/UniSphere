@@ -2,6 +2,11 @@ const gallery = require("../services/GalleryService");
 const asyncHandler = require("../utils/AsyncHandler");
 const { sendSuccess } = require("../utils/ApiResponse");
 
+const listEvents = asyncHandler(async (req, res) => {
+    const { items, meta } = await gallery.listGalleries(req.user, req.query);
+    sendSuccess(res, 200, "Galleries fetched", items, { meta });
+});
+
 const list = asyncHandler(async (req, res) => {
     const { items, meta, ...rest } = await gallery.getGallery(req.user, req.params.id, req.query);
     sendSuccess(res, 200, "Gallery fetched", { items, ...rest }, { meta });
@@ -34,4 +39,4 @@ const remove = asyncHandler(async (req, res) => {
     sendSuccess(res, 200, "Deleted from the gallery", { counts: await gallery.removeMedia(req.user, req.params.id, req.params.mediaId) });
 });
 
-module.exports = { list, uploadTickets, uploadLocal, add, approve, reject, remove };
+module.exports = { listEvents, list, uploadTickets, uploadLocal, add, approve, reject, remove };

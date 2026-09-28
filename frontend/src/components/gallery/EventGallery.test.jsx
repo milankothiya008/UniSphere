@@ -39,17 +39,17 @@ const gallery = ({ items = [], pending = [], mine = [], viewer = {}, total } = {
     meta: { page: 1, limit: 24, total: total ?? items.length, totalPages: Math.max(1, Math.ceil((total ?? items.length) / 24)) }
 });
 
-const render = (route = "/events/e1") => renderWithRouter(<EventGallery event={event} />, { route, path: "/events/:id" });
+const render = (route = "/gallery/e1") => renderWithRouter(<EventGallery event={event} />, { route, path: "/gallery/:eventId" });
 
 describe("EventGallery", () => {
     beforeEach(() => vi.clearAllMocks());
 
-    test("stays out of the way when there's nothing to show and nothing the viewer can do", async () => {
-        galleryApi.list.mockResolvedValue(gallery({ viewer: { hint: "Club members and checked-in participants can add photos and videos." } }));
-        const { container } = render();
-        await waitFor(() => expect(galleryApi.list).toHaveBeenCalled());
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        expect(container.querySelector("#gallery")).toBeNull();
+    test("with nothing shared yet, visitors see an empty state explaining who can add photos", async () => {
+        galleryApi.list.mockResolvedValue(gallery());
+        render();
+        expect(await screen.findByText("No photos yet")).toBeInTheDocument();
+        expect(screen.getByText(/Club members and checked-in participants share/)).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /Add photos/ })).not.toBeInTheDocument();
     });
 
     test("shows approved photos as a mosaic and opens them full screen, with arrows", async () => {
@@ -84,15 +84,19 @@ describe("EventGallery", () => {
         expect(document.querySelectorAll(".gallery-tile")).toHaveLength(6);
     });
 
-    test("more than nine: the last tile and 'View all' open the full gallery", async () => {
-        const items = Array.from({ length: 12 }, (_, i) => item(`m${i}`));
-        galleryApi.list.mockResolvedValue(gallery({ items, total: 30 }));
+    test("shows every loaded photo and loads more pages on request", async () => {
+        const items = Array.from({ length: 24 }, (_, i) => item(`m${i}`));
+        galleryApi.list.mockImplementation(async (id, query) =>
+            query.page === 2 ? { data: { ...gallery({ items: [item("m24"), item("m25")], total: 26 }).data }, meta: { page: 2, totalPages: 2 } } : gallery({ items, total: 26 })
+        );
         render();
 
-        expect(await screen.findByRole("button", { name: "Show all — 22 more" })).toHaveTextContent("+22");
-        await userEvent.click(screen.getByRole("button", { name: /View all 30/ }));
-        expect(screen.getByRole("dialog", { name: "Photos & videos · 30" })).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Load more" })).toBeInTheDocument();
+        await screen.findByRole("heading", { name: /Photos & videos/ });
+        expect(document.querySelectorAll(".gallery-tile")).toHaveLength(24);
+        await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+        await waitFor(() => expect(document.querySelectorAll(".gallery-tile")).toHaveLength(26));
+        expect(galleryApi.list).toHaveBeenLastCalledWith("e1", { limit: 24, page: 2 });
+        expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
     });
 
     test("uploaders see an empty drop zone, their uploads waiting for approval, and how approval works", async () => {
@@ -122,7 +126,7 @@ describe("EventGallery", () => {
         galleryApi.list.mockResolvedValue(gallery({ items: [item("m1")], pending, viewer: { canUpload: true, canModerate: true, role: "MEMBER" } }));
         galleryApi.approve.mockResolvedValue({ message: "Approved — it's now in the gallery", data: { approved: 1, counts: { approved: 2, pending: 1 } } });
         galleryApi.reject.mockResolvedValue({ message: "Declined and deleted", data: { rejected: 1, counts: { approved: 2, pending: 0 } } });
-        render("/events/e1?gallery=review");
+        render("/gallery/e1?review=1");
 
         // The dashboard / notification link opens the review queue.
         await waitFor(() => expect(screen.getByRole("tab", { name: /To review/ })).toHaveAttribute("aria-selected", "true"));

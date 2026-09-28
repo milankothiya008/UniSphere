@@ -1,12 +1,13 @@
 const Event = require("../models/Event");
+const ClubMembership = require("../models/ClubMembership");
 const EventMedia = require("../models/EventMedia");
 const EventRegistration = require("../models/EventRegistration");
 const AppError = require("../utils/AppError");
 const ERROR_CODES = require("../constants/ErrorCodes");
 const { env } = require("../config/env");
-const { GALLERY_STATUS, REGISTRATION_STATUS, PUBLIC_EVENT_STATUSES, NOTIFICATION_TYPES, AUDIT_ACTIONS } = require("../constants/Statuses");
-const { CLUB_PERMISSIONS } = require("../constants/Permissions");
-const { parsePagination, paginationMeta } = require("../utils/Query");
+const { GALLERY_STATUS, MEMBERSHIP_STATUS, REGISTRATION_STATUS, PUBLIC_EVENT_STATUSES, NOTIFICATION_TYPES, AUDIT_ACTIONS } = require("../constants/Statuses");
+const { CLUB_PERMISSIONS, CLUB_ROLE_PERMISSIONS } = require("../constants/Permissions");
+const { parsePagination, paginationMeta, searchRegex } = require("../utils/Query");
 const { getClubContext, contextHas } = require("./AuthorizationService");
 const { clubUsersWithPermission } = require("./MembershipService");
 const { recordAudit } = require("./AuditService");
@@ -197,7 +198,7 @@ const notifyReviewers = async (actor, event, item) => {
         type: NOTIFICATION_TYPES.GALLERY_SUBMITTED,
         title: `New photos to review for ${event.title}`,
         message: `${actor.name} added to the event gallery. Approve them to show them on the event page.`,
-        link: `/events/${event._id}?gallery=review`,
+        link: `/gallery/${event._id}?review=1`,
         exclude: [actor._id]
     });
 };
@@ -291,7 +292,7 @@ const approveMedia = async (actor, eventId, ids) => {
                     type: NOTIFICATION_TYPES.GALLERY_APPROVED,
                     title: `Your ${theirs.length === 1 ? (theirs[0].media.kind === "VIDEO" ? "video is" : "photo is") : "uploads are"} in the ${event.title} gallery`,
                     message: `${itemsLabel(theirs)} you added ${theirs.length === 1 ? "is" : "are"} now on the event page.`,
-                    link: `/events/${event._id}?gallery=1`,
+                    link: `/gallery/${event._id}`,
                     exclude: [actor._id]
                 })
             )
@@ -322,7 +323,7 @@ const rejectMedia = async (actor, eventId, ids, reason = "") => {
                     type: NOTIFICATION_TYPES.GALLERY_REJECTED,
                     title: `Not added to the ${event.title} gallery`,
                     message: `The club didn't add ${itemsLabel(theirs)} you uploaded.${note ? ` Reason: ${note}` : ""}`,
-                    link: `/events/${event._id}`,
+                    link: `/gallery/${event._id}`,
                     exclude: [actor._id]
                 })
             )
@@ -359,6 +360,132 @@ const removeMedia = async (actor, eventId, mediaId) => {
     return pendingCounts(event);
 };
 
+// Clubs where this person approves gallery uploads (president / vice-president).
+const moderatedClubIds = async (actor) => {
+    if (!actor) {
+        return [];
+    }
+    const roles = Object.keys(CLUB_ROLE_PERMISSIONS).filter((role) => CLUB_ROLE_PERMISSIONS[role].includes(MODERATE));
+    const memberships = await ClubMembership.find({ user: actor._id, status: MEMBERSHIP_STATUS.APPROVED, role: { $in: roles } }).select("club");
+    return memberships.map((membership) => membership.club);
+};
+
+/**
+ * The Gallery section: published and completed events, those with the latest photos first, each with its photo and video counts
+ * and a cover (the newest approved photo, else the event poster). `show`: all | photos (events that have
+ * some) | review (events with uploads waiting for this president / vice-president).
+ */
+const listGalleries = async (actor, query = {}) => {
+    const pagination = parsePagination(query, { defaultLimit: 12, maxLimit: 30 });
+    const base = { status: { $in: PUBLIC_EVENT_STATUSES } };
+    if (String(query.search || "").trim()) {
+        base.title = searchRegex(query.search);
+    }
+    if (query.club) {
+        base.club = query.club;
+    }
+
+    const moderated = await moderatedClubIds(actor);
+    const toReview = moderated.length ? await EventMedia.distinct("event", { status: PENDING, club: { $in: moderated } }) : [];
+
+    // Events with photos come first, most recently updated first; then the rest, newest event first.
+    const activity = await EventMedia.aggregate([
+        { $match: { status: APPROVED } },
+        { $group: { _id: "$event", latest: { $max: "$createdAt" } } },
+        { $sort: { latest: -1 } }
+    ]);
+    const matchingIds = new Set((await Event.find({ ...base, _id: { $in: activity.map((row) => row._id) } }).select("_id")).map((event) => String(event._id)));
+    const withPhotosOrdered = activity.map((row) => row._id).filter((id) => matchingIds.has(String(id)));
+
+    const load = (ids) =>
+        ids.length
+            ? Event.find({ _id: { $in: ids } }).select("title poster category startAt endAt status club").populate("club", "name logo")
+            : [];
+    const inOrder = (ids, docs) => ids.map((id) => docs.find((doc) => String(doc._id) === String(id))).filter(Boolean);
+
+    let events;
+    let total;
+    if (query.show === "review") {
+        const filter = { ...base, _id: { $in: toReview } };
+        [events, total] = await Promise.all([
+            Event.find(filter).select("title poster category startAt endAt status club").populate("club", "name logo").sort({ startAt: -1, _id: -1 }).skip(pagination.skip).limit(pagination.limit),
+            Event.countDocuments(filter)
+        ]);
+    } else {
+        const firstIds = withPhotosOrdered.slice(pagination.skip, pagination.skip + pagination.limit);
+        events = inOrder(firstIds, await load(firstIds));
+        const others = { ...base, _id: { $nin: withPhotosOrdered } };
+        const othersCount = query.show === "photos" ? 0 : await Event.countDocuments(others);
+        total = withPhotosOrdered.length + othersCount;
+        const room = pagination.limit - events.length;
+        if (room > 0 && othersCount > 0) {
+            const skip = Math.max(0, pagination.skip - withPhotosOrdered.length);
+            events = events.concat(
+                await Event.find(others).select("title poster category startAt endAt status club").populate("club", "name logo").sort({ startAt: -1, _id: -1 }).skip(skip).limit(room)
+            );
+        }
+    }
+
+    const [allCount, reviewCount] = await Promise.all([
+        Event.countDocuments(base),
+        toReview.length ? Event.countDocuments({ ...base, _id: { $in: toReview } }) : 0
+    ]);
+    const photosCount = withPhotosOrdered.length;
+
+    const ids = events.map((event) => event._id);
+    const [stats, covers] = await Promise.all([
+        EventMedia.aggregate([
+            { $match: { event: { $in: ids } } },
+            {
+                $group: {
+                    _id: "$event",
+                    photos: { $sum: { $cond: [{ $and: [{ $eq: ["$status", APPROVED] }, { $eq: ["$media.kind", "IMAGE"] }] }, 1, 0] } },
+                    videos: { $sum: { $cond: [{ $and: [{ $eq: ["$status", APPROVED] }, { $eq: ["$media.kind", "VIDEO"] }] }, 1, 0] } },
+                    pending: { $sum: { $cond: [{ $eq: ["$status", PENDING] }, 1, 0] } },
+                    latestAt: { $max: { $cond: [{ $eq: ["$status", APPROVED] }, "$createdAt", null] } }
+                }
+            }
+        ]),
+        EventMedia.aggregate([
+            { $match: { event: { $in: ids }, status: APPROVED } },
+            { $sort: { "media.kind": 1, createdAt: -1 } },
+            { $group: { _id: "$event", media: { $first: "$media" }, thumbs: { $push: "$media" } } },
+            { $project: { media: 1, thumbs: { $slice: ["$thumbs", 4] } } }
+        ])
+    ]);
+    const statsBy = new Map(stats.map((row) => [String(row._id), row]));
+    const coverBy = new Map(covers.map((row) => [String(row._id), row]));
+    const moderatedSet = new Set(moderated.map(String));
+
+    const items = events.map((event) => {
+        const row = statsBy.get(String(event._id)) || {};
+        const cover = coverBy.get(String(event._id));
+        return {
+            event: {
+                _id: event._id,
+                title: event.title,
+                poster: event.poster || null,
+                category: event.category,
+                startAt: event.startAt,
+                endAt: event.endAt,
+                status: event.status,
+                club: event.club
+            },
+            photos: row.photos || 0,
+            videos: row.videos || 0,
+            latestAt: row.latestAt || null,
+            pending: moderatedSet.has(String(event.club?._id)) ? row.pending || 0 : 0,
+            cover: cover ? media.mediaUrls(cover.media).thumb : null,
+            previews: cover ? cover.thumbs.map((item) => media.mediaUrls(item).thumb).filter(Boolean) : []
+        };
+    });
+
+    return {
+        items,
+        meta: { ...paginationMeta(pagination, total), counts: { all: allCount, photos: photosCount, review: reviewCount }, canReview: moderated.length > 0 }
+    };
+};
+
 /** Waiting-for-review counts per event, for the president's and VP's dashboards. */
 const pendingByEvent = async (clubIds) => {
     if (!clubIds.length) {
@@ -372,6 +499,7 @@ const pendingByEvent = async (clubIds) => {
 };
 
 module.exports = {
+    listGalleries,
     galleryAccess,
     getGallery,
     createUploadTickets,

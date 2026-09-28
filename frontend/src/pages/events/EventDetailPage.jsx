@@ -1,12 +1,11 @@
 import { useParams, Link } from "react-router-dom";
-import { Check, AlertTriangle, CalendarDays, Clock, Hourglass, Mail, MapPin, Megaphone, Phone, ShieldCheck, Trophy, User, Users } from "lucide-react";
+import { Check, AlertTriangle, CalendarDays, ChevronRight, Clock, Hourglass, Images, Mail, MapPin, Megaphone, Phone, ShieldCheck, Trophy, User, Users } from "lucide-react";
 import { eventApi, feedApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
-import { Alert, AsyncContent, Avatar, Badge, Card, PageHeader, StatusBadge } from "../../components/ui";
+import { Alert, AsyncContent, Avatar, Badge, ButtonLink, Card, PageHeader, StatusBadge } from "../../components/ui";
 import { EventActions } from "../../components/events/EventActions";
 import { EventChanges } from "../../components/events/EventChanges";
 import { RegistrationPanel } from "../../components/events/RegistrationPanel";
-import { EventGallery } from "../../components/gallery/EventGallery";
 import { Podium } from "../../components/feed/FeedCard";
 import { CategoryArt } from "../../components/events/EventCard";
 import { categoryVars } from "../../lib/eventVisuals";
@@ -205,7 +204,6 @@ const EventDetailPage = () => {
                             )}
 
                             <ResultsSection event={event} />
-                            <EventGallery event={event} />
                             <UpdatesSection event={event} />
                         </div>
 
@@ -278,6 +276,13 @@ const EventDetailPage = () => {
                             </Card>
 
                             <RegistrationPanel event={event} onChange={() => reload({ silent: true })} />
+                            {["PUBLISHED", "COMPLETED"].includes(event.status) && (
+                                <ButtonLink to={`/gallery/${event._id}`} variant="secondary" size="lg" block className="gallery-link">
+                                    <Images size={17} /> Photo gallery
+                                    {event.galleryCount > 0 && <span className="gallery-count">{event.galleryCount}</span>}
+                                    <ChevronRight size={16} className="gallery-link-go" />
+                                </ButtonLink>
+                            )}
                             <EventActions event={event} onChange={(updated) => setData(updated)} />
 
                             {(event.contact?.name || event.contact?.email || event.contact?.phone || event.organizer) && (

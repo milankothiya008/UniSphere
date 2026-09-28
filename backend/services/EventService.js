@@ -4,6 +4,7 @@ const Venue = require("../models/Venue");
 const ClubMembership = require("../models/ClubMembership");
 const EventRegistration = require("../models/EventRegistration");
 const EventResult = require("../models/EventResult");
+const EventMedia = require("../models/EventMedia");
 const User = require("../models/User");
 const AppError = require("../utils/AppError");
 const ERROR_CODES = require("../constants/ErrorCodes");
@@ -323,7 +324,10 @@ const getEventDetail = async (actor, eventId) => {
 
     const isStaff = context.isMentor || contextHas(context, CLUB_PERMISSIONS.MANAGE_EVENTS) || contextHas(context, CLUB_PERMISSIONS.PUBLISH_EVENTS);
 
+    const galleryCount = PUBLIC_EVENT_STATUSES.includes(event.status) ? await EventMedia.countDocuments({ event: event._id, status: "APPROVED" }) : 0;
+
     return serialize(event, {
+        galleryCount,
         viewer: actor ? { ...viewerFor(context, event, registration), ...teamInfo } : null,
         ...(isStaff && event.revision ? { revision: await describeRevision(event) } : {})
     });
