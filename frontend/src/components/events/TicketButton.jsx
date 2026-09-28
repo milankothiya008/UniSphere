@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { BadgeCheck, CalendarDays, Expand, Mail, MapPin, Ticket, Users } from "lucide-react";
+import { BadgeCheck, CalendarDays, Mail, MapPin, QrCode, Ticket, Users } from "lucide-react";
 import { eventApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { formatDate, formatDateTime, formatTimeRange } from "../../lib/format";
-import { Avatar, Button, Modal, Skeleton } from "../ui";
+import { Avatar, Button, ErrorState, Modal, Skeleton } from "../ui";
 
 // "CC-7K3M9QWA" → "CC-7K3M 9QWA", easier to read out at the door.
 export const spacedCode = (code) => (code ? code.replace(/^(CC-[A-Z2-9]{4})([A-Z2-9]{4})$/, "$1 $2") : "");
 
-const TicketBody = ({ ticket, large = false }) => (
-    <div className={`ticket ${ticket.checkedInAt ? "is-checked" : ""} ${large ? "is-large" : ""}`}>
+const TicketBody = ({ ticket }) => (
+    <div className={`ticket ${ticket.checkedInAt ? "is-checked" : ""}`}>
         <div className="ticket-head">
             <Avatar name={ticket.event.club?.name} src={ticket.event.club?.logo} size="sm" square />
             <div className="grow">
@@ -68,70 +68,71 @@ const TicketBody = ({ ticket, large = false }) => (
                     </div>
                 )}
             </dl>
-            <p className="ticket-note">
-                {ticket.checkedInAt ? (
-                    <>
-                        <BadgeCheck size={14} /> Checked in at {formatDateTime(ticket.checkedInAt)}
-                    </>
-                ) : (
-                    "Show this QR code at the entrance, or read out the ticket code."
-                )}
-            </p>
+            {ticket.checkedInAt && (
+                <p className="ticket-note">
+                    <BadgeCheck size={14} /> Checked in at {formatDateTime(ticket.checkedInAt)}
+                </p>
+            )}
         </div>
     </div>
 );
 
-/** The signed-in student's ticket for an event: QR code, ticket number and event details. */
-export const TicketCard = ({ event, registration, onLoaded }) => {
+// Mounted only while the window is open, so the QR is fetched when the student asks for it.
+const TicketContent = ({ eventId }) => {
+    const { data: ticket, loading, error, reload } = useApi(() => eventApi.ticket(eventId), [eventId]);
+
+    if (loading && !ticket) {
+        return (
+            <div className="ticket is-loading" aria-busy="true">
+                <Skeleton height={260} />
+                <Skeleton height={16} width="60%" style={{ marginTop: 12 }} />
+            </div>
+        );
+    }
+    if (error || !ticket) {
+        return <ErrorState error={error} title="Couldn't load your ticket" onRetry={reload} />;
+    }
+    return (
+        <>
+            <TicketBody ticket={ticket} />
+            <p className="ticket-sent subtle small">
+                <Mail size={13} /> A copy was sent to {ticket.holder.email}
+            </p>
+        </>
+    );
+};
+
+/** One button on the event page; the ticket (QR code, code and details) opens in a window. */
+export const TicketButton = ({ event, registration }) => {
     const [params, setParams] = useSearchParams();
-    const [fullScreen, setFullScreen] = useState(false);
-    const { data: ticket, loading, error } = useApi(() => eventApi.ticket(event._id), [event._id, registration?.checkedInAt, registration?.ticketCode]);
+    const [open, setOpen] = useState(false);
+    const checkedIn = Boolean(registration?.checkedInAt);
 
     // Ticket emails link here with ?ticket=1 so the QR opens straight away.
     useEffect(() => {
         if (params.get("ticket") === "1") {
-            setFullScreen(true);
+            setOpen(true);
             params.delete("ticket");
             setParams(params, { replace: true });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [params]);
 
-    useEffect(() => {
-        if (ticket) {
-            onLoaded?.(ticket);
-        }
-    }, [ticket, onLoaded]);
-
-    if (loading && !ticket) {
-        return (
-            <div className="ticket is-loading" aria-busy="true">
-                <Skeleton height={220} />
-                <Skeleton height={16} width="60%" style={{ marginTop: 12 }} />
-            </div>
-        );
-    }
-    if (error || !ticket) {
-        return null;
-    }
-
     return (
-        <div className="ticket-card">
-            <TicketBody ticket={ticket} />
-            <div className="ticket-actions">
-                <Button variant="secondary" size="sm" onClick={() => setFullScreen(true)}>
-                    <Expand size={15} /> Show full screen
-                </Button>
-                <span className="subtle small">
-                    <Mail size={13} /> Also sent to {ticket.holder.email}
-                </span>
-            </div>
-
-            <Modal open={fullScreen} onClose={() => setFullScreen(false)} title="Your ticket" description="Turn up the brightness and hold the QR code steady for the scanner.">
+        <>
+            <Button size="lg" block variant={checkedIn ? "secondary" : "primary"} onClick={() => setOpen(true)}>
+                {checkedIn ? <BadgeCheck size={17} /> : <QrCode size={17} />} View ticket
+            </Button>
+            <Modal
+                open={open}
+                onClose={() => setOpen(false)}
+                title="Your ticket"
+                description={checkedIn ? "You're checked in for this event." : "Show this QR code at the entrance. Turn up your screen brightness for a faster scan."}
+            >
                 <div className="ticket-modal">
-                    <TicketBody ticket={ticket} large />
+                    <TicketContent eventId={event._id} />
                 </div>
             </Modal>
-        </div>
+        </>
     );
 };

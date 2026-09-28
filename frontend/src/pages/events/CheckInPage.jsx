@@ -8,7 +8,7 @@ import { useQrScanner } from "../../hooks/useQrScanner";
 import { useToast } from "../../context/ToastContext";
 import { Alert, AsyncContent, Avatar, Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, PageHeader, SearchInput, Tabs } from "../../components/ui";
 import { batchLabel, formatDateTime, formatTime, plural } from "../../lib/format";
-import { spacedCode } from "../../components/events/TicketCard";
+import { spacedCode } from "../../components/events/TicketButton";
 
 const POLL_MS = 30000;
 const RESULT_MS = 3500;

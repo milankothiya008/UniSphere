@@ -1,12 +1,6 @@
 /* ================================================================ Tickets & check-in */
 
 /* ---------------------------------------------------------------- Ticket (student side) */
-.ticket-card {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
 .ticket {
     position: relative;
     overflow: hidden;
@@ -78,8 +72,8 @@
     transition: opacity 0.3s ease;
 }
 
-.ticket.is-large .ticket-qr img {
-    width: min(100%, 340px);
+.ticket-modal .ticket-qr img {
+    width: min(100%, 300px);
 }
 
 .ticket.is-checked .ticket-qr img {
@@ -168,8 +162,8 @@
     color: var(--ink-800);
 }
 
-.ticket.is-large .ticket-code b {
-    font-size: 1.7rem;
+.ticket-modal .ticket-code b {
+    font-size: 1.55rem;
 }
 
 .ticket-meta {
@@ -219,22 +213,28 @@
     font-weight: 600;
 }
 
-.ticket-actions {
+.ticket-modal {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.ticket-actions .small {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
+    flex-direction: column;
+    gap: 12px;
 }
 
 .ticket-modal .ticket {
     box-shadow: none;
+}
+
+/* Notches cut into the modal's own surface. */
+.ticket-modal .ticket-perforation::before,
+.ticket-modal .ticket-perforation::after {
+    background: var(--surface);
+}
+
+.ticket-sent {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 0;
 }
 
 /* ---------------------------------------------------------------- Check-in page (club side) */
