@@ -4,7 +4,7 @@ A university-only platform for clubs, events and campus life. It replaces the Wh
 
 ```
 Student group ─► club request ─► faculty verification ─► admin approval ─► club created (verifier = faculty mentor)
-Mentor appoints president ─► students request to join ─► president approves & assigns roles
+Mentor appoints president ─► recruitment drive (mentor-approved) ─► students apply ─► selection rounds ─► selected students join with a role
 Club creates event ─► venue/time check ─► mentor approves / requests changes / rejects ─► club publishes
 Event appears in the campus feed (everyone notified) ─► students register from the feed ─► club manages participants
 Event completes ─► club publishes results ─► results show on the event in the feed's Past tab
@@ -63,7 +63,7 @@ All use the password `Demo@1234` (override with `DEMO_PASSWORD`). Student emails
 
 | Role | Email format | Can |
 |---|---|---|
-| `STUDENT` | `24ceuog001@ddu.ac.in` — 2-digit batch, 2–4 letter department, 3-letter identity, 3-digit number | Propose clubs, join clubs, register for events, hold club roles |
+| `STUDENT` | `24ceuog001@ddu.ac.in` — 2-digit batch, 2–4 letter department, 3-letter identity, 3-digit number | Propose clubs, apply to club recruitment, register for events, hold club roles |
 | `FACULTY` | `mrudang.ce@ddu.ac.in` — first name (letters only), a dot, 2–4 letter department | Verify / request changes / reject club requests, mentor clubs, approve club events, appoint presidents |
 | `ADMIN` | faculty-format email, bootstrapped via env | Final club approval, club status, mentor reassignment; university-wide users, departments, batches, venues, audit log — no club-internal management |
 
@@ -103,6 +103,8 @@ Each club is for **one or more departments, or for all departments**, and the sa
 
 **Registration** validates published status, registration window, manual closure, department/batch eligibility, duplicates (unique index) and capacity (atomic conditional seat counter — safe under concurrency). Students can cancel before the event starts; staff with `MANAGE_PARTICIPANTS` can remove participants; participant lists export to CSV.
 
+**Recruitment.** Students join clubs through recruitment drives. The president sets the open positions (each mapped to a club role) and builds the application form (short/long answers, choices, links, PDF or image uploads). The faculty mentor approves it, the president publishes it, and every student who can join is notified and emailed. After applications close the president runs as many rounds as needed — screening, online interviews with a meeting link, or offline interviews at a campus venue — with one common time or individual slots. Every candidate is emailed their invitation, reminders 1 hour and 10 minutes before, and each round's result (congratulations or a thank-you). At the end, selected students become members with their role and get a welcome email.
+
 **Waitlist.** A full event doesn't turn students away: they join a first-come, first-served waitlist and see their place (#1, #2…). When a seat frees up — a student cancels, an organiser removes a participant, or the capacity is raised — the first student waiting is registered automatically, notified in-app and emailed ("You're in! A spot opened up…"), and everyone behind moves up. Newcomers can't jump the queue, promotion stops once the event starts, and every step is atomic so parallel cancellations never overfill the event or promote anyone twice. Students can leave the waitlist; organisers see it in order on the participants page; waitlisted students also get event updates and cancellation notices.
 
 **Club insights (president's dashboard).** The president's club workspace shows total members, total events (published + completed, plus how many are still in the pipeline), total registrations (and how many are waitlisted), upcoming and completed events, average participation per event with the share of seats filled, and an event-wise registrations chart — registrations against capacity with the waitlist, a hover tooltip, and a table view.
@@ -137,7 +139,8 @@ All responses: `{ success, message, data, meta? }`; errors: `{ success: false, m
 | Auth `/api/auth` | `POST register, verify-email, resend-verification, login, refresh, logout, forgot-password, verify-reset-code, reset-password, change-password` · `GET me` |
 | Users `/api/users` | `GET /` (admin) · `GET /search?q=` · `GET/PUT /:id` · `PATCH /:id/status` (admin) |
 | Club requests `/api/club-requests` | `POST /` · `GET /` · `GET/PUT /:id` · `POST /:id/resubmit, verify, request-changes, reject, approve` |
-| Clubs `/api/clubs` | `GET /` · `GET /mine` · `GET/PUT /:id` · `POST /:id/status` · `PUT /:id/mentor` · `POST /:id/president` · `GET/POST /:id/members` · `PATCH /:id/members/:userId/role` · `DELETE /:id/members/:userId` · `POST/DELETE /:id/join` · `POST /:id/leave` · `GET /:id/membership-requests` · `POST /:id/membership-requests/:mid/approve|reject` · `GET /:clubId/events` |
+| Clubs `/api/clubs` | `GET /` · `GET /mine` · `GET/PUT /:id` · `POST /:id/status` · `PUT /:id/mentor` · `POST /:id/president` · `GET/POST /:id/members` · `PATCH /:id/members/:userId/role` · `DELETE /:id/members/:userId` · `POST /:id/leave` · `GET /:clubId/events` · `GET/POST /:clubId/recruitment` |
+| Recruitment `/api/recruitment` | `GET /` (open drives) · `GET /mine` · `GET /review` · `GET/PUT/DELETE /:id` · `POST /:id/submit|approve|request-changes|reject|publish|close|cancel` · `PUT /:id/deadline` · `GET/POST/PUT/DELETE /:id/application` · `POST /:id/uploads` · `GET /:id/applications[/:applicationId]` · `GET/POST /:id/rounds` · `PUT /:id/rounds/:roundId/schedule|outcomes` · `PATCH /:id/rounds/:roundId/slots/:applicationId` · `POST /:id/rounds/:roundId/publish` · `POST /:id/finalize` |
 | Events `/api/events` | `GET /` (discovery: `timeframe=upcoming|ongoing|past`, `category`, `club`, `search`, `registrationOpen`) · `GET /manage` · `GET /:id` · `POST /` · `PUT /:id` · `POST /:id/submit, approve, request-changes, reject, publish, cancel, complete` · `POST/DELETE /:id/register` · `GET /:id/registrations` · `DELETE /:id/registrations/:rid` · `GET/PUT /:id/results` · `POST /:id/results/publish` |
 | Other | `GET /api/registrations/me` · `GET /api/results` · `/api/events/:id/results` (+ `rounds`, `rounds/:roundId`, `…/publish`, `…/unpublish`) · `GET/POST /api/feed`, `DELETE /api/feed/:id` · `/api/notifications` (+ `preferences`, `subscriptions`, public `unsubscribe`) · `GET/PUT /api/clubs/:id/subscription` · `POST /api/uploads/image?folder=` · `GET /api/dashboard` · `/api/venues` · `/api/admin/{stats,faculty,audit-logs,departments,batches}` |
 

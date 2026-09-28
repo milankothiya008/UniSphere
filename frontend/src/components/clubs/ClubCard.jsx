@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Users } from "lucide-react";
+import { Megaphone, Users } from "lucide-react";
 import { Avatar, Badge, RoleBadge, StatusBadge } from "../ui";
 import { departmentsLabel, humanize, plural } from "../../lib/format";
 import { categoryStyle, categoryVars } from "../../lib/eventVisuals";
@@ -13,6 +13,11 @@ export const ClubCard = ({ club, role, showStatus = false }) => (
     <Link to={`/clubs/${club._id}`} className="card card-link club-card" style={categoryVars(club.category)}>
         <div className="club-card-banner" style={club.coverImage ? { backgroundImage: `url("${String(club.coverImage).replace(/"/g, "%22")}")` } : undefined}>
             {!club.coverImage && <ClubArt category={club.category} />}
+            {club.recruiting && (
+                <span className={`club-card-recruiting ${club.recruiting.open ? "is-open" : ""}`}>
+                    <Megaphone size={13} /> {club.recruiting.open ? "Recruiting now" : "Recruiting soon"}
+                </span>
+            )}
         </div>
         <div className="club-card-head">
             <Avatar name={club.name} src={club.logo} size="lg" square />

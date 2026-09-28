@@ -3,6 +3,8 @@ const ClubCreationRequest = require("../models/ClubCreationRequest");
 const ClubMembership = require("../models/ClubMembership");
 const Event = require("../models/Event");
 const EventMedia = require("../models/EventMedia");
+const RecruitmentDrive = require("../models/RecruitmentDrive");
+const RecruitmentApplication = require("../models/RecruitmentApplication");
 const EventResult = require("../models/EventResult");
 const Notification = require("../models/Notification");
 const {
@@ -22,6 +24,8 @@ const { getStats } = require("./AdminService");
 const { getMyRegistrations } = require("./RegistrationService");
 const { registrationWindowState, listEvents } = require("./EventService");
 const { attendedCountsByEvent } = require("./CheckInService");
+const { phaseOf, listDrivesToReview } = require("./RecruitmentService");
+const { myApplications } = require("./ApplicationService");
 
 const eventCard = "title startAt endAt startTime endTime status registeredCount maxParticipants waitlistCount poster club venue category registrationEnd registrationStart registrationClosed participationMode minTeamSize maxTeamSize";
 
@@ -83,16 +87,46 @@ const clubInsights = async (clubId, memberCount, now = new Date()) => {
     };
 };
 
+// The president's recruitment drive in progress, with what needs doing next.
+const recruitmentSummary = async (clubId, now) => {
+    const drive = await RecruitmentDrive.findOne({ club: clubId, status: { $in: ["DRAFT", "PENDING_APPROVAL", "NEEDS_CHANGES", "APPROVED", "PUBLISHED"] } }).sort({ createdAt: -1 });
+    if (!drive) {
+        return null;
+    }
+    const round = drive.rounds[drive.rounds.length - 1] || null;
+    const [applications, undecided, nextSlot] = await Promise.all([
+        RecruitmentApplication.countDocuments({ drive: drive._id, status: { $in: ["APPLIED", "IN_ROUNDS"] } }),
+        round && round.status !== "RESULTS_PUBLISHED"
+            ? RecruitmentApplication.countDocuments({ drive: drive._id, status: { $in: ["APPLIED", "IN_ROUNDS"] }, $or: [{ "pendingOutcome.round": { $ne: round._id } }, { "pendingOutcome.outcome": null }] })
+            : 0,
+        round && round.status === "SCHEDULED"
+            ? RecruitmentApplication.findOne({ drive: drive._id, status: { $in: ["APPLIED", "IN_ROUNDS"] }, slots: { $elemMatch: { round: round._id, startAt: { $gt: now } } } })
+                  .sort({ "slots.startAt": 1 })
+                  .select("slots")
+            : null
+    ]);
+    const next = nextSlot?.slots.filter((slot) => String(slot.round) === String(round._id) && slot.startAt > now).sort((a, b) => a.startAt - b.startAt)[0];
+    return {
+        _id: drive._id,
+        title: drive.title,
+        status: drive.status,
+        phase: phaseOf(drive, now),
+        reviewComment: drive.reviewComment,
+        applicationEnd: drive.applicationEnd,
+        applications,
+        round: round ? { _id: round._id, name: round.name, mode: round.mode, status: round.status, undecided } : null,
+        nextInterviewAt: next ? next.startAt : null
+    };
+};
+
 const clubWorkspace = async (membership) => {
     const clubId = membership.club._id;
     const permissions = CLUB_ROLE_PERMISSIONS[membership.role] || [];
     const has = (permission) => permissions.includes(permission);
     const now = new Date();
 
-    const [pendingMembers, memberCount, events, completedIds] = await Promise.all([
-        has(CLUB_PERMISSIONS.MANAGE_MEMBERS)
-            ? ClubMembership.countDocuments({ club: clubId, status: MEMBERSHIP_STATUS.PENDING })
-            : Promise.resolve(null),
+    const [recruitment, memberCount, events, completedIds] = await Promise.all([
+        has(CLUB_PERMISSIONS.MANAGE_RECRUITMENT) ? recruitmentSummary(clubId, now) : Promise.resolve(null),
         ClubMembership.countDocuments({ club: clubId, status: MEMBERSHIP_STATUS.APPROVED }),
         Event.find({
             club: clubId,
@@ -133,7 +167,7 @@ const clubWorkspace = async (membership) => {
         role: membership.role,
         permissions,
         memberCount,
-        pendingMembershipRequests: pendingMembers,
+        recruitment,
         drafts: byStatus(EVENT_STATUS.DRAFT),
         needsChanges: byStatus(EVENT_STATUS.NEEDS_CHANGES),
         pendingApproval: byStatus(EVENT_STATUS.PENDING_APPROVAL),
@@ -157,16 +191,16 @@ const clubWorkspace = async (membership) => {
 // they can still register for).
 const studentDashboard = async (actor) => {
     const now = new Date();
-    const memberships = await ClubMembership.find({
-        user: actor._id,
-        status: { $in: [MEMBERSHIP_STATUS.APPROVED, MEMBERSHIP_STATUS.PENDING] }
-    }).populate("club", "name logo category status president mentor allDepartments departmentCodes");
+    const memberships = await ClubMembership.find({ user: actor._id, status: MEMBERSHIP_STATUS.APPROVED }).populate(
+        "club",
+        "name logo category status president mentor allDepartments departmentCodes"
+    );
 
     const valid = memberships.filter((m) => m.club);
-    const approved = valid.filter((m) => m.status === MEMBERSHIP_STATUS.APPROVED);
+    const approved = valid;
     const officerships = approved.filter((m) => m.role !== CLUB_ROLES.MEMBER && m.club.status === CLUB_STATUS.ACTIVE);
 
-    const [upcomingAll, pastRegistrations, clubRequests, recentNotifications, workspaces] = await Promise.all([
+    const [upcomingAll, pastRegistrations, clubRequests, recentNotifications, workspaces, applications] = await Promise.all([
         getMyRegistrations(actor, { timeframe: "upcoming", includeWaitlist: "true" }),
         getMyRegistrations(actor, { timeframe: "past" }),
         ClubCreationRequest.find({ $or: [{ requester: actor._id }, { foundingMembers: actor._id }] })
@@ -174,7 +208,8 @@ const studentDashboard = async (actor) => {
             .sort({ updatedAt: -1 })
             .limit(5),
         Notification.find({ user: actor._id }).sort({ createdAt: -1 }).limit(5),
-        Promise.all(officerships.map(clubWorkspace))
+        Promise.all(officerships.map(clubWorkspace)),
+        myApplications(actor)
     ]);
 
     const upcomingRegistrations = upcomingAll.filter((r) => r.status === REGISTRATION_STATUS.REGISTERED);
@@ -223,7 +258,7 @@ const studentDashboard = async (actor) => {
             upcoming: upcomingRegistrations.length,
             attended: pastRegistrations.filter((r) => r.event.status === EVENT_STATUS.COMPLETED).length,
             clubs: approved.length,
-            pendingClubs: valid.length - approved.length,
+            applications: applications.filter((application) => ["APPLIED", "IN_ROUNDS"].includes(application.status)).length,
             waitlisted: waitlistedRegistrations.length
         },
         upcomingRegistrations: upcomingRegistrations.slice(0, 6),
@@ -234,6 +269,8 @@ const studentDashboard = async (actor) => {
             .map((r) => ({ ...r.toObject(), hasResults: withResults.has(String(r.event._id)) })),
         memberships: valid.map((m) => ({ _id: m._id, role: m.role, status: m.status, club: m.club })),
         clubWorkspaces: workspaces,
+        // Applications still in play, plus results from the last month.
+        applications: applications.filter((application) => ["APPLIED", "IN_ROUNDS"].includes(application.status) || now - new Date(application.createdAt) < 30 * 86400000).slice(0, 6),
         clubRequests,
         recommended,
         recentNotifications
@@ -244,7 +281,7 @@ const facultyDashboard = async (actor) => {
     const mentored = await Club.find({ mentor: actor._id }).populate("president", "name email").sort({ name: 1 });
     const clubIds = mentored.map((club) => club._id);
 
-    const [requestsToReview, verifiedRequests, eventsToReview, upcomingEvents, memberCounts] = await Promise.all([
+    const [requestsToReview, verifiedRequests, eventsToReview, upcomingEvents, memberCounts, drivesToReview] = await Promise.all([
         ClubCreationRequest.find({
             status: CLUB_REQUEST_STATUS.PENDING_FACULTY_REVIEW,
             $or: [{ proposedMentor: actor._id }, { proposedMentor: null }]
@@ -269,7 +306,8 @@ const facultyDashboard = async (actor) => {
         ClubMembership.aggregate([
             { $match: { club: { $in: clubIds }, status: MEMBERSHIP_STATUS.APPROVED } },
             { $group: { _id: "$club", count: { $sum: 1 } } }
-        ])
+        ]),
+        listDrivesToReview(actor)
     ]);
 
     const counts = new Map(memberCounts.map((row) => [String(row._id), row.count]));
@@ -280,6 +318,7 @@ const facultyDashboard = async (actor) => {
         requestsToReview,
         verifiedRequests,
         eventsToReview: withState(eventsToReview),
+        drivesToReview,
         upcomingEvents: withState(upcomingEvents)
     };
 };

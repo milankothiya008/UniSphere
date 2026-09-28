@@ -9,6 +9,7 @@ import {
     ChevronRight,
     Clock,
     Compass,
+    FileSignature,
     FileText,
     History,
     Hourglass,
@@ -23,6 +24,7 @@ import { useToast } from "../../context/ToastContext";
 import { EventRow } from "../events/EventCard";
 import { Avatar, Badge, Button, ButtonLink, Card, RoleBadge, StatusBadge } from "../ui";
 import { ClubHQ } from "./ClubHQ";
+import { ApplicationRow } from "../recruitment/ApplicationRow";
 import { NotificationIcon } from "../notifications/NotificationIcon";
 import { countdownParts, daysUntil, formatDate, formatDateLong, formatTimeRange, humanize, plural, timeAgo } from "../../lib/format";
 import { Hero, greeting, todayLabel } from "./DashboardHero";
@@ -417,7 +419,7 @@ const MyClubs = ({ memberships, hiddenClubIds }) => {
                         <Link key={m._id} to={`/clubs/${m.club._id}`} className="list-row">
                             <Avatar name={m.club.name} src={m.club.logo} size="sm" square />
                             <span className="grow title">{m.club.name}</span>
-                            {m.status === "PENDING" ? <Badge tone="warning">Pending</Badge> : <RoleBadge role={m.role} />}
+                            <RoleBadge role={m.role} />
                         </Link>
                     ))}
                 </div>
@@ -436,6 +438,31 @@ const MyClubs = ({ memberships, hiddenClubIds }) => {
         </Card>
     );
 };
+
+// Recruitment the student applied to: status and the next interview.
+const MyApplications = ({ applications }) =>
+    applications?.length ? (
+        <Card
+            className="dash-card"
+            title={
+                <h2 className="row">
+                    <FileSignature size={16} /> My applications
+                </h2>
+            }
+            actions={
+                <Link to="/my-applications" className="small link-arrow">
+                    View all <ChevronRight size={14} />
+                </Link>
+            }
+            padded={false}
+        >
+            <div className="recruit-dash-list">
+                {applications.slice(0, 4).map((application) => (
+                    <ApplicationRow key={application._id} application={application} compact />
+                ))}
+            </div>
+        </Card>
+    ) : null;
 
 const Proposals = ({ requests }) =>
     requests.length ? (
@@ -542,6 +569,7 @@ export const StudentDashboard = ({ user, data }) => {
 
                 <aside className="stack">
                     <Activity items={student.recentNotifications} />
+                    <MyApplications applications={student.applications} />
                     <MyClubs memberships={student.memberships} hiddenClubIds={workspaceClubIds} />
                     <Proposals requests={student.clubRequests} />
                 </aside>

@@ -80,6 +80,13 @@ const env = {
         maxVideoSeconds: Number(process.env.GALLERY_MAX_VIDEO_SECONDS) || 90,
         // Waiting-for-review uploads one person may have per event, so the review queue can't be flooded.
         maxPendingPerUser: Number(process.env.GALLERY_MAX_PENDING_PER_USER) || 30
+    },
+    // Recruitment application files (resumes, portfolios).
+    recruitment: {
+        maxDocumentBytes: Number(process.env.RECRUITMENT_MAX_FILE_BYTES) || 5 * 1024 * 1024,
+        maxImageBytes: Number(process.env.RECRUITMENT_MAX_FILE_BYTES) || 5 * 1024 * 1024,
+        maxVideoBytes: 0,
+        maxVideoSeconds: 0
     }
 };
 

@@ -175,7 +175,7 @@ describe("club bell, campaign emails and unsubscribe", () => {
             const res = await request(app).post("/api/notifications/unsubscribe").send({ token: categoryToken });
             expect(res.body.data).toMatchObject({ scope: "pref", label: "New events for you", unsubscribed: true });
             const prefs = await api(ceStudent).get("/api/notifications/preferences");
-            expect(prefs.body.data.preferences).toEqual({ clubUpdates: true, eventRecommendations: false, eventActivity: true });
+            expect(prefs.body.data.preferences).toEqual({ clubUpdates: true, eventRecommendations: false, eventActivity: true, recruitment: true });
         });
 
         test("tampered or missing tokens are rejected", async () => {
@@ -190,7 +190,7 @@ describe("club bell, campaign emails and unsubscribe", () => {
     describe("email settings", () => {
         test("list the optional categories and save changes", async () => {
             const res = await api(member).get("/api/notifications/preferences");
-            expect(res.body.data.categories.map((c) => c.key)).toEqual(["clubUpdates", "eventRecommendations", "eventActivity"]);
+            expect(res.body.data.categories.map((c) => c.key)).toEqual(["clubUpdates", "eventRecommendations", "eventActivity", "recruitment"]);
 
             const saved = await api(member).put("/api/notifications/preferences", { clubUpdates: false });
             expect(saved.body.data.preferences.clubUpdates).toBe(false);

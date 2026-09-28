@@ -142,7 +142,7 @@ describe("club creation → faculty review → admin approval → president", ()
     });
 });
 
-describe("membership requests and club roles", () => {
+describe("club membership and roles", () => {
     let mentor, president, member, applicant, outsider, club;
 
     beforeAll(async () => {
@@ -159,50 +159,20 @@ describe("membership requests and club roles", () => {
         await require("../helpers/factory").addMembership(club, member);
     });
 
-    let membershipId;
+    test("join requests are gone: students join through recruitment drives", async () => {
+        expect((await api(applicant).post(`/api/clubs/${club._id}/join`, { message: "I love robots" })).status).toBe(404);
+        expect((await api(president).get(`/api/clubs/${club._id}/membership-requests`)).status).toBe(404);
+    });
 
-    test("a student requests to join; duplicate requests are rejected", async () => {
-        const res = await api(applicant).post(`/api/clubs/${club._id}/join`, { message: "I love robots" });
+    test("the president adds a student directly; plain members and outsiders cannot", async () => {
+        expect((await api(member).post(`/api/clubs/${club._id}/members`, { userId: String(applicant._id) })).status).toBe(403);
+        expect((await api(outsider).post(`/api/clubs/${club._id}/members`, { userId: String(applicant._id) })).status).toBe(403);
+
+        const res = await api(president).post(`/api/clubs/${club._id}/members`, { userId: String(applicant._id) });
         expect(res.status).toBe(201);
-        expect(res.body.data.status).toBe("PENDING");
-        membershipId = res.body.data._id;
-
-        expect((await api(applicant).post(`/api/clubs/${club._id}/join`)).status).toBe(409);
-        expect((await api(mentor).post(`/api/clubs/${club._id}/join`)).status).toBe(403);
-    });
-
-    test("plain members and outsiders cannot see or decide membership requests", async () => {
-        expect((await api(member).get(`/api/clubs/${club._id}/membership-requests`)).status).toBe(403);
-        expect((await api(outsider).post(`/api/clubs/${club._id}/membership-requests/${membershipId}/approve`)).status).toBe(403);
-    });
-
-    test("the president approves the request", async () => {
-        const list = await api(president).get(`/api/clubs/${club._id}/membership-requests`);
-        expect(list.body.data).toHaveLength(1);
-
-        const res = await api(president).post(`/api/clubs/${club._id}/membership-requests/${membershipId}/approve`);
-        expect(res.status).toBe(200);
         expect(res.body.data.status).toBe("APPROVED");
-        expect((await api(president).post(`/api/clubs/${club._id}/membership-requests/${membershipId}/approve`)).status).toBe(409);
-    });
-
-    test("a student cannot approve their own membership request", async () => {
-        const self = await makeStudent({ name: "Self Approver" });
-        const res = await api(self).post(`/api/clubs/${club._id}/join`);
-
-        const attempt = await api(self).post(`/api/clubs/${club._id}/membership-requests/${res.body.data._id}/approve`);
-        expect(attempt.status).toBe(403);
-        expect((await ClubMembership.findById(res.body.data._id)).status).toBe("PENDING");
-    });
-
-    test("a vice president can decide requests from other students", async () => {
-        const vp = await makeStudent({ name: "Vice President" });
-        await require("../helpers/factory").addMembership(club, vp, "VICE_PRESIDENT");
-
-        const pending = await api(outsider).post(`/api/clubs/${club._id}/join`);
-        const res = await api(vp).post(`/api/clubs/${club._id}/membership-requests/${pending.body.data._id}/reject`, { reason: "Try next term" });
-        expect(res.status).toBe(200);
-        expect(res.body.data.status).toBe("REJECTED");
+        expect((await api(president).post(`/api/clubs/${club._id}/members`, { userId: String(applicant._id) })).status).toBe(409);
+        expect(await Notification.exists({ user: applicant._id, type: "MEMBERSHIP_APPROVED" })).toBeTruthy();
     });
 
     test("only the president assigns roles; the new role grants its permissions", async () => {
@@ -231,21 +201,20 @@ describe("membership requests and club roles", () => {
         expect((await api(member).post(`/api/clubs/${club._id}/leave`)).status).toBe(200);
     });
 
-    test("the president removes a member; notifications and audit entries are recorded", async () => {
+    test("the president removes a member; audit entries are recorded", async () => {
         const res = await api(president).delete(`/api/clubs/${club._id}/members/${applicant._id}`);
         expect(res.status).toBe(200);
         expect(await ClubMembership.exists({ club: club._id, user: applicant._id })).toBeNull();
         expect(await AuditLog.exists({ action: "MEMBER_REMOVED" })).toBeTruthy();
-        expect(await Notification.exists({ user: applicant._id, type: "MEMBERSHIP_APPROVED" })).toBeTruthy();
     });
 
-    test("a rejected applicant can apply again", async () => {
-        const again = await makeStudent();
-        const first = await api(again).post(`/api/clubs/${club._id}/join`);
-        await api(president).post(`/api/clubs/${club._id}/membership-requests/${first.body.data._id}/reject`, { reason: "Full for now" });
-        const retry = await api(again).post(`/api/clubs/${club._id}/join`);
-        expect(retry.status).toBe(201);
-        expect(retry.body.data.status).toBe("PENDING");
+    test("join requests still waiting from before are closed on startup with an explanation", async () => {
+        const waiting = await ClubMembership.create({ club: club._id, user: outsider._id, role: "MEMBER", status: "PENDING" });
+        await require("../../services/AdminService").migrateJoinRequests();
+        const closed = await ClubMembership.findById(waiting._id);
+        expect(closed.status).toBe("REJECTED");
+        expect(closed.decisionReason).toMatch(/recruitment drives/);
+        await closed.deleteOne();
     });
 });
 
@@ -389,23 +358,15 @@ describe("students only belong to clubs of their own department", () => {
         await Club.updateOne({ _id: openClub._id }, { allDepartments: true, departmentCodes: [] });
     });
 
-    test("a student can request to join only clubs for their department or for all departments", async () => {
-        const blocked = await api(itStudent).post(`/api/clubs/${ceClub._id}/join`);
-        expect(blocked.status).toBe(403);
-        expect(blocked.body.message).toMatch(/only for CE students; you are in IT/);
-
-        expect((await api(ceStudent).post(`/api/clubs/${ceClub._id}/join`)).status).toBe(201);
-        expect((await api(itStudent).post(`/api/clubs/${openClub._id}/join`)).status).toBe(201);
+    test("the president adds students from the club's departments; all-departments clubs take anyone", async () => {
+        expect((await api(president).post(`/api/clubs/${ceClub._id}/members`, { userId: String(ceStudent._id) })).status).toBe(201);
+        expect((await api(president).post(`/api/clubs/${openClub._id}/members`, { userId: String(itStudent._id) })).status).toBe(201);
     });
 
-    test("the president cannot add or approve a student from another department", async () => {
+    test("the president cannot add a student from another department", async () => {
         const added = await api(president).post(`/api/clubs/${ceClub._id}/members`, { userId: String(ecStudent._id) });
         expect(added.status).toBe(403);
         expect(added.body.message).toMatch(/Not eligible: .*(EC)/);
-
-        // A request left over from before the rule cannot be approved.
-        const legacy = await ClubMembership.create({ club: ceClub._id, user: ecStudent._id, role: "MEMBER", status: "PENDING" });
-        expect((await api(president).post(`/api/clubs/${ceClub._id}/membership-requests/${legacy._id}/approve`)).status).toBe(403);
     });
 
     test("the mentor can only appoint a president from the club's departments", async () => {

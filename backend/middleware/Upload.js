@@ -61,4 +61,23 @@ const singleGalleryFile = (field = "file") => (req, res, next) => {
     });
 };
 
-module.exports = { singleImage, singleStoryFile, singleGalleryFile };
+// Recruitment application files (development storage only).
+const recruitmentUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: env.recruitment.maxDocumentBytes, files: 1 }
+});
+
+const singleRecruitmentFile = (field = "file") => (req, res, next) => {
+    recruitmentUpload.single(field)(req, res, (error) => {
+        if (!error) {
+            return next();
+        }
+        if (error.code === "LIMIT_FILE_SIZE") {
+            const mb = Math.round(env.recruitment.maxDocumentBytes / (1024 * 1024));
+            return next(new AppError(`Files must be ${mb} MB or smaller`, 413, ERROR_CODES.UPLOAD_ERROR));
+        }
+        return next(new AppError("Invalid upload", 400, ERROR_CODES.UPLOAD_ERROR));
+    });
+};
+
+module.exports = { singleImage, singleStoryFile, singleGalleryFile, singleRecruitmentFile };

@@ -773,6 +773,13 @@
         justify-content: flex-end;
     }
 
+    /* Card titles that carry an icon (h2.row) stay on the left; only header controls move right. */
+    .card-header > h2.row,
+    .card-header > h3.row {
+        flex: 0 1 auto;
+        justify-content: flex-start;
+    }
+
     .page-hero {
         padding: 22px 20px;
         border-radius: var(--radius-lg);

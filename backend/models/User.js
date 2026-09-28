@@ -107,7 +107,8 @@ const userSchema = new mongoose.Schema(
         emailPreferences: {
             clubUpdates: { type: Boolean, default: true },
             eventRecommendations: { type: Boolean, default: true },
-            eventActivity: { type: Boolean, default: true }
+            eventActivity: { type: Boolean, default: true },
+            recruitment: { type: Boolean, default: true }
         }
     },
     { timestamps: true }

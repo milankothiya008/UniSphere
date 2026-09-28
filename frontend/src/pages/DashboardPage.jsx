@@ -16,7 +16,7 @@ import { dashboardApi } from "../api/endpoints";
 import { useApi } from "../hooks/useApi";
 import { useAuth } from "../context/AuthContext";
 import { EventCard, EventRow } from "../components/events/EventCard";
-import { AsyncContent, Avatar, ButtonLink, Card, EmptyState, Skeleton, StatTile, StatusBadge } from "../components/ui";
+import { AsyncContent, Avatar, Badge, ButtonLink, Card, EmptyState, Skeleton, StatTile, StatusBadge } from "../components/ui";
 import { departmentsLabel, plural, timeAgo } from "../lib/format";
 import { Hero, greeting, todayLabel } from "../components/dashboard/DashboardHero";
 import { StudentDashboard } from "../components/dashboard/StudentDashboard";
@@ -60,8 +60,14 @@ const FacultyDashboard = ({ user, data }) => {
                 eyebrow={todayLabel()}
                 title={`${greeting()}, ${user.name}`}
                 subtitle={
-                    faculty.eventsToReview.length || faculty.requestsToReview.length
-                        ? `${plural(faculty.eventsToReview.length, "event")} and ${plural(faculty.requestsToReview.length, "club request")} are waiting for your review.`
+                    faculty.eventsToReview.length || faculty.requestsToReview.length || faculty.drivesToReview?.length
+                        ? `${[
+                              faculty.eventsToReview.length && plural(faculty.eventsToReview.length, "event"),
+                              faculty.drivesToReview?.length && plural(faculty.drivesToReview.length, "recruitment drive"),
+                              faculty.requestsToReview.length && plural(faculty.requestsToReview.length, "club request")
+                          ]
+                              .filter(Boolean)
+                              .join(", ")} waiting for your review.`
                         : "You're all caught up on reviews."
                 }
                 stats={[
@@ -111,6 +117,25 @@ const FacultyDashboard = ({ user, data }) => {
                         <EmptyState icon={ClipboardCheck} title="No events waiting" />
                     )}
                 </Section>
+
+                {faculty.drivesToReview?.length > 0 && (
+                    <Section title="Recruitment awaiting your approval" action={<Link to="/faculty" className="small">All</Link>}>
+                        <div className="list-rows">
+                            {faculty.drivesToReview.map((drive) => (
+                                <Link key={drive._id} to={`/recruitment/${drive._id}`} className="list-row">
+                                    <Avatar name={drive.club?.name} src={drive.club?.logo} size="sm" square />
+                                    <div className="grow">
+                                        <div className="title">{drive.title}</div>
+                                        <div className="subtle">
+                                            {drive.club?.name} · {drive.positions.join(", ")} · {drive.questions} questions · {timeAgo(drive.submittedAt)}
+                                        </div>
+                                    </div>
+                                    <Badge tone="violet">Recruitment</Badge>
+                                </Link>
+                            ))}
+                        </div>
+                    </Section>
+                )}
 
                 <Section title="Club requests" action={<Link to="/club-requests" className="small">All</Link>}>
                     {faculty.requestsToReview.length ? (

@@ -21,6 +21,11 @@ const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const ResultsPage = lazy(() => import("./pages/ResultsPage"));
 const GalleryPage = lazy(() => import("./pages/gallery/GalleryPage"));
+const DrivePage = lazy(() => import("./pages/recruitment/DrivePage"));
+const DriveFormPage = lazy(() => import("./pages/recruitment/DriveFormPage"));
+const ApplyPage = lazy(() => import("./pages/recruitment/ApplyPage"));
+const MyApplicationsPage = lazy(() => import("./pages/recruitment/MyApplicationsPage"));
+const ClubRecruitmentTab = lazy(() => import("./pages/recruitment/ClubRecruitmentTab"));
 const EventGalleryPage = lazy(() => import("./pages/gallery/EventGalleryPage"));
 const MyRegistrationsPage = lazy(() => import("./pages/MyRegistrationsPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
@@ -109,9 +114,16 @@ const App = () => (
                 <Route path="/clubs/:id" element={<ClubLayout />}>
                     <Route index element={<ClubAboutTab />} />
                     <Route path="events" element={<ClubEventsTab />} />
+                    <Route path="recruitment" element={<ClubRecruitmentTab />} />
                     <Route path="members" element={<ClubMembersTab />} />
                     <Route path="settings" element={<ClubSettingsTab />} />
                 </Route>
+
+                <Route path="/clubs/:id/recruitment/new" element={<ProtectedRoute roles={[STUDENT]}><DriveFormPage /></ProtectedRoute>} />
+                <Route path="/recruitment/:id" element={<DrivePage />} />
+                <Route path="/recruitment/:driveId/edit" element={<ProtectedRoute roles={[STUDENT]}><DriveFormPage /></ProtectedRoute>} />
+                <Route path="/recruitment/:id/apply" element={<ProtectedRoute roles={[STUDENT]}><ApplyPage /></ProtectedRoute>} />
+                <Route path="/my-applications" element={<ProtectedRoute roles={[STUDENT]}><MyApplicationsPage /></ProtectedRoute>} />
 
                 <Route path="/club-requests" element={<ClubRequestsPage />} />
                 <Route path="/club-requests/new" element={<ProtectedRoute roles={[STUDENT]}><ClubRequestFormPage /></ProtectedRoute>} />

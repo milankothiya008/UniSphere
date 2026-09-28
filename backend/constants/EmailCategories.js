@@ -4,7 +4,8 @@ const EMAIL_CATEGORIES = Object.freeze({
     ACCOUNT: "account",
     CLUB_UPDATES: "clubUpdates",
     EVENT_RECOMMENDATIONS: "eventRecommendations",
-    EVENT_ACTIVITY: "eventActivity"
+    EVENT_ACTIVITY: "eventActivity",
+    RECRUITMENT: "recruitment"
 });
 
 const EMAIL_PREFERENCES = Object.freeze([
@@ -22,6 +23,11 @@ const EMAIL_PREFERENCES = Object.freeze([
         key: EMAIL_CATEGORIES.EVENT_ACTIVITY,
         label: "Your events",
         description: "Updates, cancellations and results for events you registered for."
+    },
+    {
+        key: EMAIL_CATEGORIES.RECRUITMENT,
+        label: "Club recruitment",
+        description: "When a club you can join opens applications. Emails about your own applications always reach you."
     }
 ]);
 

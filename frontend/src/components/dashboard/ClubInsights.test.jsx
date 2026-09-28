@@ -29,7 +29,7 @@ const workspace = (overrides = {}) => ({
     role: "PRESIDENT",
     permissions: ["MANAGE_CLUB", "MANAGE_MEMBERS", "MANAGE_EVENTS", "PUBLISH_EVENTS", "MANAGE_RESULTS"],
     memberCount: 42,
-    pendingMembershipRequests: 3,
+    recruitment: { _id: "rd1", title: "Core team 2026", status: "PUBLISHED", phase: "OPEN", applications: 3, round: null },
     drafts: [clubEvent("d1", "Draft idea")],
     needsChanges: [],
     pendingApproval: [clubEvent("p1", "Git Workshop")],
@@ -93,13 +93,13 @@ describe("Club HQ", () => {
         const items = within(center).getAllByRole("link");
 
         expect(items.map((link) => link.textContent)).toEqual([
-            "3 join requests to reviewStudents waiting to join",
+            "Core team 20263 applications so far — applications open",
             "Quiz NightApproved — ready to publish",
             "CodeSprintResults drafted — publish them",
             "Git WorkshopWith your faculty mentor for review",
             "1 draft not submittedFinish and send for approval"
         ]);
-        expect(items[0]).toHaveAttribute("href", "/clubs/c1/members");
+        expect(items[0]).toHaveAttribute("href", "/recruitment/rd1?tab=applications");
         expect(within(center).getByText("5")).toBeInTheDocument();
     });
 
@@ -118,7 +118,7 @@ describe("Club HQ", () => {
                         role: "EVENT_COORDINATOR",
                         permissions: ["MANAGE_EVENTS", "VIEW_PARTICIPANTS", "MANAGE_PARTICIPANTS", "MANAGE_RESULTS"],
                         insights: null,
-                        pendingMembershipRequests: null,
+                        recruitment: null,
                         drafts: [],
                         pendingApproval: [],
                         readyToPublish: [],

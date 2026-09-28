@@ -1,6 +1,7 @@
 const express = require("express");
 const c = require("../controllers/ClubController");
 const { listClubEvents } = require("../controllers/EventController");
+const recruitment = require("../controllers/RecruitmentController");
 const { protect, optionalAuth, requireVerified, restrictTo } = require("../middleware/Auth");
 const { GLOBAL_ROLES } = require("../constants/Roles");
 const validate = require("../middleware/Validate");
@@ -9,9 +10,7 @@ const {
     mongoIdBody,
     clubUpdateRules,
     clubStatusRules,
-    joinRules,
     roleRules,
-    optionalReasonRules,
     subscriptionRules
 } = require("../validators/RequestValidators");
 
@@ -23,6 +22,9 @@ router.get("/", optionalAuth, c.listClubs);
 router.get("/mine", ...auth, c.myClubs);
 router.get("/:id", optionalAuth, id, validate, c.getClub);
 router.get("/:clubId/events", optionalAuth, mongoIdParam("clubId"), validate, listClubEvents);
+// Joining happens through recruitment drives (see RecruitmentRoutes).
+router.get("/:clubId/recruitment", optionalAuth, mongoIdParam("clubId"), validate, recruitment.listForClub);
+router.post("/:clubId/recruitment", ...auth, mongoIdParam("clubId"), validate, recruitment.create);
 
 router.put("/:id", ...auth, id, clubUpdateRules, validate, c.updateClub);
 router.get("/:id/subscription", ...auth, id, validate, c.getSubscription);
@@ -36,27 +38,6 @@ router.post("/:id/members", ...auth, id, mongoIdBody("userId"), validate, c.addM
 router.patch("/:id/members/:userId/role", ...auth, id, mongoIdParam("userId"), roleRules, validate, c.changeMemberRole);
 router.delete("/:id/members/:userId", ...auth, id, mongoIdParam("userId"), validate, c.removeMember);
 
-router.post("/:id/join", ...auth, id, joinRules, validate, c.requestToJoin);
-router.delete("/:id/join", ...auth, id, validate, c.cancelJoinRequest);
 router.post("/:id/leave", ...auth, id, validate, c.leaveClub);
-
-router.get("/:id/membership-requests", ...auth, id, validate, c.listJoinRequests);
-router.post(
-    "/:id/membership-requests/:membershipId/approve",
-    ...auth,
-    id,
-    mongoIdParam("membershipId"),
-    validate,
-    c.approveJoinRequest
-);
-router.post(
-    "/:id/membership-requests/:membershipId/reject",
-    ...auth,
-    id,
-    mongoIdParam("membershipId"),
-    optionalReasonRules,
-    validate,
-    c.rejectJoinRequest
-);
 
 module.exports = router;

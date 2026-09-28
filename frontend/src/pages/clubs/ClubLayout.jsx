@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { Outlet, useParams } from "react-router-dom";
-import { CalendarDays, GraduationCap, Info, Lock, LogOut, Settings, UserPlus, Users, Crown, Clock } from "lucide-react";
+import { CalendarDays, GraduationCap, Info, Lock, LogOut, Megaphone, Settings, UserPlus, Users, Crown, Clock } from "lucide-react";
 import { clubApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useAuth } from "../../context/AuthContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { useToast } from "../../context/ToastContext";
-import { Alert, AsyncContent, Badge, Button, ConfirmDialog, Modal, RoleBadge, StatusBadge, Tabs, Textarea } from "../../components/ui";
-import { departmentsLabel, humanize, plural } from "../../lib/format";
-import { PERMISSIONS } from "../../lib/constants";
+import { Alert, AsyncContent, Badge, Button, ButtonLink, ConfirmDialog, RoleBadge, StatusBadge, Tabs } from "../../components/ui";
+import { departmentsLabel, formatDate, humanize, plural } from "../../lib/format";
+import { APPLICATION_STATUSES, PERMISSIONS } from "../../lib/constants";
 import { belongsToScope } from "../../lib/eligibility";
 import { ClubSocialRow } from "../../components/clubs/ClubConnect";
 import { NotifyBell } from "../../components/clubs/NotifyBell";
@@ -17,79 +17,17 @@ import { ClubStoryAvatar } from "../../components/stories/ClubStoryAvatar";
 // The cover sits under a dark overlay (see .hero-cover) so the header text stays readable on any image.
 const coverStyle = (src) => (src ? { "--cover": `url("${String(src).replace(/"/g, "%22")}")` } : undefined);
 
-const JoinDialog = ({ open, onClose, club, onJoined }) => {
-    const toast = useToast();
-    const [message, setMessage] = useState("");
-    const [pending, setPending] = useState(false);
-    const [error, setError] = useState(null);
-
-    const submit = async (event) => {
-        event.preventDefault();
-        setPending(true);
-        setError(null);
-        try {
-            await clubApi.join(club._id, message.trim() || undefined);
-            toast.success("Request sent — the club will review it soon");
-            onJoined();
-            onClose();
-        } catch (err) {
-            setError(err);
-        } finally {
-            setPending(false);
-        }
-    };
-
-    return (
-        <Modal
-            open={open}
-            onClose={onClose}
-            title={`Join ${club.name}`}
-            description="Club leaders review membership requests."
-            footer={
-                <>
-                    <Button variant="secondary" onClick={onClose}>
-                        Cancel
-                    </Button>
-                    <Button type="submit" form="join-form" loading={pending}>
-                        Send request
-                    </Button>
-                </>
-            }
-        >
-            <form id="join-form" className="stack" onSubmit={submit}>
-                <Textarea label="Message (optional)" placeholder="Tell them why you'd like to join" value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} />
-                {error && <Alert type="error">{error.message}</Alert>}
-            </form>
-        </Modal>
-    );
-};
-
 const ClubLayout = () => {
     const { id } = useParams();
     const { user, isStudent } = useAuth();
     const { reloadClubs } = useWorkspace();
     const toast = useToast();
     const { data: club, loading, error, reload } = useApi(() => clubApi.get(id), [id]);
-    const [joining, setJoining] = useState(false);
     const [leaving, setLeaving] = useState(false);
-    const [busy, setBusy] = useState(false);
 
     const refresh = () => {
         reload({ silent: true });
         reloadClubs();
-    };
-
-    const withdraw = async () => {
-        setBusy(true);
-        try {
-            await clubApi.cancelJoin(id);
-            toast.success("Request withdrawn");
-            refresh();
-        } catch (err) {
-            toast.error(err);
-        } finally {
-            setBusy(false);
-        }
     };
 
     const leave = async () => {
@@ -106,6 +44,7 @@ const ClubLayout = () => {
     const tabs = [
         { to: `/clubs/${id}`, label: "About", icon: Info, end: true },
         { to: `/clubs/${id}/events`, label: "Events", icon: CalendarDays, count: club?.upcomingEvents || null },
+        ...(club?.status === "ACTIVE" ? [{ to: `/clubs/${id}/recruitment`, label: club?.recruiting ? "Recruitment · open" : "Recruitment", icon: Megaphone }] : []),
         ...(canSeeMembers ? [{ to: `/clubs/${id}/members`, label: "Members", icon: Users, count: club?.memberCount }] : []),
         ...(canSettings ? [{ to: `/clubs/${id}/settings`, label: viewer.isAdmin && !viewer.isMember ? "Administration" : "Manage", icon: Settings }] : [])
     ];
@@ -145,21 +84,29 @@ const ClubLayout = () => {
                             </div>
                             <div className="row hero-actions">
                                 {user && <NotifyBell club={club} />}
-                                {isStudent && club.status === "ACTIVE" && !viewer.membershipStatus &&
-                                    (belongsToScope(user, club) ? (
-                                        <Button variant="accent" onClick={() => setJoining(true)}>
-                                            <UserPlus size={16} /> Request to join
-                                        </Button>
-                                    ) : (
+                                {/* Students join through recruitment drives. */}
+                                {isStudent && club.status === "ACTIVE" && !viewer.isMember &&
+                                    (!belongsToScope(user, club) ? (
                                         <span className="hero-note">
                                             <Lock size={14} /> Only for {departmentsLabel(club)} students
                                         </span>
+                                    ) : viewer.application ? (
+                                        <ButtonLink to={`/recruitment/${club.recruiting._id}`} variant="secondary">
+                                            <Clock size={16} /> Application: {APPLICATION_STATUSES[viewer.application.status]?.[0] || "Submitted"}
+                                        </ButtonLink>
+                                    ) : club.recruiting?.open ? (
+                                        <ButtonLink to={`/recruitment/${club.recruiting._id}`} variant="accent">
+                                            <UserPlus size={16} /> Apply now · until {formatDate(club.recruiting.applicationEnd)}
+                                        </ButtonLink>
+                                    ) : club.recruiting ? (
+                                        <ButtonLink to={`/recruitment/${club.recruiting._id}`} variant="secondary">
+                                            <Megaphone size={16} /> Recruitment opens {formatDate(club.recruiting.applicationStart)}
+                                        </ButtonLink>
+                                    ) : (
+                                        <span className="hero-note">
+                                            <Megaphone size={14} /> Not recruiting right now — turn on the bell to hear when they do
+                                        </span>
                                     ))}
-                                {viewer.membershipStatus === "PENDING" && (
-                                    <Button variant="secondary" onClick={withdraw} loading={busy}>
-                                        <Clock size={16} /> Request pending · Withdraw
-                                    </Button>
-                                )}
                                 {viewer.isMember && viewer.role !== "PRESIDENT" && (
                                     <Button variant="secondary" onClick={() => setLeaving(true)}>
                                         <LogOut size={16} /> Leave club
@@ -189,7 +136,6 @@ const ClubLayout = () => {
                     <Tabs tabs={tabs} />
                     <Outlet context={{ club, reload: refresh }} />
 
-                    <JoinDialog open={joining} onClose={() => setJoining(false)} club={club} onJoined={refresh} />
                     <ConfirmDialog
                         open={leaving}
                         onClose={() => setLeaving(false)}

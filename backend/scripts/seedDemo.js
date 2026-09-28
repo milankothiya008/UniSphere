@@ -155,18 +155,12 @@ const run = async () => {
         }
     });
 
-    // Membership: join requests, approvals and club roles.
+    // Membership and club roles (new members normally join through recruitment drives).
     // Coding Club is for CE students only; Music Society is open to every department.
-    await memberships.requestToJoin(vihaan, coding._id, "I'd love to be part of the coding community!");
-    const pending = await memberships.listJoinRequests(aarav, coding._id);
-    await memberships.decideJoinRequest(aarav, coding._id, pending.find((m) => String(m.user._id) === String(vihaan._id))._id, true);
+    await memberships.addMember(aarav, coding._id, vihaan._id);
     await memberships.changeMemberRole(aarav, coding._id, diya._id, "EVENT_COORDINATOR");
     await memberships.changeMemberRole(aarav, coding._id, kabir._id, "MARKETING_COORDINATOR");
-    await memberships.requestToJoin(ananya, music._id, "I sing and play the keyboard.");
-    const musicPending = await memberships.listJoinRequests(meera, music._id);
-    await memberships.decideJoinRequest(meera, music._id, musicPending.find((m) => String(m.user._id) === String(ananya._id))._id, true);
-    await memberships.requestToJoin(kabir, music._id, "Guitarist here 🎸");
-    await memberships.requestToJoin(sara, music._id, "Drummer, happy to help with events.");
+    await memberships.addMember(meera, music._id, ananya._id);
 
     // Club requests still in the pipeline.
     await clubRequests.submitRequest(vihaan, {

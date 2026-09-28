@@ -114,7 +114,8 @@ const subscriptionRules = [body("enabled").isBoolean().withMessage("enabled must
 const emailPreferenceRules = [
     body("clubUpdates").optional().isBoolean(),
     body("eventRecommendations").optional().isBoolean(),
-    body("eventActivity").optional().isBoolean()
+    body("eventActivity").optional().isBoolean(),
+    body("recruitment").optional().isBoolean()
 ];
 
 const unsubscribeRules = [
@@ -127,8 +128,6 @@ const clubStatusRules = [
     body("status").isIn(Object.values(CLUB_STATUS)).withMessage("Invalid club status"),
     body("reason").optional().isString().trim().isLength({ max: 1000 })
 ];
-
-const joinRules = [body("message").optional().isString().trim().isLength({ max: 500 })];
 
 const roleRules = [
     body("role")
@@ -279,7 +278,6 @@ module.exports = {
     subscriptionRules,
     emailPreferenceRules,
     unsubscribeRules,
-    joinRules,
     roleRules,
     eventDraftRules,
     eventUpdateRules,

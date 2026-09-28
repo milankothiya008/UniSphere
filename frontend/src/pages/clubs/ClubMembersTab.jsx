@@ -1,79 +1,14 @@
 import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Check, UserMinus, Users, X } from "lucide-react";
+import { UserMinus, Users } from "lucide-react";
 import { clubApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import { AsyncContent, Avatar, Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, RoleBadge, UserPicker } from "../../components/ui";
+import { AsyncContent, Avatar, Button, Card, ConfirmDialog, EmptyState, ErrorState, RoleBadge, UserPicker } from "../../components/ui";
 import { ASSIGNABLE_CLUB_ROLES, CLUB_ROLE_DESCRIPTIONS, PERMISSIONS } from "../../lib/constants";
-import { departmentsLabel, batchLabel, formatDate, humanize, timeAgo } from "../../lib/format";
+import { departmentsLabel, batchLabel, formatDate, humanize } from "../../lib/format";
 import { scopeDepartments } from "../../lib/eligibility";
-
-const JoinRequests = ({ club, onChange }) => {
-    const toast = useToast();
-    const { data, loading, error, reload } = useApi(() => clubApi.membershipRequests(club._id), [club._id]);
-    const [rejecting, setRejecting] = useState(null);
-    const [busy, setBusy] = useState(null);
-
-    const approve = async (request) => {
-        setBusy(request._id);
-        try {
-            await clubApi.approveRequest(club._id, request._id);
-            toast.success(`${request.user.name} joined the club`);
-            reload({ silent: true });
-            onChange();
-        } catch (err) {
-            toast.error(err);
-        } finally {
-            setBusy(null);
-        }
-    };
-
-    const reject = async (reason) => {
-        await clubApi.rejectRequest(club._id, rejecting._id, reason || undefined);
-        toast.success("Request declined");
-        reload({ silent: true });
-    };
-
-    return (
-        <Card title={<h2 className="row">Membership requests {data?.length ? <Badge tone="warning">{data.length}</Badge> : null}</h2>} padded={false}>
-            <AsyncContent loading={loading} error={error} onRetry={reload} isEmpty={!data?.length} empty={<p className="subtle card-body">No pending requests.</p>}>
-                <div className="list-rows">
-                    {data?.map((request) => (
-                        <div key={request._id} className="list-row">
-                            <Avatar name={request.user.name} />
-                            <div className="grow">
-                                <div className="title">{request.user.name}</div>
-                                <div className="subtle">
-                                    {request.user.email} · {request.user.departmentCode} · {batchLabel(request.user.batchCode)} · {timeAgo(request.createdAt)}
-                                </div>
-                                {request.requestMessage && <div className="small muted" style={{ marginTop: 4 }}>“{request.requestMessage}”</div>}
-                            </div>
-                            <div className="row">
-                                <Button size="sm" variant="success" onClick={() => approve(request)} loading={busy === request._id}>
-                                    <Check size={14} /> Approve
-                                </Button>
-                                <Button size="sm" variant="secondary" onClick={() => setRejecting(request)} disabled={busy === request._id}>
-                                    <X size={14} /> Decline
-                                </Button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </AsyncContent>
-            <ConfirmDialog
-                open={Boolean(rejecting)}
-                onClose={() => setRejecting(null)}
-                onConfirm={reject}
-                title={`Decline ${rejecting?.user.name}'s request?`}
-                confirmLabel="Decline"
-                variant="danger"
-                reasonLabel="Reason (shared with the student)"
-            />
-        </Card>
-    );
-};
 
 const ClubMembersTab = () => {
     const { club, reload: reloadClub } = useOutletContext();
@@ -127,8 +62,6 @@ const ClubMembersTab = () => {
 
     return (
         <div className="stack-lg">
-            {canManage && club.status === "ACTIVE" && <JoinRequests club={club} onChange={refresh} />}
-
             <Card
                 title={`${members.data?.length ?? ""} members`}
                 padded={false}

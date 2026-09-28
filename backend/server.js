@@ -16,6 +16,7 @@ const { bootstrapAdminIfNeeded } = require("./services/AdminService");
 const { deliveryMode, checkMailConfiguration } = require("./services/MailService");
 const { startEmailWorker } = require("./services/EmailQueueService");
 const { startStorySweeper } = require("./services/StoryService");
+const { startInterviewReminderSweeper } = require("./services/RecruitmentReminderService");
 
 const authRoutes = require("./routes/AuthRoutes");
 const userRoutes = require("./routes/UserRoutes");
@@ -34,6 +35,7 @@ const dashboardRoutes = require("./routes/DashboardRoutes");
 const storyRoutes = require("./routes/StoryRoutes");
 const ticketRoutes = require("./routes/TicketRoutes");
 const galleryRoutes = require("./routes/GalleryRoutes");
+const recruitmentRoutes = require("./routes/RecruitmentRoutes");
 const devRoutes = require("./routes/DevRoutes");
 
 validateEnv();
@@ -87,6 +89,7 @@ app.use("/api/stories", storyRoutes);
 // Public: QR images for ticket emails (the token is self-validating).
 app.use("/api/tickets", ticketRoutes);
 app.use("/api/gallery", galleryRoutes);
+app.use("/api/recruitment", recruitmentRoutes);
 
 // Development inbox: only exists when SMTP is not configured and NODE_ENV is not production.
 if (deliveryMode() === "preview") {
@@ -117,6 +120,7 @@ const start = async () => {
     await checkMailConfiguration();
     startEmailWorker();
     startStorySweeper();
+    startInterviewReminderSweeper();
 
     app.listen(env.port, () => {
         logger.info(`Server running on port ${env.port}`);

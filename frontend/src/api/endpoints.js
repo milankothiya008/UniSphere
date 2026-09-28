@@ -43,12 +43,7 @@ export const clubApi = {
     addMember: (id, userId) => api.post(`/clubs/${id}/members`, { userId }),
     removeMember: (id, userId) => api.delete(`/clubs/${id}/members/${userId}`),
     changeRole: (id, userId, role) => api.patch(`/clubs/${id}/members/${userId}/role`, { role }),
-    join: (id, message) => api.post(`/clubs/${id}/join`, { message }),
-    cancelJoin: (id) => api.delete(`/clubs/${id}/join`),
     leave: (id) => api.post(`/clubs/${id}/leave`),
-    membershipRequests: (id, status) => api.get(`/clubs/${id}/membership-requests`, { status }),
-    approveRequest: (id, membershipId) => api.post(`/clubs/${id}/membership-requests/${membershipId}/approve`),
-    rejectRequest: (id, membershipId, reason) => api.post(`/clubs/${id}/membership-requests/${membershipId}/reject`, { reason }),
     events: (id, query) => api.get(`/clubs/${id}/events`, query),
     subscription: (id) => api.get(`/clubs/${id}/subscription`),
     setSubscription: (id, enabled) => api.put(`/clubs/${id}/subscription`, { enabled })
@@ -147,6 +142,39 @@ export const uploadApi = {
         form.append("file", file);
         return request(`/uploads/image?folder=${encodeURIComponent(folder)}`, { method: "POST", body: form });
     }
+};
+
+export const recruitmentApi = {
+    open: () => api.get("/recruitment"),
+    mine: () => api.get("/recruitment/mine"),
+    toReview: () => api.get("/recruitment/review"),
+    forClub: (clubId) => api.get(`/clubs/${clubId}/recruitment`),
+    create: (clubId, body) => api.post(`/clubs/${clubId}/recruitment`, body),
+    get: (id) => api.get(`/recruitment/${id}`),
+    update: (id, body) => api.put(`/recruitment/${id}`, body),
+    remove: (id) => api.delete(`/recruitment/${id}`),
+    submit: (id) => api.post(`/recruitment/${id}/submit`),
+    approve: (id, comment) => api.post(`/recruitment/${id}/approve`, { comment }),
+    requestChanges: (id, comment) => api.post(`/recruitment/${id}/request-changes`, { comment }),
+    reject: (id, comment) => api.post(`/recruitment/${id}/reject`, { comment }),
+    publish: (id) => api.post(`/recruitment/${id}/publish`),
+    extend: (id, applicationEnd) => api.put(`/recruitment/${id}/deadline`, { applicationEnd }),
+    close: (id) => api.post(`/recruitment/${id}/close`),
+    cancel: (id, reason) => api.post(`/recruitment/${id}/cancel`, { reason }),
+    myApplication: (id) => api.get(`/recruitment/${id}/application`),
+    apply: (id, body) => api.post(`/recruitment/${id}/application`, body),
+    updateApplication: (id, body) => api.put(`/recruitment/${id}/application`, body),
+    withdraw: (id) => api.delete(`/recruitment/${id}/application`),
+    uploadTickets: (id, kinds) => api.post(`/recruitment/${id}/uploads`, { kinds }),
+    applications: (id, query) => api.get(`/recruitment/${id}/applications`, query),
+    application: (id, applicationId) => api.get(`/recruitment/${id}/applications/${applicationId}`),
+    rounds: (id) => api.get(`/recruitment/${id}/rounds`),
+    createRound: (id, body) => api.post(`/recruitment/${id}/rounds`, body),
+    scheduleRound: (id, roundId, body) => api.put(`/recruitment/${id}/rounds/${roundId}/schedule`, body),
+    moveSlot: (id, roundId, applicationId, startAt) => api.patch(`/recruitment/${id}/rounds/${roundId}/slots/${applicationId}`, { startAt }),
+    setOutcomes: (id, roundId, decisions) => api.put(`/recruitment/${id}/rounds/${roundId}/outcomes`, { decisions }),
+    publishRound: (id, roundId) => api.post(`/recruitment/${id}/rounds/${roundId}/publish`),
+    finalize: (id, decisions) => api.post(`/recruitment/${id}/finalize`, { decisions })
 };
 
 export const galleryApi = {

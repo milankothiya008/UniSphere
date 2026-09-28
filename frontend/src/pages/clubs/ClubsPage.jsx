@@ -35,7 +35,7 @@ const ClubsPage = () => {
 
     const roleFor = (clubId) => myClubs.memberships.find((m) => m.club._id === clubId && m.status === "APPROVED")?.role;
     const mine = [
-        ...myClubs.memberships.map((m) => ({ club: m.club, role: m.status === "APPROVED" ? m.role : null, pending: m.status === "PENDING" })),
+        ...myClubs.memberships.map((m) => ({ club: m.club, role: m.role })),
         ...myClubs.mentored.map((club) => ({ club, role: null, mentor: true }))
     ];
 
@@ -106,15 +106,15 @@ const ClubsPage = () => {
                         </AsyncContent>
                     </>
                 ) : mine.length === 0 ? (
-                    <EmptyState icon={Building2} title="You haven't joined any clubs" description="Browse all clubs and request to join the ones you like." />
+                    <EmptyState icon={Building2} title="You haven't joined any clubs" description="Browse clubs and apply when they open recruitment." />
                 ) : (
                     <div className="grid-cards">
-                        {mine.map(({ club, role, pending, mentor }) => (
+                        {mine.map(({ club, role, mentor }) => (
                             <div key={club._id} style={{ position: "relative" }}>
                                 <ClubCard club={club} role={role} showStatus={!role} />
-                                {(pending || mentor) && (
+                                {mentor && (
                                     <span className="badge badge-warning" style={{ position: "absolute", top: 12, right: 12 }}>
-                                        {pending ? "Request pending" : "Faculty mentor"}
+                                        Faculty mentor
                                     </span>
                                 )}
                             </div>

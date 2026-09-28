@@ -15,8 +15,12 @@ const { detectImage } = require("./StorageService");
 // Each store is scoped (a club for stories, an event for galleries): an upload is issued to one user for
 // one scope and can only be attached there by that user.
 
-const KINDS = { IMAGE: "IMAGE", VIDEO: "VIDEO" };
-const FORMATS = { IMAGE: ["jpg", "jpeg", "png", "webp"], VIDEO: ["mp4", "mov", "webm"] };
+const KINDS = { IMAGE: "IMAGE", VIDEO: "VIDEO", DOCUMENT: "DOCUMENT" };
+const FORMATS = { IMAGE: ["jpg", "jpeg", "png", "webp"], VIDEO: ["mp4", "mov", "webm"], DOCUMENT: ["pdf"] };
+// PDFs go to Cloudinary as "raw" files: free Cloudinary accounts block PDF delivery through the image pipeline.
+const RESOURCE = { IMAGE: "image", VIDEO: "video", DOCUMENT: "raw" };
+
+const detectDocument = (buffer) => (buffer && buffer.length > 4 && buffer.toString("ascii", 0, 5) === "%PDF-" ? { ext: "pdf", mime: "application/pdf" } : null);
 const TICKET_TTL_SECONDS = 60 * 60;
 
 const useCloudinary = () => Boolean(env.cloudinary.cloudName && env.cloudinary.apiKey && env.cloudinary.apiSecret);
@@ -75,10 +79,17 @@ const detectVideo = (buffer) => {
  *   limits        () => { maxImageBytes, maxVideoBytes, maxVideoSeconds }
  *   transforms    { image, thumb, video: () => string, videoPoster, videoThumb }
  *   localUploadUrl (scopeId) => API path the browser posts files to in development
+ *   kinds         which of IMAGE / VIDEO / DOCUMENT the store accepts (default IMAGE and VIDEO)
  */
 const createMediaStore = (config) => {
     const limits = () => config.limits();
-    const maxBytesFor = (kind) => (kind === KINDS.VIDEO ? limits().maxVideoBytes : limits().maxImageBytes);
+    const accepted = config.kinds || [KINDS.IMAGE, KINDS.VIDEO];
+    const maxBytesFor = (kind) =>
+        kind === KINDS.VIDEO ? limits().maxVideoBytes : kind === KINDS.DOCUMENT ? limits().maxDocumentBytes || limits().maxImageBytes : limits().maxImageBytes;
+    const acceptedLabel = () => {
+        const parts = [accepted.includes(KINDS.IMAGE) && "JPEG, PNG or WebP photos", accepted.includes(KINDS.VIDEO) && "MP4, MOV or WebM videos", accepted.includes(KINDS.DOCUMENT) && "PDF files"].filter(Boolean);
+        return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0];
+    };
     const notIssued = () => uploadError(`This upload was not issued for this ${config.scopeLabel}`);
 
     // ------------------------------------------------------------ Cloudinary
@@ -88,9 +99,10 @@ const createMediaStore = (config) => {
     const idMac = (scopeId, userId, nonce) =>
         crypto.createHmac("sha256", `${env.jwtAccessSecret}:${config.macPurpose}`).update(`${scopeId}:${userId}:${nonce}`).digest("hex").slice(0, 20);
 
-    const issuePublicId = (scopeId, userId) => {
+    // Raw files (PDFs) keep their extension in the public ID so they're served as PDFs.
+    const issuePublicId = (scopeId, userId, kind = KINDS.IMAGE) => {
         const nonce = crypto.randomBytes(8).toString("hex");
-        return `${config.folder(scopeId)}/${nonce}_${idMac(scopeId, userId, nonce)}`;
+        return `${config.folder(scopeId)}/${nonce}_${idMac(scopeId, userId, nonce)}${kind === KINDS.DOCUMENT ? ".pdf" : ""}`;
     };
 
     const publicIdIssuedTo = (publicId, scopeId, userId) => {
@@ -98,17 +110,20 @@ const createMediaStore = (config) => {
         if (typeof publicId !== "string" || !publicId.startsWith(prefix)) {
             return false;
         }
-        const [nonce, mac, extra] = publicId.slice(prefix.length).split("_");
+        const [nonce, mac, extra] = publicId.slice(prefix.length).replace(/\.pdf$/, "").split("_");
         return Boolean(nonce && mac && extra === undefined && safeEqual(mac, idMac(scopeId, userId, nonce)));
     };
 
     const cloudinaryTicket = (scopeId, userId, kind) => {
         const params = {
-            allowed_formats: FORMATS[kind].join(","),
-            public_id: issuePublicId(scopeId, userId),
+            public_id: issuePublicId(scopeId, userId, kind),
             tags: config.tag,
             timestamp: Math.floor(Date.now() / 1000)
         };
+        // Cloudinary can't check the format of raw files; PDFs are checked by extension when attached.
+        if (kind !== KINDS.DOCUMENT) {
+            params.allowed_formats = FORMATS[kind].join(",");
+        }
         if (kind === KINDS.VIDEO) {
             // Video derivatives are generated at upload so the first viewer doesn't wait for transcoding;
             // the strings must match the delivery URLs exactly for Cloudinary to reuse them.
@@ -116,7 +131,7 @@ const createMediaStore = (config) => {
             params.eager_async = "true";
         }
 
-        const resource = kind === KINDS.VIDEO ? "video" : "image";
+        const resource = RESOURCE[kind];
         return {
             provider: "cloudinary",
             kind,
@@ -137,7 +152,7 @@ const createMediaStore = (config) => {
         const { publicId, version, signature, kind, format } = media || {};
         const numericVersion = Number(version);
 
-        if (!Object.values(KINDS).includes(kind) || !Number.isInteger(numericVersion) || numericVersion <= 0) {
+        if (!accepted.includes(kind) || !Number.isInteger(numericVersion) || numericVersion <= 0) {
             throw uploadError("Upload details are incomplete");
         }
         if (!publicIdIssuedTo(publicId, String(scopeId), String(userId))) {
@@ -149,13 +164,16 @@ const createMediaStore = (config) => {
         if (format && !FORMATS[kind].includes(String(format).toLowerCase())) {
             throw uploadError("Unsupported file format");
         }
+        if (kind === KINDS.DOCUMENT && !publicId.endsWith(".pdf")) {
+            throw uploadError("Unsupported file format");
+        }
 
         return {
             kind,
             provider: "cloudinary",
             key: publicId,
             version: numericVersion,
-            format: format ? String(format).toLowerCase() : null,
+            format: kind === KINDS.DOCUMENT ? "pdf" : format ? String(format).toLowerCase() : null,
             width: Number(media.width) || null,
             height: Number(media.height) || null,
             duration: clampDuration(kind, media.duration),
@@ -168,7 +186,7 @@ const createMediaStore = (config) => {
         const form = new FormData();
         Object.entries({ ...params, api_key: env.cloudinary.apiKey, signature: signParams(params) }).forEach(([key, value]) => form.append(key, String(value)));
 
-        const resource = media.kind === KINDS.VIDEO ? "video" : "image";
+        const resource = RESOURCE[media.kind] || "image";
         const response = await fetch(`https://api.cloudinary.com/v1_1/${env.cloudinary.cloudName}/${resource}/destroy`, { method: "POST", body: form });
         const payload = await response.json().catch(() => ({}));
         // "not found" means it is already gone, which is what we want.
@@ -214,16 +232,17 @@ const createMediaStore = (config) => {
             throw uploadError("A photo or video is required");
         }
 
-        const image = detectImage(file.buffer);
-        const video = image ? null : detectVideo(file.buffer);
-        const detected = image || video;
+        const image = accepted.includes(KINDS.IMAGE) ? detectImage(file.buffer) : null;
+        const video = !image && accepted.includes(KINDS.VIDEO) ? detectVideo(file.buffer) : null;
+        const pdf = !image && !video && accepted.includes(KINDS.DOCUMENT) ? detectDocument(file.buffer) : null;
+        const detected = image || video || pdf;
         if (!detected) {
-            throw uploadError("Only JPEG, PNG or WebP photos and MP4, MOV or WebM videos are allowed");
+            throw uploadError(`Only ${acceptedLabel()} are allowed`);
         }
 
-        const kind = image ? KINDS.IMAGE : KINDS.VIDEO;
+        const kind = image ? KINDS.IMAGE : video ? KINDS.VIDEO : KINDS.DOCUMENT;
         if (file.buffer.length > maxBytesFor(kind)) {
-            throw uploadError(`${kind === KINDS.VIDEO ? "Videos" : "Photos"} must be ${Math.round(maxBytesFor(kind) / (1024 * 1024))} MB or smaller`, 413);
+            throw uploadError(`${kind === KINDS.VIDEO ? "Videos" : kind === KINDS.DOCUMENT ? "Files" : "Photos"} must be ${Math.round(maxBytesFor(kind) / (1024 * 1024))} MB or smaller`, 413);
         }
 
         const relative = `${config.localDir}/${scopeId}/${Date.now()}-${crypto.randomBytes(8).toString("hex")}.${detected.ext}`;
@@ -261,6 +280,15 @@ const createMediaStore = (config) => {
 
     const localUrl = (key) => `${env.publicApiUrl}/uploads/${key}`;
 
+    // PDFs are fetched through Cloudinary's signed download API: plain delivery of PDFs is blocked on free
+    // accounts, and a link that expires after an hour keeps resumes private to whoever was shown it.
+    const documentUrl = (media) => {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const params = { public_id: media.key, timestamp, type: "upload", expires_at: timestamp + 3600 };
+        const query = new URLSearchParams({ ...Object.fromEntries(Object.entries(params).map(([key, value]) => [key, String(value)])), api_key: env.cloudinary.apiKey, signature: signParams(params) });
+        return `https://api.cloudinary.com/v1_1/${env.cloudinary.cloudName}/raw/download?${query}`;
+    };
+
     const removeLocal = async (key) => {
         if (!key.startsWith(`${config.localDir}/`) || key.includes("..")) {
             return;
@@ -288,6 +316,9 @@ const createMediaStore = (config) => {
     // Viewer-facing URLs, built from the stored details on every read (no media lookups).
     const mediaUrls = (media) => {
         const { transforms } = config;
+        if (media.kind === KINDS.DOCUMENT) {
+            return { url: media.provider === "cloudinary" ? documentUrl(media) : localUrl(media.key), poster: null, thumb: null };
+        }
         if (media.provider === "cloudinary") {
             if (media.kind === KINDS.VIDEO) {
                 return {
@@ -353,4 +384,4 @@ const createMediaStore = (config) => {
     };
 };
 
-module.exports = { createMediaStore, KINDS, FORMATS, signParams, transformUrl, detectVideo, providerName };
+module.exports = { createMediaStore, KINDS, FORMATS, signParams, transformUrl, detectVideo, detectDocument, providerName };

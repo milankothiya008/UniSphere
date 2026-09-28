@@ -1,9 +1,10 @@
 const mongoose = require("mongoose");
 const Venue = require("../models/Venue");
 const Event = require("../models/Event");
+const RecruitmentDrive = require("../models/RecruitmentDrive");
 const AppError = require("../utils/AppError");
 const ERROR_CODES = require("../constants/ErrorCodes");
-const { VENUE_STATUS, EVENT_STATUS, EVENT_STATUSES_HOLDING_VENUE } = require("../constants/Statuses");
+const { VENUE_STATUS, EVENT_STATUS, EVENT_STATUSES_HOLDING_VENUE, RECRUITMENT_STATUS, ROUND_STATUS, ROUND_MODES } = require("../constants/Statuses");
 const { assertAdmin } = require("./AuthorizationService");
 const { combineDateAndTime, intervalsOverlap } = require("../utils/UniversityRules");
 const { formatTime } = require("../utils/CampusTime");
@@ -47,7 +48,31 @@ const updateVenue = async (actor, id, data) => {
     return venue;
 };
 
-const findConflictingEvents = async ({ venueId, startAt, endAt, excludeEventId = null }) => {
+// Offline interview rounds of live recruitment drives hold their venue for the whole round.
+const findConflictingInterviews = async ({ venueId, startAt, endAt, excludeRoundId = null }) => {
+    const drives = await RecruitmentDrive.find({
+        status: RECRUITMENT_STATUS.PUBLISHED,
+        rounds: { $elemMatch: { venue: venueId, mode: ROUND_MODES.OFFLINE, status: ROUND_STATUS.SCHEDULED, startAt: { $lt: endAt }, endAt: { $gt: startAt } } }
+    })
+        .select("title club rounds")
+        .populate("club", "name");
+
+    return drives.flatMap((drive) =>
+        drive.rounds
+            .filter(
+                (round) =>
+                    String(round.venue) === String(venueId) &&
+                    round.mode === ROUND_MODES.OFFLINE &&
+                    round.status === ROUND_STATUS.SCHEDULED &&
+                    round.startAt < endAt &&
+                    round.endAt > startAt &&
+                    String(round._id) !== String(excludeRoundId)
+            )
+            .map((round) => ({ _id: round._id, title: `${drive.title} — ${round.name}`, startAt: round.startAt, endAt: round.endAt, status: "INTERVIEW", club: drive.club }))
+    );
+};
+
+const findConflictingEvents = async ({ venueId, startAt, endAt, excludeEventId = null, excludeRoundId = null }) => {
     const filter = {
         venue: venueId,
         status: { $in: EVENT_STATUSES_HOLDING_VENUE },
@@ -59,7 +84,11 @@ const findConflictingEvents = async ({ venueId, startAt, endAt, excludeEventId =
         filter._id = { $ne: excludeEventId };
     }
 
-    return Event.find(filter).select("title startAt endAt startTime endTime status club").populate("club", "name");
+    const [events, interviews] = await Promise.all([
+        Event.find(filter).select("title startAt endAt startTime endTime status club").populate("club", "name"),
+        findConflictingInterviews({ venueId, startAt, endAt, excludeRoundId })
+    ]);
+    return [...events, ...interviews];
 };
 
 
@@ -154,6 +183,19 @@ const getAvailableVenues = async ({ eventDate, startTime, endTime, excludeEventI
         .select("title venue startAt endAt status club")
         .populate("club", "name")
         .sort({ startAt: 1 });
+
+    // Interview rounds booked in the same window, from any drive.
+    const drives = await RecruitmentDrive.find({
+        status: RECRUITMENT_STATUS.PUBLISHED,
+        rounds: { $elemMatch: { mode: ROUND_MODES.OFFLINE, status: ROUND_STATUS.SCHEDULED, startAt: { $lt: endAt }, endAt: { $gt: startAt } } }
+    })
+        .select("title club rounds")
+        .populate("club", "name");
+    drives.forEach((drive) =>
+        drive.rounds
+            .filter((round) => round.venue && round.mode === ROUND_MODES.OFFLINE && round.status === ROUND_STATUS.SCHEDULED && round.startAt < endAt && round.endAt > startAt)
+            .forEach((round) => busy.push({ title: `${drive.title} — ${round.name}`, venue: round.venue, startAt: round.startAt, endAt: round.endAt, status: "INTERVIEW", club: drive.club }))
+    );
 
     // Say who holds each busy venue, so organisers can pick another room or time with confidence.
     const bookings = new Map();

@@ -1,6 +1,7 @@
 const Club = require("../models/Club");
 const ClubMembership = require("../models/ClubMembership");
 const Event = require("../models/Event");
+const RecruitmentApplication = require("../models/RecruitmentApplication");
 const User = require("../models/User");
 const AppError = require("../utils/AppError");
 const ERROR_CODES = require("../constants/ErrorCodes");
@@ -27,6 +28,7 @@ const { withTransaction, maybeSession } = require("../utils/Transaction");
 const { scopeIncludes, assertMentorMatchesScope, assertStudentsMatchScope } = require("../utils/DepartmentScope");
 const { normalizeUrl, normalizeSocialLinks } = require("../utils/ClubLinks");
 const { isSubscribed, followerCount } = require("./SubscriptionService");
+const { openDrivesByClub } = require("./RecruitmentService");
 
 const PHONE_PATTERN = /^\+?[0-9][0-9 ()-]{6,18}[0-9]$/;
 
@@ -44,8 +46,9 @@ const memberCounts = async (clubIds) => {
 };
 
 const withCounts = async (clubs) => {
-    const counts = await memberCounts(clubs.map((club) => club._id));
-    return clubs.map((club) => ({ ...club.toObject(), memberCount: counts.get(String(club._id)) || 0 }));
+    const ids = clubs.map((club) => club._id);
+    const [counts, open] = await Promise.all([memberCounts(ids), openDrivesByClub(ids)]);
+    return clubs.map((club) => ({ ...club.toObject(), memberCount: counts.get(String(club._id)) || 0, recruiting: open.get(String(club._id)) || null }));
 };
 
 const listClubs = async (actor, query = {}) => {
@@ -79,13 +82,15 @@ const listClubs = async (actor, query = {}) => {
     return { items: await withCounts(clubs), ...paginationMeta(pagination, total) };
 };
 
-const viewerSummary = (context, pendingMembership) => ({
+const viewerSummary = (context, application) => ({
     role: context.role,
     permissions: context.permissions,
     isMember: context.isMember,
     isMentor: context.isMentor,
     isAdmin: context.isAdmin,
-    membershipStatus: context.isMember ? MEMBERSHIP_STATUS.APPROVED : pendingMembership?.status || null
+    membershipStatus: context.isMember ? MEMBERSHIP_STATUS.APPROVED : null,
+    // The viewer's application to the club's current recruitment drive, if any.
+    application: application ? { _id: application._id, status: application.status } : null
 });
 
 const getClub = async (actor, clubId) => {
@@ -97,27 +102,32 @@ const getClub = async (actor, clubId) => {
         throw new AppError("Club not found", 404, ERROR_CODES.NOT_FOUND);
     }
 
-    const [populated, counts, pendingMembership, upcomingEvents, followers, subscribed] = await Promise.all([
+    const [populated, counts, openDrives, upcomingEvents, followers, subscribed] = await Promise.all([
         populateClub(Club.findById(club._id)),
         memberCounts([club._id]),
-        actor && !context.isMember ? ClubMembership.findOne({ club: club._id, user: actor._id }).select("status") : null,
+        openDrivesByClub([club._id]),
         Event.countDocuments({ club: club._id, status: EVENT_STATUS.PUBLISHED, startAt: { $gte: new Date() } }),
         followerCount(club._id),
         actor ? isSubscribed(actor._id, club._id) : false
     ]);
+
+    const recruiting = openDrives.get(String(club._id)) || null;
+    const application =
+        actor && recruiting ? await RecruitmentApplication.findOne({ drive: recruiting._id, applicant: actor._id, status: { $ne: "WITHDRAWN" } }).select("status") : null;
 
     return {
         ...populated.toObject(),
         memberCount: counts.get(String(club._id)) || 0,
         followerCount: followers,
         upcomingEvents,
-        viewer: actor ? { ...viewerSummary(context, pendingMembership), subscribed } : null
+        recruiting,
+        viewer: actor ? { ...viewerSummary(context, application), subscribed } : null
     };
 };
 
 const getMyClubs = async (actor) => {
     const [memberships, mentored] = await Promise.all([
-        ClubMembership.find({ user: actor._id, status: { $in: [MEMBERSHIP_STATUS.APPROVED, MEMBERSHIP_STATUS.PENDING] } })
+        ClubMembership.find({ user: actor._id, status: MEMBERSHIP_STATUS.APPROVED })
             .populate({ path: "club", populate: { path: "president", select: "name" } })
             .sort({ updatedAt: -1 }),
         populateClub(Club.find({ mentor: actor._id }).sort({ name: 1 }))

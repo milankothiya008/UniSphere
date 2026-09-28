@@ -17,7 +17,9 @@ const CLUB_PERMISSIONS = Object.freeze({
     // Scanning tickets and marking attendance while check-in is open: every officer.
     MARK_ATTENDANCE: "MARK_ATTENDANCE",
     // Approving photos and videos for an event's gallery: president and vice-president.
-    MODERATE_GALLERY: "MODERATE_GALLERY"
+    MODERATE_GALLERY: "MODERATE_GALLERY",
+    // Running recruitment drives (form, rounds, results, final selection): the president only.
+    MANAGE_RECRUITMENT: "MANAGE_RECRUITMENT"
 });
 
 const P = CLUB_PERMISSIONS;

@@ -38,7 +38,6 @@ const StatLink = ({ to, ...props }) =>
 const HqTiles = ({ workspace }) => {
     const clubId = workspace.club._id;
     const insights = workspace.insights;
-    const canReviewMembers = workspace.permissions.includes(PERMISSIONS.MANAGE_MEMBERS);
 
     if (insights) {
         return (
@@ -78,9 +77,6 @@ const HqTiles = ({ workspace }) => {
     return (
         <div className="hq-tiles">
             <StatLink to={`/clubs/${clubId}/members`} label="Members" value={workspace.memberCount} icon={Users} />
-            {canReviewMembers && (
-                <StatLink to={`/clubs/${clubId}/members`} label="Join requests" value={workspace.pendingMembershipRequests ?? 0} icon={UserPlus} tone="gold" />
-            )}
             <StatLink to="/events/manage" label="With mentor" value={workspace.pendingApproval.length} icon={ClipboardCheck} tone="violet" hint="awaiting approval" />
             <StatTile label="Upcoming events" value={workspace.upcoming.length} icon={CalendarClock} tone="success" />
         </div>
@@ -89,12 +85,34 @@ const HqTiles = ({ workspace }) => {
 
 // Everything that needs someone in the club to act, most urgent first.
 const actionItems = (workspace) => {
-    const clubId = workspace.club._id;
     const items = [];
-    const requests = workspace.pendingMembershipRequests || 0;
+    const drive = workspace.recruitment;
 
-    if (requests) {
-        items.push({ key: "requests", icon: UserPlus, tone: "gold", title: `${plural(requests, "join request")} to review`, detail: "Students waiting to join", to: `/clubs/${clubId}/members` });
+    // Recruitment: the one next step for the drive in progress.
+    if (drive) {
+        const to = `/recruitment/${drive._id}`;
+        const step = {
+            DRAFT: ["Recruitment draft — send it for approval", PencilLine, "neutral", to],
+            NEEDS_CHANGES: ["Mentor asked for changes to your recruitment", PencilLine, "violet", to],
+            PENDING_APPROVAL: ["Recruitment with your faculty mentor", Hourglass, "neutral", to],
+            APPROVED: ["Recruitment approved — publish it", Megaphone, "success", to],
+            UPCOMING: [`Recruitment opens soon`, Megaphone, "info", to],
+            OPEN: [`${plural(drive.applications, "application")} so far — applications open`, UserPlus, "gold", `${to}?tab=applications`],
+            CLOSED: [`Applications closed — ${drive.applications ? "start round 1" : "no applicants yet"}`, Flag, "warning", `${to}?tab=rounds`]
+        }[drive.phase];
+        if (step) {
+            items.push({ key: `rc-${drive._id}`, icon: step[1], tone: step[2], title: drive.title, detail: step[0], to: step[3] });
+        } else if (drive.phase === "ROUNDS" && drive.round) {
+            const detail =
+                drive.round.status === "RESULTS_PUBLISHED"
+                    ? `${drive.round.name} done — add the next round or finalise`
+                    : drive.round.status === "DRAFT" && drive.round.mode !== "SCREENING"
+                      ? `Schedule ${drive.round.name}`
+                      : drive.round.undecided
+                        ? `${drive.round.name}: ${plural(drive.round.undecided, "candidate")} to decide`
+                        : `${drive.round.name}: publish the results`;
+            items.push({ key: `rc-${drive._id}`, icon: UserPlus, tone: "gold", title: drive.title, detail, to: `/recruitment/${drive._id}?tab=rounds` });
+        }
     }
     workspace.needsChanges.forEach((event) =>
         items.push({ key: `nc-${event._id}`, icon: PencilLine, tone: "violet", title: event.title, detail: "Mentor requested changes", to: `/events/${event._id}` })

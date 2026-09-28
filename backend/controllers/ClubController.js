@@ -59,40 +59,9 @@ const changeMemberRole = asyncHandler(async (req, res) => {
     sendSuccess(res, 200, "Member role updated", membership);
 });
 
-const requestToJoin = asyncHandler(async (req, res) => {
-    const membership = await membershipService.requestToJoin(req.user, req.params.id, req.body.message);
-    sendSuccess(res, 201, "Membership request sent", membership);
-});
-
-const cancelJoinRequest = asyncHandler(async (req, res) => {
-    await membershipService.cancelJoinRequest(req.user, req.params.id);
-    sendSuccess(res, 200, "Membership request withdrawn");
-});
-
 const leaveClub = asyncHandler(async (req, res) => {
     await membershipService.leaveClub(req.user, req.params.id);
     sendSuccess(res, 200, "You left the club");
-});
-
-const listJoinRequests = asyncHandler(async (req, res) => {
-    const requests = await membershipService.listJoinRequests(req.user, req.params.id, req.query);
-    sendSuccess(res, 200, "Membership requests fetched", requests);
-});
-
-const approveJoinRequest = asyncHandler(async (req, res) => {
-    const membership = await membershipService.decideJoinRequest(req.user, req.params.id, req.params.membershipId, true);
-    sendSuccess(res, 200, "Membership approved", membership);
-});
-
-const rejectJoinRequest = asyncHandler(async (req, res) => {
-    const membership = await membershipService.decideJoinRequest(
-        req.user,
-        req.params.id,
-        req.params.membershipId,
-        false,
-        req.body.reason
-    );
-    sendSuccess(res, 200, "Membership request rejected", membership);
 });
 
 const getSubscription = asyncHandler(async (req, res) => {
@@ -119,10 +88,5 @@ module.exports = {
     addMember,
     removeMember,
     changeMemberRole,
-    requestToJoin,
-    cancelJoinRequest,
-    leaveClub,
-    listJoinRequests,
-    approveJoinRequest,
-    rejectJoinRequest
+    leaveClub
 };

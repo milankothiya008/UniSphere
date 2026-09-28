@@ -7,6 +7,7 @@ import {
     Building2,
     CalendarCheck2,
     ClipboardCheck,
+    FileSignature,
     FileText,
     GraduationCap,
     Home,
@@ -72,6 +73,7 @@ const Sidebar = () => {
                 {isStudent && (
                     <NavSection title="My activity">
                         <NavItem to="/my-registrations" icon={CalendarCheck2} label="My registrations" />
+                        <NavItem to="/my-applications" icon={FileSignature} label="My applications" />
                         <NavItem to="/club-requests" icon={FileText} label="Club requests" />
                     </NavSection>
                 )}

@@ -284,12 +284,21 @@ const migrateDepartmentScope = async () => {
     await ClubCreationRequest.collection.updateMany({ departmentCode: { $exists: true } }, pipeline);
 };
 
+// Join requests were replaced by recruitment drives: requests still waiting are closed with an explanation.
+const migrateJoinRequests = async () => {
+    await ClubMembership.collection.updateMany(
+        { status: "PENDING" },
+        { $set: { status: "REJECTED", decidedAt: new Date(), decisionReason: "Clubs now take new members through recruitment drives. Watch the club page for the next one." } }
+    );
+};
+
 const bootstrapAdminIfNeeded = async () => {
     const { env } = require("../config/env");
     const logger = require("../utils/Logger");
 
     await migrateLegacyRoles();
     await migrateDepartmentScope();
+    await migrateJoinRequests();
 
     if (!env.bootstrapAdminEmail || !env.bootstrapAdminPassword) {
         return;
@@ -337,5 +346,6 @@ module.exports = {
     listAuditLogs,
     migrateLegacyRoles,
     migrateDepartmentScope,
+    migrateJoinRequests,
     bootstrapAdminIfNeeded
 };

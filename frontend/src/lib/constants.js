@@ -45,6 +45,7 @@ export const PERMISSIONS = {
     MANAGE_CHECK_IN: "MANAGE_CHECK_IN",
     MARK_ATTENDANCE: "MARK_ATTENDANCE",
     MODERATE_GALLERY: "MODERATE_GALLERY",
+    MANAGE_RECRUITMENT: "MANAGE_RECRUITMENT",
     POST_UPDATES: "POST_UPDATES"
 };
 
@@ -101,6 +102,45 @@ export const STATUS_STYLES = {
     CLOSED: ["Registration closed", "neutral"],
     FULL: ["Full", "danger"],
     INACTIVE: ["Inactive", "neutral"]
+};
+
+// Where a recruitment drive stands (the API's `phase`) → [label, badge tone].
+export const RECRUITMENT_PHASES = {
+    DRAFT: ["Draft", "neutral"],
+    PENDING_APPROVAL: ["With faculty mentor", "warning"],
+    NEEDS_CHANGES: ["Changes requested", "violet"],
+    APPROVED: ["Approved · not published", "info"],
+    REJECTED: ["Not approved", "danger"],
+    UPCOMING: ["Opens soon", "info"],
+    OPEN: ["Applications open", "success"],
+    CLOSED: ["Applications closed", "neutral"],
+    ROUNDS: ["Selection rounds", "violet"],
+    COMPLETED: ["Completed", "ink"],
+    CANCELLED: ["Cancelled", "danger"]
+};
+
+export const APPLICATION_STATUSES = {
+    APPLIED: ["Applied", "info"],
+    IN_ROUNDS: ["In selection", "violet"],
+    SELECTED: ["Selected", "success"],
+    ELIMINATED: ["Not shortlisted", "neutral"],
+    NOT_SELECTED: ["Not selected", "neutral"],
+    WITHDRAWN: ["Withdrawn", "neutral"]
+};
+
+export const QUESTION_TYPES = [
+    { value: "SHORT", label: "Short answer" },
+    { value: "PARAGRAPH", label: "Paragraph" },
+    { value: "SINGLE_CHOICE", label: "Multiple choice (one)" },
+    { value: "MULTI_CHOICE", label: "Checkboxes (several)" },
+    { value: "LINK", label: "Link (portfolio, GitHub…)" },
+    { value: "FILE", label: "File upload (PDF or image)" }
+];
+
+export const ROUND_MODES = {
+    SCREENING: { label: "Screening", hint: "Review applications — no meeting" },
+    ONLINE: { label: "Online interview", hint: "Candidates join a meeting link" },
+    OFFLINE: { label: "Offline interview", hint: "Candidates come to a campus venue" }
 };
 
 export const FEED_TYPE_LABELS = {
