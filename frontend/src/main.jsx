@@ -15,6 +15,7 @@ import "./styles/pages.css";
 import "./styles/stories.css";
 import "./styles/teams.css";
 import "./styles/tickets.css";
+import "./styles/gallery.css";
 
 createRoot(document.getElementById("root")).render(
     <StrictMode>

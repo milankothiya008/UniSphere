@@ -6,6 +6,7 @@ import { Alert, AsyncContent, Avatar, Badge, Card, PageHeader, StatusBadge } fro
 import { EventActions } from "../../components/events/EventActions";
 import { EventChanges } from "../../components/events/EventChanges";
 import { RegistrationPanel } from "../../components/events/RegistrationPanel";
+import { EventGallery } from "../../components/gallery/EventGallery";
 import { Podium } from "../../components/feed/FeedCard";
 import { CategoryArt } from "../../components/events/EventCard";
 import { categoryVars } from "../../lib/eventVisuals";
@@ -204,6 +205,7 @@ const EventDetailPage = () => {
                             )}
 
                             <ResultsSection event={event} />
+                            <EventGallery event={event} />
                             <UpdatesSection event={event} />
                         </div>
 

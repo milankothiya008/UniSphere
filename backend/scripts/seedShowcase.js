@@ -26,6 +26,8 @@ const Event = require("../models/Event");
 const Team = require("../models/Team");
 const Story = require("../models/Story");
 const StoryView = require("../models/StoryView");
+const EventMedia = require("../models/EventMedia");
+const galleryMedia = require("../services/GalleryMediaService");
 const FeedPost = require("../models/FeedPost");
 const EventResult = require("../models/EventResult");
 const Notification = require("../models/Notification");
@@ -305,9 +307,13 @@ const resetShowcase = async () => {
     const eventIds = eventList.map((event) => event._id);
     const storyIds = (await Story.find({ club: { $in: clubIds } }).select("_id")).map((story) => story._id);
     const linkPattern = [...clubIds, ...eventIds].map((id) => String(id)).join("|");
+    // Gallery files live under each event's own folder, so they'd be orphaned: delete them from storage too.
+    const galleryItems = await EventMedia.find({ event: { $in: eventIds } }).select("media");
+    await Promise.all(galleryItems.map((item) => galleryMedia.deleteMediaQuietly(item.media)));
 
     await Promise.all([
         StoryView.deleteMany({ story: { $in: storyIds } }),
+        EventMedia.deleteMany({ event: { $in: eventIds } }),
         Story.deleteMany({ _id: { $in: storyIds } }),
         EventRegistration.deleteMany({ $or: [{ event: { $in: eventIds } }, { user: { $in: userIds } }] }),
         EventResult.deleteMany({ event: { $in: eventIds } }),
@@ -353,6 +359,93 @@ const cloudinaryMedia = (uploaded, kind) => ({
     duration: kind === "VIDEO" ? Math.min(uploaded.duration || env.stories.maxVideoSeconds, env.stories.maxVideoSeconds) : null,
     bytes: uploaded.bytes || null
 });
+
+// ---------------------------------------------------------------- Event galleries
+
+// Approved photos (and a reel) on the finished events, and uploads waiting for the president's review on
+// the photo walk that is happening now. Files go to the same Cloudinary folder real gallery uploads use.
+const loadGallery = async (cast) => {
+    const eventNamed = (title) => Event.findOne({ title });
+    const [codeSprint, monsoon, photoWalk] = await Promise.all([eventNamed("CodeSprint 2026"), eventNamed("Monsoon Frames Photo Contest"), eventNamed("Heritage Photo Walk")]);
+    let count = 0;
+
+    const add = async (event, uploader, name, { seed, status = "APPROVED", hoursAgo = 1, width = 1600, height = 1067, video = false }) => {
+        if (!event) {
+            return;
+        }
+        const folder = `${env.cloudinary.folder}/gallery/${event._id}`;
+        let media;
+        try {
+            media = video
+                ? cloudinaryMedia(
+                      await upload({
+                          file: "https://res.cloudinary.com/demo/video/upload/dog.mp4",
+                          publicId: `${folder}/showcase-${name}`,
+                          resource: "video",
+                          eager: `c_limit,h_1280,w_1280,q_auto,du_${env.gallery.maxVideoSeconds}/mp4|so_0,c_limit,h_1280,w_1280,q_auto/jpg`
+                      }),
+                      "VIDEO"
+                  )
+                : cloudinaryMedia(await upload({ file: photo(seed, width, height), publicId: `${folder}/showcase-${name}` }), "IMAGE");
+        } catch (error) {
+            logger.warn("Gallery file skipped", { name, message: error.message });
+            return;
+        }
+        if (video) {
+            media.duration = Math.min(media.duration || env.gallery.maxVideoSeconds, env.gallery.maxVideoSeconds);
+        }
+        const member = await ClubMembership.exists({ club: event.club, user: uploader._id, status: "APPROVED" });
+        const createdAt = new Date(Date.now() - hoursAgo * 3600000);
+        await EventMedia.create({
+            event: event._id,
+            club: event.club,
+            uploader: uploader._id,
+            uploaderRole: member ? "MEMBER" : "PARTICIPANT",
+            media,
+            status,
+            reviewedBy: status === "APPROVED" ? uploader._id : null,
+            reviewedAt: status === "APPROVED" ? createdAt : null,
+            createdAt,
+            updatedAt: createdAt
+        });
+        count += 1;
+    };
+
+    const { aarav, diya, kabir, meera, rohan, sneha } = cast;
+    // Monsoon Frames: the contest's best shots, from the club and the participants.
+    const monsoonShots = [
+        [kabir, "monsoon-1", "ddu-monsoon-rain", 1600, 1067],
+        [sneha, "monsoon-2", "ddu-monsoon-umbrella", 1067, 1600],
+        [rohan, "monsoon-3", "ddu-monsoon-puddle", 1600, 1067],
+        [diya, "monsoon-4", "ddu-monsoon-clouds", 1600, 1067],
+        [aarav, "monsoon-5", "ddu-monsoon-leaves", 1600, 1600],
+        [sneha, "monsoon-6", "ddu-monsoon-street", 1600, 1067],
+        [kabir, "monsoon-7", "ddu-monsoon-drops", 1067, 1600]
+    ];
+    for (const [index, [who, name, seed, width, height]] of monsoonShots.entries()) {
+        await add(monsoon, who, name, { seed, width, height, hoursAgo: 280 - index * 3 });
+    }
+    await add(monsoon, rohan, "monsoon-reel", { video: true, hoursAgo: 260 });
+
+    // CodeSprint: the coding contest in pictures.
+    for (const [index, [who, name, seed]] of [
+        [aarav, "sprint-1", "ddu-code-sprint-lab"],
+        [kabir, "sprint-2", "ddu-code-sprint-team"],
+        [meera, "sprint-3", "ddu-code-sprint-laptop"],
+        [rohan, "sprint-4", "ddu-code-sprint-winners"],
+        [aarav, "sprint-5", "ddu-code-sprint-board"]
+    ].entries()) {
+        await add(codeSprint, who, name, { seed, hoursAgo: 130 - index * 2 });
+    }
+
+    // Heritage Photo Walk (live): two already in, three waiting for Kabir (president) to review.
+    await add(photoWalk, kabir, "walk-gallery-1", { seed: "ddu-heritage-gate", hoursAgo: 0.6 });
+    await add(photoWalk, rohan, "walk-gallery-2", { seed: "ddu-heritage-arch", hoursAgo: 0.5 });
+    await add(photoWalk, diya, "walk-gallery-3", { seed: "ddu-heritage-dome", status: "PENDING", hoursAgo: 0.3 });
+    await add(photoWalk, sneha, "walk-gallery-4", { seed: "ddu-heritage-window", status: "PENDING", hoursAgo: 0.25, width: 1067, height: 1600 });
+    await add(photoWalk, sneha, "walk-gallery-5", { seed: "ddu-heritage-steps", status: "PENDING", hoursAgo: 0.2 });
+    return count;
+};
 
 // Photo, video, generated slide and event-poster stories for each active club, with views and likes.
 const loadStories = async (cast) => {
@@ -953,6 +1046,10 @@ const loadShowcase = async () => {
         image: photo("shutterbug-photo-of-week", 1200, 900)
     });
     await events.updateEvent(aarav, hackNight._id, { updateNote: "Problem statements are live on the notice board, and dinner will be served at 9 PM." });
+
+    logger.info("Gallery");
+    const galleryCount = await loadGallery(cast);
+    logger.info("Gallery loaded", { files: galleryCount });
 
     logger.info("Stories");
     const storyCount = await loadStories(cast);

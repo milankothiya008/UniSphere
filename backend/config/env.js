@@ -72,6 +72,14 @@ const env = {
         maxVideoBytes: Number(process.env.STORY_MAX_VIDEO_BYTES) || 40 * 1024 * 1024,
         maxVideoSeconds: Number(process.env.STORY_MAX_VIDEO_SECONDS) || 30,
         maxActivePerClub: Number(process.env.STORY_MAX_ACTIVE_PER_CLUB) || 30
+    },
+    // Event galleries: photos and videos from club members and checked-in participants, shown once approved.
+    gallery: {
+        maxImageBytes: Number(process.env.GALLERY_MAX_IMAGE_BYTES) || 15 * 1024 * 1024,
+        maxVideoBytes: Number(process.env.GALLERY_MAX_VIDEO_BYTES) || 80 * 1024 * 1024,
+        maxVideoSeconds: Number(process.env.GALLERY_MAX_VIDEO_SECONDS) || 90,
+        // Waiting-for-review uploads one person may have per event, so the review queue can't be flooded.
+        maxPendingPerUser: Number(process.env.GALLERY_MAX_PENDING_PER_USER) || 30
     }
 };
 

@@ -42,4 +42,23 @@ const singleStoryFile = (field = "file") => (req, res, next) => {
     });
 };
 
-module.exports = { singleImage, singleStoryFile };
+// Event gallery photos and videos (development storage only, like stories).
+const galleryUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: Math.max(env.gallery.maxImageBytes, env.gallery.maxVideoBytes), files: 1 }
+});
+
+const singleGalleryFile = (field = "file") => (req, res, next) => {
+    galleryUpload.single(field)(req, res, (error) => {
+        if (!error) {
+            return next();
+        }
+        if (error.code === "LIMIT_FILE_SIZE") {
+            const mb = Math.round(env.gallery.maxVideoBytes / (1024 * 1024));
+            return next(new AppError(`Gallery files must be ${mb} MB or smaller`, 413, ERROR_CODES.UPLOAD_ERROR));
+        }
+        return next(new AppError("Invalid upload", 400, ERROR_CODES.UPLOAD_ERROR));
+    });
+};
+
+module.exports = { singleImage, singleStoryFile, singleGalleryFile };

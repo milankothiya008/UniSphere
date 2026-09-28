@@ -4,6 +4,7 @@ const registration = require("../controllers/RegistrationController");
 const result = require("../controllers/ResultController");
 const team = require("../controllers/TeamController");
 const checkIn = require("../controllers/CheckInController");
+const gallery = require("../controllers/GalleryController");
 const { protect, optionalAuth, requireVerified } = require("../middleware/Auth");
 const validate = require("../middleware/Validate");
 const {
@@ -17,6 +18,8 @@ const {
     roundRules
 } = require("../validators/RequestValidators");
 const { body } = require("express-validator");
+const { singleGalleryFile } = require("../middleware/Upload");
+const { uploadLimiter } = require("../middleware/RateLimiter");
 
 const router = express.Router();
 const auth = [protect, requireVerified];
@@ -88,6 +91,33 @@ router.post(
 );
 router.post("/:id/check-in/attendance/:registrationId", ...auth, id, mongoIdParam("registrationId"), body("note").optional().isString().isLength({ max: 200 }), validate, checkIn.mark);
 router.delete("/:id/check-in/attendance/:registrationId", ...auth, id, mongoIdParam("registrationId"), validate, checkIn.unmark);
+
+// Photo and video gallery (approved items are public; uploads and review need an account)
+const mediaIds = body("ids").isArray({ min: 1, max: 100 }).withMessage("Choose photos or videos").bail().custom((ids) => ids.every((value) => /^[a-f\d]{24}$/i.test(String(value)))).withMessage("Invalid selection");
+router.get("/:id/gallery", optionalAuth, id, validate, gallery.list);
+router.post(
+    "/:id/gallery/uploads",
+    ...auth,
+    uploadLimiter,
+    id,
+    body("kinds").isArray({ min: 1, max: 20 }).withMessage("Choose up to 20 photos or videos at a time"),
+    body("kinds.*").isIn(["IMAGE", "VIDEO"]).withMessage("Only photos and videos can be added"),
+    validate,
+    gallery.uploadTickets
+);
+router.post("/:id/gallery/media", ...auth, uploadLimiter, id, validate, singleGalleryFile("file"), gallery.uploadLocal);
+router.post("/:id/gallery", ...auth, id, body("media").isObject().withMessage("Add a photo or video"), validate, gallery.add);
+router.post("/:id/gallery/approve", ...auth, id, mediaIds, validate, gallery.approve);
+router.post(
+    "/:id/gallery/reject",
+    ...auth,
+    id,
+    mediaIds,
+    body("reason").optional().isString().isLength({ max: 200 }).withMessage("Keep the reason under 200 characters"),
+    validate,
+    gallery.reject
+);
+router.delete("/:id/gallery/:mediaId", ...auth, id, mongoIdParam("mediaId"), validate, gallery.remove);
 
 // Results
 router.put("/:id/results", ...auth, id, resultRules, validate, result.upsert);

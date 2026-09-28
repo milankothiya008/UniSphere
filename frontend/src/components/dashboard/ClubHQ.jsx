@@ -10,6 +10,7 @@ import {
     Flag,
     Gauge,
     Hourglass,
+    Images,
     Megaphone,
     PencilLine,
     Plus,
@@ -109,6 +110,16 @@ const actionItems = (workspace) => {
             items.push({ key: `cw-${event._id}`, icon: Hourglass, tone: "neutral", title: event.title, detail: "Edit waiting for mentor approval", to: `/events/${event._id}` });
         }
     });
+    (workspace.galleryReview || []).forEach((event) =>
+        items.push({
+            key: `gr-${event._id}`,
+            icon: Images,
+            tone: "info",
+            title: `${plural(event.pending, "gallery upload")} to review`,
+            detail: event.title,
+            to: `/events/${event._id}?gallery=review`
+        })
+    );
     workspace.readyToPublish.forEach((event) =>
         items.push({ key: `rp-${event._id}`, icon: Megaphone, tone: "info", title: event.title, detail: "Approved — ready to publish", to: `/events/${event._id}` })
     );

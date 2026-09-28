@@ -149,6 +149,15 @@ export const uploadApi = {
     }
 };
 
+export const galleryApi = {
+    list: (eventId, query) => api.get(`/events/${eventId}/gallery`, query),
+    uploadTickets: (eventId, kinds) => api.post(`/events/${eventId}/gallery/uploads`, { kinds }),
+    add: (eventId, media) => api.post(`/events/${eventId}/gallery`, { media }),
+    approve: (eventId, ids) => api.post(`/events/${eventId}/gallery/approve`, { ids }),
+    reject: (eventId, ids, reason) => api.post(`/events/${eventId}/gallery/reject`, { ids, reason }),
+    remove: (eventId, mediaId) => api.delete(`/events/${eventId}/gallery/${mediaId}`)
+};
+
 export const storyApi = {
     tray: () => api.get("/stories"),
     uploadTicket: (club, kind) => api.post("/stories/uploads", { club, kind }),

@@ -2,6 +2,7 @@ const Club = require("../models/Club");
 const ClubCreationRequest = require("../models/ClubCreationRequest");
 const ClubMembership = require("../models/ClubMembership");
 const Event = require("../models/Event");
+const EventMedia = require("../models/EventMedia");
 const EventResult = require("../models/EventResult");
 const Notification = require("../models/Notification");
 const {
@@ -10,7 +11,8 @@ const {
     EVENT_STATUS,
     MEMBERSHIP_STATUS,
     REGISTRATION_STATUS,
-    RESULT_STATUS
+    RESULT_STATUS,
+    GALLERY_STATUS
 } = require("../constants/Statuses");
 const { CLUB_ROLES } = require("../constants/Roles");
 const { CLUB_ROLE_PERMISSIONS, CLUB_PERMISSIONS } = require("../constants/Permissions");
@@ -110,6 +112,18 @@ const clubWorkspace = async (membership) => {
         Event.find({ club: clubId, status: EVENT_STATUS.COMPLETED }).select("_id title startAt").sort({ startAt: -1 }).limit(20)
     ]);
 
+    // Gallery uploads waiting for the president or vice-president, per event.
+    const galleryReview = has(CLUB_PERMISSIONS.MODERATE_GALLERY)
+        ? await EventMedia.aggregate([
+              { $match: { club: clubId, status: GALLERY_STATUS.PENDING } },
+              { $group: { _id: "$event", pending: { $sum: 1 } } },
+              { $lookup: { from: "events", localField: "_id", foreignField: "_id", as: "event", pipeline: [{ $project: { title: 1 } }] } },
+              { $unwind: "$event" },
+              { $project: { _id: "$event._id", title: "$event.title", pending: 1 } },
+              { $sort: { pending: -1 } }
+          ])
+        : [];
+
     const published = await EventResult.find({ event: { $in: completedIds.map((e) => e._id) } }).select("event status");
     const resultByEvent = new Map(published.map((r) => [String(r.event), r.status]));
     const byStatus = (status) => withState(events.filter((event) => event.status === status));
@@ -133,6 +147,7 @@ const clubWorkspace = async (membership) => {
                   .filter((event) => resultByEvent.get(String(event._id)) !== RESULT_STATUS.PUBLISHED)
                   .map((event) => ({ ...event.toObject(), resultStatus: resultByEvent.get(String(event._id)) || null }))
             : [],
+        galleryReview,
         insights: has(CLUB_PERMISSIONS.MANAGE_CLUB) ? await clubInsights(clubId, memberCount, now) : null
     };
 };

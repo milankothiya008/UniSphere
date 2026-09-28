@@ -15,7 +15,9 @@ const CLUB_PERMISSIONS = Object.freeze({
     // Opening and closing check-in at the door: the president only.
     MANAGE_CHECK_IN: "MANAGE_CHECK_IN",
     // Scanning tickets and marking attendance while check-in is open: every officer.
-    MARK_ATTENDANCE: "MARK_ATTENDANCE"
+    MARK_ATTENDANCE: "MARK_ATTENDANCE",
+    // Approving photos and videos for an event's gallery: president and vice-president.
+    MODERATE_GALLERY: "MODERATE_GALLERY"
 });
 
 const P = CLUB_PERMISSIONS;
@@ -30,7 +32,8 @@ const CLUB_ROLE_PERMISSIONS = Object.freeze({
         P.MANAGE_PARTICIPANTS,
         P.MANAGE_RESULTS,
         P.POST_UPDATES,
-        P.MARK_ATTENDANCE
+        P.MARK_ATTENDANCE,
+        P.MODERATE_GALLERY
     ],
     [CLUB_ROLES.EVENT_COORDINATOR]: [
         P.MANAGE_EVENTS,
