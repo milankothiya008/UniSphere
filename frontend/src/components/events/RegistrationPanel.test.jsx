@@ -6,7 +6,7 @@ import { useAuth } from "../../context/AuthContext";
 import { eventApi } from "../../api/endpoints";
 
 vi.mock("../../context/AuthContext", () => ({ useAuth: vi.fn() }));
-vi.mock("../../api/endpoints", () => ({ eventApi: { register: vi.fn(), unregister: vi.fn() } }));
+vi.mock("../../api/endpoints", () => ({ eventApi: { register: vi.fn(), unregister: vi.fn(), ticket: vi.fn().mockResolvedValue({ data: null }) } }));
 
 const future = (days) => new Date(Date.now() + days * 86400000).toISOString();
 

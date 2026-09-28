@@ -20,6 +20,7 @@ const { formatDateKey } = require("../utils/UniversityRules");
 const { assertVerified, assertStudent } = require("./AuthorizationService");
 const { recordAudit } = require("./AuditService");
 const { notify } = require("./NotificationService");
+const { withTicketRetry, sendTicketEmail } = require("./TicketService");
 
 // Team registration, the way Unstop does it: the leader registers the team (which takes the team's place,
 // or its spot on the waitlist) and invites teammates; each invitee accepts or declines. Accepted members get
@@ -244,7 +245,7 @@ const removeMember = async (actor, eventId, userId) => {
         await notify(member.user, {
             type: NOTIFICATION_TYPES.TEAM_UPDATE,
             title: `You were removed from "${team.name}" for ${event.title}`,
-            message: "Your registration through the team was cancelled. You can register again on your own or with another team while registration is open.",
+            message: "Your registration through the team was cancelled and your ticket is no longer valid. You can register again on your own or with another team while registration is open.",
             link: eventLink(event),
             email: true,
             emailCategory: EMAIL_CATEGORIES.EVENT_ACTIVITY
@@ -316,9 +317,14 @@ const respondToInvite = async (actor, eventId, teamId, accept) => {
             waitlistedAt: leaderRegistration.status === REGISTRATION_STATUS.WAITLISTED ? leaderRegistration.waitlistedAt : null,
             promotedAt: null
         };
-        registration = existing
-            ? await EventRegistration.findOneAndUpdate({ _id: existing._id, status: REGISTRATION_STATUS.CANCELLED }, { $set: fields }, { returnDocument: "after" })
-            : await EventRegistration.create({ event: event._id, user: actor._id, ...fields });
+        // Joining a registered team issues the member's own ticket; a waitlisted team's members get theirs on promotion.
+        const issueTicket = leaderRegistration.status === REGISTRATION_STATUS.REGISTERED;
+        registration = await withTicketRetry((ticket) => {
+            const doc = { ...fields, ...(issueTicket ? ticket : {}) };
+            return existing
+                ? EventRegistration.findOneAndUpdate({ _id: existing._id, status: REGISTRATION_STATUS.CANCELLED }, { $set: doc }, { returnDocument: "after" })
+                : EventRegistration.create({ event: event._id, user: actor._id, ...doc });
+        });
         if (!registration) {
             throw new AppError("You're already registered for this event", 409, ERROR_CODES.DUPLICATE_REGISTRATION);
         }
@@ -354,10 +360,13 @@ const respondToInvite = async (actor, eventId, teamId, accept) => {
         title: waitlisted ? `You joined "${team.name}" — the team is on the waitlist for ${event.title}` : `You're registered for ${event.title} with "${team.name}"`,
         message: waitlisted
             ? "If a place opens up, the whole team is registered automatically and we'll email you."
-            : `${leader?.name || "Your team leader"} leads the team. See you on ${formatDateKey(event.eventDate)} at ${event.startTime}.`,
+            : `${leader?.name || "Your team leader"} leads the team. See you on ${formatDateKey(event.eventDate)} at ${event.startTime}. Your ticket is ready — show its QR code at the entrance.`,
         link: eventLink(event),
-        email: true
+        email: waitlisted
     });
+    if (!waitlisted) {
+        await sendTicketEmail(registration._id, { reason: "team" });
+    }
 
     return { accepted: true, waitlisted, registration, team: await getTeamView(team._id) };
 };
@@ -417,8 +426,8 @@ const disbandTeam = async (teamId, event, { actor, byOrganiser = false, reason =
             type: NOTIFICATION_TYPES.TEAM_UPDATE,
             title: `"${team.name}" is no longer registered for ${event.title}`,
             message: byOrganiser
-                ? `The organisers removed the team${reason ? `: ${reason}` : "."}`
-                : "The team leader cancelled the team's registration. You can register again on your own or with another team while registration is open.",
+                ? `The organisers removed the team${reason ? `: ${reason}` : "."} Your ticket is no longer valid.`
+                : "The team leader cancelled the team's registration, so your ticket is no longer valid. You can register again on your own or with another team while registration is open.",
             link: eventLink(event),
             email: true
         }

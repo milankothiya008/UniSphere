@@ -1,4 +1,4 @@
-import { Bell, Building2, CalendarCheck2, CalendarX2, ClipboardCheck, FilePenLine, FileText, Hourglass, MailPlus, Megaphone, Sparkles, Trophy, Users, UsersRound } from "lucide-react";
+import { BadgeCheck, Bell, Building2, CalendarCheck2, CalendarX2, ClipboardCheck, FilePenLine, FileText, Hourglass, MailPlus, Megaphone, ScanLine, Sparkles, Trophy, Users, UsersRound } from "lucide-react";
 
 // Icon and colour per notification type, so notification lists scan at a glance.
 const STYLE = {
@@ -15,6 +15,8 @@ const STYLE = {
     EVENT_CHANGES_REVIEW: [FilePenLine, "violet"],
     TEAM_INVITE: [MailPlus, "info"],
     TEAM_UPDATE: [UsersRound, "violet"],
+    CHECK_IN_OPEN: [ScanLine, "info"],
+    ATTENDANCE_MARKED: [BadgeCheck, "success"],
     EVENT_APPROVED: [ClipboardCheck, "success"],
     EVENT_CHANGES_REQUESTED: [ClipboardCheck, "warning"],
     EVENT_REJECTED: [ClipboardCheck, "danger"],

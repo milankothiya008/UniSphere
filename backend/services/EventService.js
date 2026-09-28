@@ -20,7 +20,8 @@ const {
     FEED_POST_TYPES,
     NOTIFICATION_TYPES,
     REVISION_STATUS,
-    PARTICIPATION_MODES
+    PARTICIPATION_MODES,
+    CHECK_IN_STATUS
 } = require("../constants/Statuses");
 const { CLUB_PERMISSIONS, CLUB_ROLE_PERMISSIONS } = require("../constants/Permissions");
 const { searchRegex, parsePagination, paginationMeta } = require("../utils/Query");
@@ -71,6 +72,15 @@ const assertClubCanHostEvents = (club) => {
 const assertStatus = (event, allowed, message) => {
     if (!allowed.includes(event.status)) {
         throw new AppError(message, 409, ERROR_CODES.INVALID_STATE);
+    }
+};
+
+// Completing or cancelling an event ends check-in at the door.
+const closeCheckInIfOpen = (event, actor) => {
+    if (event.checkIn?.status === CHECK_IN_STATUS.OPEN) {
+        event.checkIn.status = CHECK_IN_STATUS.CLOSED;
+        event.checkIn.closedAt = new Date();
+        event.checkIn.closedBy = actor._id;
     }
 };
 
@@ -259,6 +269,9 @@ const viewerFor = (context, event, registration) => ({
     canManageParticipants: contextHas(context, CLUB_PERMISSIONS.MANAGE_PARTICIPANTS),
     canManageResults: contextHas(context, CLUB_PERMISSIONS.MANAGE_RESULTS),
     canPublishResults: contextHas(context, CLUB_PERMISSIONS.PUBLISH_RESULTS),
+    // Check-in at the door: the president opens it, every officer scans.
+    canManageCheckIn: contextHas(context, CLUB_PERMISSIONS.MANAGE_CHECK_IN),
+    canMarkAttendance: contextHas(context, CLUB_PERMISSIONS.MARK_ATTENDANCE),
     canReview: context.isMentor && event.status === EVENT_STATUS.PENDING_APPROVAL,
     canReviewChanges: context.isMentor && event.revision?.status === REVISION_STATUS.PENDING_APPROVAL,
     canPublishChanges: contextHas(context, CLUB_PERMISSIONS.PUBLISH_EVENTS) && event.revision?.status === REVISION_STATUS.APPROVED,
@@ -273,7 +286,10 @@ const viewerFor = (context, event, registration) => ({
               status: registration.status,
               registeredAt: registration.registeredAt,
               promotedAt: registration.promotedAt || null,
-              waitlistPosition: registration.waitlistPosition ?? null
+              waitlistPosition: registration.waitlistPosition ?? null,
+              ticketCode: registration.ticketCode || null,
+              checkedInAt: registration.checkedInAt || null,
+              checkInMethod: registration.checkInMethod || null
           }
         : null
 });
@@ -1037,6 +1053,7 @@ const cancelEvent = async (actor, eventId, reason = null) => {
     }
 
     const from = event.status;
+    closeCheckInIfOpen(event, actor);
     event.status = EVENT_STATUS.CANCELLED;
     event.cancelledAt = new Date();
     event.cancellationReason = reason ? String(reason).trim() : null;
@@ -1075,6 +1092,7 @@ const completeEvent = async (actor, eventId) => {
         throw new AppError("An event can only be completed after it has started", 409, ERROR_CODES.INVALID_STATE);
     }
 
+    closeCheckInIfOpen(event, actor);
     event.status = EVENT_STATUS.COMPLETED;
     event.completedAt = new Date();
     event.updatedBy = actor._id;

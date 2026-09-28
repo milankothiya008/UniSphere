@@ -48,6 +48,8 @@ const teams = require("../services/TeamService");
 const results = require("../services/ResultService");
 const feed = require("../services/FeedService");
 const stories = require("../services/StoryService");
+const checkIn = require("../services/CheckInService");
+const EventRegistrationModel = require("../models/EventRegistration");
 const { signParams } = require("../services/StoryMediaService");
 const logger = require("../utils/Logger");
 
@@ -282,6 +284,15 @@ const approveJoin = async (president, club, student, message) => {
 };
 
 const register = (student, event, body) => registrations.registerForEvent(student, event._id, body);
+
+// Attendance for a past event: who turned up, scanned by the given officer.
+const markAttended = async (event, students, scannedBy, minutesAfterStart = 12) => {
+    const at = new Date(new Date(event.startAt).getTime() + minutesAfterStart * 60000);
+    await EventRegistrationModel.updateMany(
+        { event: event._id, user: { $in: students.map((student) => student._id) }, status: "REGISTERED" },
+        { $set: { checkedInAt: at, checkedInBy: scannedBy._id, checkInMethod: "QR" } }
+    );
+};
 
 // ---------------------------------------------------------------- Reset
 
@@ -697,6 +708,7 @@ const loadShowcase = async () => {
     });
     await results.publishRound(aarav, codeSprint._id, qualifier.rounds[0]._id);
     await moveToPast(codeSprint._id, 6);
+    await markAttended(await Event.findById(codeSprint._id), [meera, kabir, rohan, sneha], kabir);
     await events.completeEvent(aarav, codeSprint._id);
     await results.upsertResult(kabir, codeSprint._id, {
         summary: "48 students took part across two rounds. A tight final — congratulations to our winners and thank you to every participant!",
@@ -858,6 +870,12 @@ const loadShowcase = async () => {
         await register(student, photoWalk);
     }
     await makeLive(photoWalk._id);
+    // Doors are open: two students have already been scanned in.
+    await checkIn.openCheckIn(kabir, photoWalk._id);
+    for (const student of [diya, sneha]) {
+        const registration = await EventRegistrationModel.findOne({ event: photoWalk._id, user: student._id });
+        await checkIn.markAttendance(kabir, photoWalk._id, { registrationId: registration._id }, "QR");
+    }
 
     const monsoon = await publishedEvent({
         club: shutter,
@@ -879,6 +897,7 @@ const loadShowcase = async () => {
         await register(student, monsoon);
     }
     await moveToPast(monsoon._id, 12, "11:00", "13:00");
+    await markAttended(await Event.findById(monsoon._id), [sneha, diya, aarav], rohan);
     await events.completeEvent(kabir, monsoon._id);
     await results.upsertResult(kabir, monsoon._id, {
         summary: "Over 120 photos were submitted. Our judges loved the storytelling in this year's entries — the winning photos will be exhibited in the library foyer.",

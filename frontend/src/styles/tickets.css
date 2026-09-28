@@ -1,0 +1,589 @@
+/* ================================================================ Tickets & check-in */
+
+/* ---------------------------------------------------------------- Ticket (student side) */
+.ticket-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ticket {
+    position: relative;
+    overflow: hidden;
+    border-radius: 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: 0 22px 44px -30px rgba(17, 28, 77, 0.55);
+    animation: rise-in 0.4s var(--ease-out) both;
+}
+
+.ticket.is-loading {
+    padding: 16px;
+}
+
+.ticket-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    color: #fff;
+    background: linear-gradient(135deg, #0c1538 0%, #1b2a6b 55%, #2c46b0 100%);
+}
+
+.ticket-head .avatar {
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.ticket-club {
+    display: block;
+    font-size: 0.74rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #cdd6fb;
+}
+
+.ticket-title {
+    display: block;
+    font-size: 0.98rem;
+    line-height: 1.25;
+}
+
+.ticket-stub {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex: none;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--gold-500);
+}
+
+.ticket-qr {
+    position: relative;
+    display: grid;
+    place-items: center;
+    padding: 18px 16px 10px;
+    background: #fff;
+}
+
+.ticket-qr img {
+    width: min(100%, 240px);
+    aspect-ratio: 1;
+    image-rendering: pixelated;
+    border-radius: 10px;
+    transition: opacity 0.3s ease;
+}
+
+.ticket.is-large .ticket-qr img {
+    width: min(100%, 340px);
+}
+
+.ticket.is-checked .ticket-qr img {
+    opacity: 0.35;
+}
+
+.ticket-checked-stamp {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: var(--success-600);
+    color: #fff;
+    font-weight: 700;
+    box-shadow: 0 10px 24px -10px rgba(15, 138, 95, 0.8);
+    transform: rotate(-8deg);
+    animation: stamp-in 0.45s var(--ease-spring) both;
+}
+
+@keyframes stamp-in {
+    from {
+        opacity: 0;
+        transform: rotate(-8deg) scale(1.6);
+    }
+}
+
+/* Torn edge between the QR and the details, like a paper ticket. */
+.ticket-perforation {
+    position: relative;
+    height: 0;
+    border-top: 2px dashed var(--border);
+    margin: 0 14px;
+}
+
+.ticket-perforation::before,
+.ticket-perforation::after {
+    content: "";
+    position: absolute;
+    top: -12px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+}
+
+.ticket-perforation::before {
+    left: -26px;
+}
+
+.ticket-perforation::after {
+    right: -26px;
+}
+
+.ticket-details {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+}
+
+.ticket-code {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 10px;
+    border-radius: 12px;
+    background: var(--ink-50);
+    border: 1px dashed var(--ink-100);
+}
+
+.ticket-code small {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.ticket-code b {
+    font-family: Consolas, Menlo, monospace;
+    font-size: 1.35rem;
+    letter-spacing: 0.12em;
+    color: var(--ink-800);
+}
+
+.ticket.is-large .ticket-code b {
+    font-size: 1.7rem;
+}
+
+.ticket-meta {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+}
+
+.ticket-meta div {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 8px;
+    align-items: baseline;
+}
+
+.ticket-meta dt {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+}
+
+.ticket-meta dd {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin: 0;
+    font-size: 0.88rem;
+    font-weight: 500;
+}
+
+.ticket-note {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: var(--surface-muted);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.ticket.is-checked .ticket-note {
+    background: var(--success-100);
+    color: var(--success-600);
+    font-weight: 600;
+}
+
+.ticket-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.ticket-actions .small {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.ticket-modal .ticket {
+    box-shadow: none;
+}
+
+/* ---------------------------------------------------------------- Check-in page (club side) */
+.checkin-stats {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+    padding: 16px 18px 22px;
+    border-radius: var(--radius-xl);
+    color: #fff;
+    background: linear-gradient(135deg, #0c1538 0%, #1b2a6b 55%, #2c46b0 100%);
+    box-shadow: 0 22px 44px -30px rgba(17, 28, 77, 0.65);
+}
+
+.checkin-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.checkin-stat.is-primary {
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.checkin-stat-value {
+    font-family: var(--font-display);
+    font-size: 1.9rem;
+    line-height: 1;
+    font-weight: 700;
+}
+
+.checkin-stat-label {
+    font-size: 0.74rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #cdd6fb;
+}
+
+.checkin-progress {
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 10px;
+    height: 5px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.18);
+    overflow: hidden;
+}
+
+.checkin-progress span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold-500), #4ade80);
+    transition: width 0.6s var(--ease-out);
+}
+
+.checkin-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 22px;
+    align-items: start;
+}
+
+/* Scan tab */
+.checkin-scan {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.checkin-viewport {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    max-height: 62vh;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #05081a;
+    border: 1px solid var(--border);
+}
+
+.checkin-viewport video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.checkin-viewport:not(.is-live) video {
+    display: none;
+}
+
+.checkin-reticle {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: min(62%, 300px);
+    aspect-ratio: 1;
+    border-radius: 18px;
+    box-shadow: 0 0 0 100vmax rgba(5, 8, 26, 0.45);
+    pointer-events: none;
+}
+
+.checkin-reticle::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 18px;
+    border: 3px solid rgba(255, 255, 255, 0.85);
+    mask: linear-gradient(#000 0 0) padding-box, conic-gradient(from 0deg, #000 0 0) border-box;
+}
+
+.checkin-reticle::after {
+    content: "";
+    position: absolute;
+    left: 8%;
+    right: 8%;
+    top: 12%;
+    height: 2px;
+    background: var(--gold-500);
+    box-shadow: 0 0 12px var(--gold-500);
+    animation: scan-sweep 2.2s ease-in-out infinite;
+}
+
+@keyframes scan-sweep {
+    50% {
+        top: 86%;
+    }
+}
+
+.checkin-viewport-idle {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    text-align: center;
+    color: #fff;
+    background:
+        radial-gradient(320px 200px at 80% 10%, rgba(236, 72, 153, 0.35), transparent 70%),
+        radial-gradient(300px 220px at 10% 90%, rgba(56, 189, 248, 0.3), transparent 70%),
+        #0c1538;
+}
+
+.checkin-viewport-idle p {
+    max-width: 38ch;
+    margin: 0 0 6px;
+    color: #cdd6fb;
+    font-size: 0.9rem;
+}
+
+.checkin-camera-icon {
+    display: grid;
+    place-items: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+/* Result overlay */
+.scan-result {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    color: #fff;
+    cursor: pointer;
+    animation: scan-pop 0.35s var(--ease-spring) both;
+}
+
+.scan-result strong {
+    display: block;
+    font-size: 1.05rem;
+}
+
+.scan-result span {
+    font-size: 0.84rem;
+    opacity: 0.9;
+}
+
+.scan-result.is-ok {
+    background: linear-gradient(135deg, #0f8a5f, #22c55e);
+}
+
+.scan-result.is-warn {
+    background: linear-gradient(135deg, #b45309, #f59e0b);
+}
+
+.scan-result.is-bad {
+    background: linear-gradient(135deg, #991b1b, #ef4444);
+}
+
+.scan-result.is-info {
+    background: linear-gradient(135deg, #1b2a6b, #3c5bd6);
+}
+
+@keyframes scan-pop {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.97);
+    }
+}
+
+/* Search tab */
+.checkin-list,
+.checkin-recent {
+    display: flex;
+    flex-direction: column;
+}
+
+.checkin-row,
+.checkin-recent-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.checkin-row:last-child,
+.checkin-recent-row:last-child {
+    border-bottom: 0;
+}
+
+.checkin-row strong,
+.checkin-recent-row strong {
+    display: block;
+    font-size: 0.92rem;
+}
+
+.checkin-row .subtle,
+.checkin-recent-row .subtle {
+    display: block;
+}
+
+.checkin-row.is-checked {
+    background: rgba(15, 138, 95, 0.05);
+}
+
+.checkin-list {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--surface);
+}
+
+.checkin-recent-row {
+    padding: 10px 20px;
+    animation: rise-in 0.3s var(--ease-out) both;
+}
+
+.attendance-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 3px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--success-100);
+    color: var(--success-600);
+    font-size: 0.74rem;
+    font-weight: 700;
+}
+
+/* Code tab */
+.checkin-code {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.checkin-code-row {
+    display: flex;
+    gap: 8px;
+}
+
+.checkin-code-prefix {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    border-radius: 12px;
+    background: var(--ink-50);
+    color: var(--ink-600);
+}
+
+.checkin-code-input {
+    flex: 1;
+    font-family: Consolas, Menlo, monospace;
+    font-size: 1.15rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------- Responsive */
+@media (max-width: 960px) {
+    .checkin-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .checkin-stats {
+        gap: 8px;
+        padding: 12px 12px 20px;
+    }
+
+    .checkin-stat {
+        padding: 8px 10px;
+    }
+
+    .checkin-stat-value {
+        font-size: 1.5rem;
+    }
+
+    .checkin-viewport {
+        aspect-ratio: 3 / 4;
+    }
+
+    .checkin-code-row {
+        flex-wrap: wrap;
+    }
+
+    .checkin-code-row .btn {
+        width: 100%;
+    }
+
+    .ticket-meta div {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ticket,
+    .ticket-checked-stamp,
+    .scan-result,
+    .checkin-recent-row,
+    .checkin-reticle::after {
+        animation: none;
+    }
+}

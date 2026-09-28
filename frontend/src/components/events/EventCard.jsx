@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { CalendarDays, Clock, MapPin, Users } from "lucide-react";
+import { BadgeCheck, CalendarDays, Clock, MapPin, Ticket, Users } from "lucide-react";
 import { Badge, StatusBadge } from "../ui";
 import { dateParts, formatDate, formatTimeRange, humanize } from "../../lib/format";
 import { categoryStyle, categoryVars } from "../../lib/eventVisuals";
@@ -74,7 +74,20 @@ export const EventCard = ({ event, showStatus = false }) => (
                 )}
             </div>
             <div className="event-card-footer">
-                {showStatus ? <StatusBadge status={event.status} /> : registrationBadge(event)}
+                {event.checkedInAt ? (
+                    <Badge tone="success">
+                        <BadgeCheck size={13} /> Checked in
+                    </Badge>
+                ) : showStatus ? (
+                    <StatusBadge status={event.status} />
+                ) : (
+                    registrationBadge(event)
+                )}
+                {event.ticketCode && !event.checkedInAt && (
+                    <span className="subtle row event-card-ticket" style={{ gap: 4 }}>
+                        <Ticket size={13} /> Ticket ready
+                    </span>
+                )}
                 <span className="subtle row" style={{ gap: 5 }}>
                     <Users size={13} />
                     {event.registeredCount ?? 0}

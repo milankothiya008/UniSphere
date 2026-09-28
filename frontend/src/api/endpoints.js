@@ -83,6 +83,15 @@ export const eventApi = {
     rejectChanges: (id, reason) => api.post(`/events/${id}/changes/reject`, { reason }),
     publishChanges: (id) => api.post(`/events/${id}/changes/publish`),
     discardChanges: (id) => api.delete(`/events/${id}/changes`),
+    // Tickets and check-in at the door
+    ticket: (id) => api.get(`/events/${id}/ticket`),
+    checkIn: (id) => api.get(`/events/${id}/check-in`),
+    openCheckIn: (id) => api.post(`/events/${id}/check-in/open`),
+    closeCheckIn: (id) => api.post(`/events/${id}/check-in/close`),
+    checkInParticipants: (id, search) => api.get(`/events/${id}/check-in/participants`, { search }),
+    scanTicket: (id, body) => api.post(`/events/${id}/check-in/scan`, body),
+    markAttendance: (id, registrationId, note) => api.post(`/events/${id}/check-in/attendance/${registrationId}`, { note }),
+    unmarkAttendance: (id, registrationId) => api.delete(`/events/${id}/check-in/attendance/${registrationId}`),
     // Teams
     teamCandidates: (id, search) => api.get(`/events/${id}/team/candidates`, { search }),
     inviteToTeam: (id, users) => api.post(`/events/${id}/team/invites`, { users }),

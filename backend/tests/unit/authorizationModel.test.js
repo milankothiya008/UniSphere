@@ -20,9 +20,21 @@ describe("authorization model", () => {
         expect(roleHasPermission(CLUB_ROLES.EVENT_COORDINATOR, CLUB_PERMISSIONS.ASSIGN_ROLES)).toBe(false);
     });
 
-    test("marketing coordinator can post updates only", () => {
+    test("marketing coordinator can post updates and mark attendance, nothing else", () => {
         expect(roleHasPermission(CLUB_ROLES.MARKETING_COORDINATOR, CLUB_PERMISSIONS.POST_UPDATES)).toBe(true);
+        expect(roleHasPermission(CLUB_ROLES.MARKETING_COORDINATOR, CLUB_PERMISSIONS.MARK_ATTENDANCE)).toBe(true);
         expect(roleHasPermission(CLUB_ROLES.MARKETING_COORDINATOR, CLUB_PERMISSIONS.VIEW_PARTICIPANTS)).toBe(false);
+        expect(roleHasPermission(CLUB_ROLES.MARKETING_COORDINATOR, CLUB_PERMISSIONS.MANAGE_CHECK_IN)).toBe(false);
+    });
+
+    test("every officer can mark attendance; only the president opens check-in", () => {
+        const officers = Object.values(CLUB_ROLES).filter((role) => ![CLUB_ROLES.PRESIDENT, CLUB_ROLES.MEMBER].includes(role));
+        officers.forEach((role) => {
+            expect(roleHasPermission(role, CLUB_PERMISSIONS.MARK_ATTENDANCE)).toBe(true);
+            expect(roleHasPermission(role, CLUB_PERMISSIONS.MANAGE_CHECK_IN)).toBe(false);
+        });
+        expect(roleHasPermission(CLUB_ROLES.PRESIDENT, CLUB_PERMISSIONS.MANAGE_CHECK_IN)).toBe(true);
+        expect(roleHasPermission(CLUB_ROLES.MEMBER, CLUB_PERMISSIONS.MARK_ATTENDANCE)).toBe(false);
     });
 
     test("plain members have no management permissions", () => {

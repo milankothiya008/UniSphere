@@ -3,6 +3,7 @@ const e = require("../controllers/EventController");
 const registration = require("../controllers/RegistrationController");
 const result = require("../controllers/ResultController");
 const team = require("../controllers/TeamController");
+const checkIn = require("../controllers/CheckInController");
 const { protect, optionalAuth, requireVerified } = require("../middleware/Auth");
 const validate = require("../middleware/Validate");
 const {
@@ -68,6 +69,25 @@ router.post("/:id/teams/:teamId/decline", ...auth, id, mongoIdParam("teamId"), v
 router.delete("/:id/register", ...auth, id, validate, registration.unregister);
 router.get("/:id/registrations", ...auth, id, validate, registration.list);
 router.delete("/:id/registrations/:registrationId", ...auth, id, mongoIdParam("registrationId"), validate, registration.removeParticipant);
+
+// Tickets and check-in at the door
+router.get("/:id/ticket", ...auth, id, validate, checkIn.myTicket);
+router.get("/:id/check-in", ...auth, id, validate, checkIn.status);
+router.post("/:id/check-in/open", ...auth, id, validate, checkIn.open);
+router.post("/:id/check-in/close", ...auth, id, validate, checkIn.close);
+router.get("/:id/check-in/participants", ...auth, id, validate, checkIn.participants);
+router.post(
+    "/:id/check-in/scan",
+    ...auth,
+    id,
+    body("token").optional().isString().isLength({ min: 40, max: 200 }).withMessage("Invalid ticket"),
+    body("code").optional().isString().isLength({ min: 1, max: 20 }).withMessage("Invalid ticket code"),
+    body().custom((value) => Boolean(value?.token || value?.code !== undefined) || Promise.reject(new Error("Scan a QR code or enter a ticket code"))),
+    validate,
+    checkIn.scan
+);
+router.post("/:id/check-in/attendance/:registrationId", ...auth, id, mongoIdParam("registrationId"), body("note").optional().isString().isLength({ max: 200 }), validate, checkIn.mark);
+router.delete("/:id/check-in/attendance/:registrationId", ...auth, id, mongoIdParam("registrationId"), validate, checkIn.unmark);
 
 // Results
 router.put("/:id/results", ...auth, id, resultRules, validate, result.upsert);

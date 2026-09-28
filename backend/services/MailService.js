@@ -68,7 +68,8 @@ const absoluteUrl = (value) => {
 const muted = "font-size:12px;color:#64748b;line-height:1.5";
 
 // details: [[label, value], ...]; reason: why this person got the email; footerLinks: [{ label, url }] (e.g. unsubscribe).
-const layout = ({ heading, paragraphs = [], action = null, code = null, footnote = null, image = null, details = [], reason = null, footerLinks = [] }) => {
+// qr: { src, alt } renders a centred QR image (tickets) after the details table.
+const layout = ({ heading, paragraphs = [], action = null, code = null, footnote = null, image = null, details = [], reason = null, footerLinks = [], qr = null }) => {
     const hero = image
         ? `<img src="${escapeHtml(absoluteUrl(image))}" alt="" width="512" style="display:block;width:100%;max-width:512px;height:auto;border-radius:12px;margin:0 0 18px" />`
         : "";
@@ -87,6 +88,10 @@ const layout = ({ heading, paragraphs = [], action = null, code = null, footnote
     const codeBlock = code
         ? `<p style="margin:22px 0;font-size:32px;font-weight:700;letter-spacing:10px;font-family:Consolas,Menlo,monospace;color:#0f172a;background:#eff6ff;border-radius:10px;padding:14px 0;text-align:center">${escapeHtml(code)}</p>`
         : "";
+    const qrBlock = qr
+        ? `<p style="margin:6px 0 4px;text-align:center"><img src="${escapeHtml(absoluteUrl(qr.src))}" alt="${escapeHtml(qr.alt || "QR code")}" width="240" height="240" style="display:inline-block;width:240px;height:240px;border:1px solid #e2e8f0;border-radius:12px;background:#fff" /></p>
+           <p style="${muted};text-align:center;margin:0 0 6px">Show this QR code at the entrance</p>`
+        : "";
     const note = footnote ? `<p style="font-size:13px;color:#64748b;line-height:1.5">${escapeHtml(footnote)}</p>` : "";
     const button = action
         ? `<p style="margin:22px 0"><a href="${escapeHtml(absoluteUrl(action.url))}" style="background:#1d4ed8;color:#fff;padding:11px 20px;border-radius:8px;text-decoration:none;font-weight:600">${escapeHtml(action.label)}</a></p>
@@ -102,7 +107,7 @@ const layout = ({ heading, paragraphs = [], action = null, code = null, footnote
     return `<div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0f172a">
         <div style="font-weight:700;font-size:18px;color:#1d4ed8;margin-bottom:18px">CampusConnect</div>
         ${hero}<h2 style="margin:0 0 14px;font-size:20px">${escapeHtml(heading)}</h2>
-        ${body}${table}${codeBlock}${button}${note}${why}${links}
+        ${body}${table}${qrBlock}${codeBlock}${button}${note}${why}${links}
         <p style="${muted};margin-top:${why || links ? "10px" : "28px"}">${escapeHtml(env.universityName)} · CampusConnect</p>
     </div>`;
 };

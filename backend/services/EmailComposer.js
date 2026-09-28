@@ -9,7 +9,7 @@ const preferenceLabel = (category) => EMAIL_PREFERENCES.find((preference) => pre
 // Builds one person's copy of an email. Optional categories get unsubscribe links in the footer plus
 // List-Unsubscribe headers, so Gmail/Outlook show their own "Unsubscribe" button (one click, RFC 8058).
 // `club` ({ _id, name }) makes the unsubscribe switch off that club's bell instead of the whole category.
-const composeEmail = (user, { category, subject, heading, paragraphs = [], details = [], image = null, action = null, reason = null, club = null }) => {
+const composeEmail = (user, { category, subject, heading, paragraphs = [], details = [], image = null, action = null, reason = null, club = null, code = null, qr = null }) => {
     const footerLinks = [];
     const headers = {};
 
@@ -34,6 +34,8 @@ const composeEmail = (user, { category, subject, heading, paragraphs = [], detai
         heading,
         ...paragraphs,
         ...details.filter(([, value]) => value).map(([label, value]) => `${label}: ${value}`),
+        code ? `Ticket code: ${code}` : null,
+        qr ? `QR code: ${absoluteUrl(qr.src)}` : null,
         action ? `${action.label}: ${absoluteUrl(action.url)}` : null,
         reason,
         ...footerLinks.map((link) => `${link.label}: ${absoluteUrl(link.url)}`)
@@ -46,7 +48,7 @@ const composeEmail = (user, { category, subject, heading, paragraphs = [], detai
         user: user._id,
         category,
         subject,
-        html: layout({ heading, paragraphs: [greeting, ...paragraphs], details, image, action, reason, footerLinks }),
+        html: layout({ heading, paragraphs: [greeting, ...paragraphs], details, image, action, reason, footerLinks, code, qr }),
         text,
         headers: Object.keys(headers).length ? headers : undefined
     };

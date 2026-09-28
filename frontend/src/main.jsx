@@ -14,6 +14,7 @@ import "./styles/feed.css";
 import "./styles/pages.css";
 import "./styles/stories.css";
 import "./styles/teams.css";
+import "./styles/tickets.css";
 
 createRoot(document.getElementById("root")).render(
     <StrictMode>

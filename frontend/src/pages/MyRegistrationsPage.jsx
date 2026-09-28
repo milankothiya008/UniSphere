@@ -115,7 +115,9 @@ const MyRegistrationsPage = () => {
                                     myRegistration: registration.status || "REGISTERED",
                                     waitlistPosition: registration.waitlistPosition,
                                     teamName: registration.team?.name,
-                                    teamRole: registration.teamRole
+                                    teamRole: registration.teamRole,
+                                    ticketCode: registration.ticketCode,
+                                    checkedInAt: registration.checkedInAt
                                 }}
                                 showStatus={filters.timeframe === "past"}
                             />

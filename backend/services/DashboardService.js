@@ -19,6 +19,7 @@ const { unreadCount } = require("./NotificationService");
 const { getStats } = require("./AdminService");
 const { getMyRegistrations } = require("./RegistrationService");
 const { registrationWindowState, listEvents } = require("./EventService");
+const { attendedCountsByEvent } = require("./CheckInService");
 
 const eventCard = "title startAt endAt startTime endTime status registeredCount maxParticipants waitlistCount poster club venue category registrationEnd registrationStart registrationClosed participationMode minTeamSize maxTeamSize";
 
@@ -41,6 +42,13 @@ const clubInsights = async (clubId, memberCount, now = new Date()) => {
         })
     ]);
 
+    const attendedByEvent = await attendedCountsByEvent(hosted.map((event) => event._id));
+    const attendedOf = (event) => attendedByEvent.get(String(event._id)) || 0;
+    // Attendance rate over completed events: people who were checked in at the door out of those registered.
+    const completed = hosted.filter((event) => event.status === EVENT_STATUS.COMPLETED && event.registeredCount);
+    const completedRegistered = completed.reduce((sum, event) => sum + event.registeredCount, 0);
+    const completedAttended = completed.reduce((sum, event) => sum + attendedOf(event), 0);
+
     const totalRegistrations = hosted.reduce((sum, event) => sum + (event.registeredCount || 0), 0);
     const capped = hosted.filter((event) => event.maxParticipants);
     const seats = capped.reduce((sum, event) => sum + event.maxParticipants, 0);
@@ -57,6 +65,8 @@ const clubInsights = async (clubId, memberCount, now = new Date()) => {
         // Share of offered seats that were taken, across events with a participant limit.
         seatFillRate: seats ? Math.round((seatsTaken / seats) * 100) : null,
         waitlisted: hosted.reduce((sum, event) => sum + (event.waitlistCount || 0), 0),
+        attendanceRate: completedRegistered ? Math.round((completedAttended / completedRegistered) * 100) : null,
+        totalAttended: hosted.reduce((sum, event) => sum + attendedOf(event), 0),
         eventWise: hosted.slice(0, INSIGHT_EVENTS).map((event) => ({
             _id: event._id,
             title: event.title,
@@ -65,7 +75,8 @@ const clubInsights = async (clubId, memberCount, now = new Date()) => {
             upcoming: event.status === EVENT_STATUS.PUBLISHED && event.startAt > now,
             registered: event.registeredCount || 0,
             capacity: event.maxParticipants || null,
-            waitlist: event.waitlistCount || 0
+            waitlist: event.waitlistCount || 0,
+            attended: attendedOf(event)
         }))
     };
 };

@@ -1,24 +1,26 @@
 import { useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
-import { ClipboardList, Crown, Download, Hourglass, UserMinus, Users } from "lucide-react";
+import { Link, useParams } from "react-router-dom";
+import { BadgeCheck, ClipboardList, Crown, Download, Hourglass, ScanLine, UserMinus, Users } from "lucide-react";
 import { eventApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useToast } from "../../context/ToastContext";
-import { AsyncContent, Avatar, Badge, Button, CapacityBar, Card, ConfirmDialog, EmptyState, PageHeader, SearchInput, StatusBadge } from "../../components/ui";
+import { AsyncContent, Avatar, Badge, Button, CapacityBar, Card, ConfirmDialog, EmptyState, PageHeader, SearchInput, Segmented, StatusBadge } from "../../components/ui";
 import { batchLabel, formatDateTime } from "../../lib/format";
 
 const csvCell = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
 // Replaces the spreadsheet clubs used to maintain by hand.
 const downloadCsv = (event, rows, withTeams) => {
-    const header = [...(withTeams ? ["Team", "Role"] : []), "Name", "Email", "Department", "Batch", "Registered at"];
+    const header = [...(withTeams ? ["Team", "Role"] : []), "Name", "Email", "Department", "Batch", "Registered at", "Checked in at", "Check-in method"];
     const lines = rows.map((r) => [
         ...(withTeams ? [r.team?.name || "", r.teamRole === "LEADER" ? "Leader" : "Member"] : []),
         r.user.name,
         r.user.email,
         r.user.departmentCode,
         batchLabel(r.user.batchCode),
-        formatDateTime(r.registeredAt)
+        formatDateTime(r.registeredAt),
+        r.checkedInAt ? formatDateTime(r.checkedInAt) : "",
+        r.checkInMethod || ""
     ]);
     const csv = [header, ...lines].map((line) => line.map(csvCell).join(",")).join("\r\n");
     // Leading byte-order mark so Excel opens the UTF-8 file with the right encoding.
@@ -84,6 +86,14 @@ const ParticipantsPage = () => {
         );
     }, [rows, search]);
 
+    // Attendance filter on top of the search.
+    const [attendance, setAttendance] = useState("all");
+    const visible = useMemo(
+        () => (attendance === "all" ? filtered : filtered.filter((row) => (attendance === "attended" ? Boolean(row.checkedInAt) : !row.checkedInAt))),
+        [filtered, attendance]
+    );
+    const attendedCount = rows.filter((row) => row.checkedInAt).length;
+
     const remove = async (reason) => {
         await eventApi.removeParticipant(id, removing._id, reason || undefined);
         toast.success(
@@ -111,6 +121,11 @@ const ParticipantsPage = () => {
                         actions={
                             <>
                                 <StatusBadge status={event.status} />
+                                {event.viewer?.canMarkAttendance && event.checkIn?.status === "OPEN" && (
+                                    <Link to={`/events/${id}/check-in`} className="btn btn-accent">
+                                        <ScanLine size={16} /> Check-in scanner
+                                    </Link>
+                                )}
                                 <Button variant="secondary" onClick={() => downloadCsv(event, rows, isTeamEvent)} disabled={!rows.length}>
                                     <Download size={16} /> Export CSV
                                 </Button>
@@ -156,10 +171,30 @@ const ParticipantsPage = () => {
                             </Card>
                         )}
 
-                        <Card padded={false} title={`${rows.length} registered`} actions={<div style={{ width: 280, maxWidth: "100%" }}><SearchInput value={search} onChange={setSearch} placeholder="Search participants" /></div>}>
+                        <Card
+                            padded={false}
+                            title={`${rows.length} registered${attendedCount ? ` · ${attendedCount} attended` : ""}`}
+                            actions={
+                                <>
+                                    <Segmented
+                                        label="Attendance"
+                                        value={attendance}
+                                        onChange={setAttendance}
+                                        options={[
+                                            { value: "all", label: "All" },
+                                            { value: "attended", label: `Attended${attendedCount ? ` (${attendedCount})` : ""}` },
+                                            { value: "pending", label: "Not yet" }
+                                        ]}
+                                    />
+                                    <div style={{ width: 240, maxWidth: "100%" }}>
+                                        <SearchInput value={search} onChange={setSearch} placeholder="Search participants" />
+                                    </div>
+                                </>
+                            }
+                        >
                             <AsyncContent
                                 loading={participants.loading}
-                                isEmpty={!filtered.length}
+                                isEmpty={!visible.length}
                                 empty={<EmptyState icon={ClipboardList} title={rows.length ? "No matches" : "No registrations yet"} description={rows.length ? "Try a different search." : "Registrations appear here as students sign up."} />}
                             >
                                 <div className="table-wrap">
@@ -172,11 +207,12 @@ const ParticipantsPage = () => {
                                                 <th>Department</th>
                                                 <th>Batch</th>
                                                 <th>Registered</th>
+                                                <th>Attendance</th>
                                                 {canManage && <th />}
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {filtered.map((row, index) => (
+                                            {visible.map((row, index) => (
                                                 <tr key={row._id}>
                                                     <td className="subtle">{index + 1}</td>
                                                     {isTeamEvent && (
@@ -201,6 +237,15 @@ const ParticipantsPage = () => {
                                                     <td>{row.user.departmentCode}</td>
                                                     <td>{batchLabel(row.user.batchCode)}</td>
                                                     <td className="nowrap">{formatDateTime(row.registeredAt)}</td>
+                                                    <td className="nowrap">
+                                                        {row.checkedInAt ? (
+                                                            <span className="attendance-badge" title={row.checkedInBy?.name ? `By ${row.checkedInBy.name}` : undefined}>
+                                                                <BadgeCheck size={13} /> {formatDateTime(row.checkedInAt)} · {row.checkInMethod === "QR" ? "QR" : "manual"}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="subtle">Not yet</span>
+                                                        )}
+                                                    </td>
                                                     {canManage && (
                                                         <td className="actions">
                                                             <Button variant="ghost" size="sm" onClick={() => setRemoving(row)}>

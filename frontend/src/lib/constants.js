@@ -42,6 +42,8 @@ export const PERMISSIONS = {
     MANAGE_PARTICIPANTS: "MANAGE_PARTICIPANTS",
     MANAGE_RESULTS: "MANAGE_RESULTS",
     PUBLISH_RESULTS: "PUBLISH_RESULTS",
+    MANAGE_CHECK_IN: "MANAGE_CHECK_IN",
+    MARK_ATTENDANCE: "MARK_ATTENDANCE",
     POST_UPDATES: "POST_UPDATES"
 };
 
@@ -92,6 +94,7 @@ export const STATUS_STYLES = {
     PENDING: ["Pending", "warning"],
     REGISTERED: ["Registered", "success"],
     WAITLISTED: ["Waitlisted", "warning"],
+    CHECKED_IN: ["Checked in", "success"],
     OPEN: ["Registration open", "success"],
     NOT_OPEN: ["Opens soon", "info"],
     CLOSED: ["Registration closed", "neutral"],

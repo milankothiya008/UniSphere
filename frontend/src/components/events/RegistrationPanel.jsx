@@ -9,6 +9,7 @@ import { formatDateTime, plural } from "../../lib/format";
 import { eligibilityProblem } from "../../lib/eligibility";
 import { TeamRegisterDialog } from "../teams/TeamRegisterDialog";
 import { TeamCard, TeamInvites } from "../teams/TeamCard";
+import { TicketCard } from "./TicketCard";
 
 const STATE_MESSAGES = {
     NOT_OPEN: (event) => `Registration opens ${formatDateTime(event.registrationStart)}.`,
@@ -110,8 +111,9 @@ export const RegistrationPanel = ({ event, onChange }) => {
                 {event.status === "PUBLISHED" && isStudent && registered && (
                     <>
                         <Alert type="success" title={registration.promotedAt ? "You got a seat from the waitlist" : team ? "Your team is registered" : "You're registered"}>
-                            See you there! You'll get notifications about updates to this event.
+                            {registration.checkedInAt ? "You're checked in — enjoy the event!" : "Your ticket is below. Show its QR code at the entrance."}
                         </Alert>
+                        <TicketCard event={event} registration={registration} />
                         {team && <TeamCard event={event} team={team} isLeader={isLeader} onChange={onChange} />}
                         {beforeStart && (
                             <Button variant="secondary" block onClick={() => setDialog("cancel")}>

@@ -32,6 +32,7 @@ const notificationRoutes = require("./routes/NotificationRoutes");
 const uploadRoutes = require("./routes/UploadRoutes");
 const dashboardRoutes = require("./routes/DashboardRoutes");
 const storyRoutes = require("./routes/StoryRoutes");
+const ticketRoutes = require("./routes/TicketRoutes");
 const devRoutes = require("./routes/DevRoutes");
 
 validateEnv();
@@ -82,6 +83,8 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/uploads", uploadRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/stories", storyRoutes);
+// Public: QR images for ticket emails (the token is self-validating).
+app.use("/api/tickets", ticketRoutes);
 
 // Development inbox: only exists when SMTP is not configured and NODE_ENV is not production.
 if (deliveryMode() === "preview") {

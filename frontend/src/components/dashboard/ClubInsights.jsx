@@ -99,6 +99,7 @@ const RegistrationsTable = ({ events }) => (
                     <th className="num">Capacity</th>
                     <th className="num">Filled</th>
                     <th className="num">Waitlist</th>
+                    <th className="num">Attended</th>
                 </tr>
             </thead>
             <tbody>
@@ -113,6 +114,7 @@ const RegistrationsTable = ({ events }) => (
                         <td className="num">{event.capacity ?? "—"}</td>
                         <td className="num">{event.capacity ? `${Math.round((event.registered / event.capacity) * 100)}%` : "—"}</td>
                         <td className="num">{event.waitlist || "—"}</td>
+                        <td className="num">{event.attended ? `${event.attended}${event.registered ? ` (${Math.round((event.attended / event.registered) * 100)}%)` : ""}` : "—"}</td>
                     </tr>
                 ))}
             </tbody>

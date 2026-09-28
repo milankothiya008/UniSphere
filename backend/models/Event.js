@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { EVENT_STATUS, REVISION_STATUS, PARTICIPATION_MODES } = require("../constants/Statuses");
+const { EVENT_STATUS, REVISION_STATUS, PARTICIPATION_MODES, CHECK_IN_STATUS } = require("../constants/Statuses");
 const { EVENT_CATEGORIES } = require("../constants/Categories");
 
 const eventSchema = new mongoose.Schema(
@@ -176,6 +176,20 @@ const eventSchema = new mongoose.Schema(
         cancellationReason: {
             type: String,
             default: null
+        },
+        // Check-in at the door (see services/CheckInService): the president opens it, officers scan tickets.
+        checkIn: {
+            type: new mongoose.Schema(
+                {
+                    status: { type: String, enum: Object.values(CHECK_IN_STATUS), default: CHECK_IN_STATUS.NOT_STARTED },
+                    openedAt: { type: Date, default: null },
+                    openedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+                    closedAt: { type: Date, default: null },
+                    closedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null }
+                },
+                { _id: false }
+            ),
+            default: () => ({ status: CHECK_IN_STATUS.NOT_STARTED })
         },
         // Proposed changes to a published event. The live event stays as it is until the faculty mentor
         // approves the changes and the club publishes them (see EventService revision functions).

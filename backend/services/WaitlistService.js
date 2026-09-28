@@ -5,6 +5,7 @@ const { EVENT_STATUS, REGISTRATION_STATUS, AUDIT_ACTIONS, NOTIFICATION_TYPES } =
 const { formatDateKey } = require("../utils/UniversityRules");
 const { recordAudit } = require("./AuditService");
 const { notify } = require("./NotificationService");
+const { withTicketRetry, sendTicketEmail } = require("./TicketService");
 
 // A full event keeps a first-come, first-served waitlist. Whenever a seat frees up (a cancellation,
 // an organiser removing someone, a bigger capacity) the queue is promoted in order until the event
@@ -79,10 +80,12 @@ const promoteFromWaitlist = async (eventId, { reason = "seat_released" } = {}) =
             }
 
             const now = new Date();
-            const claimed = await EventRegistration.findOneAndUpdate(
-                { _id: next._id, status: REGISTRATION_STATUS.WAITLISTED },
-                { $set: { status: REGISTRATION_STATUS.REGISTERED, registeredAt: now, promotedAt: now } },
-                { returnDocument: "after" }
+            const claimed = await withTicketRetry((ticket) =>
+                EventRegistration.findOneAndUpdate(
+                    { _id: next._id, status: REGISTRATION_STATUS.WAITLISTED },
+                    { $set: { status: REGISTRATION_STATUS.REGISTERED, registeredAt: now, promotedAt: now, ...ticket } },
+                    { returnDocument: "after" }
+                )
             );
 
             if (!claimed) {
@@ -108,21 +111,26 @@ const promoteFromWaitlist = async (eventId, { reason = "seat_released" } = {}) =
             const teammates = claimed.team
                 ? await EventRegistration.find({ team: claimed.team, teamRole: "MEMBER", status: REGISTRATION_STATUS.WAITLISTED }).select("user")
                 : [];
-            if (teammates.length) {
-                await EventRegistration.updateMany(
-                    { _id: { $in: teammates.map((row) => row._id) }, status: REGISTRATION_STATUS.WAITLISTED },
-                    { $set: { status: REGISTRATION_STATUS.REGISTERED, registeredAt: now, promotedAt: now } }
+            // Each teammate gets their own ticket, so they are updated one by one.
+            for (const teammate of teammates) {
+                await withTicketRetry((ticket) =>
+                    EventRegistration.updateOne(
+                        { _id: teammate._id, status: REGISTRATION_STATUS.WAITLISTED },
+                        { $set: { status: REGISTRATION_STATUS.REGISTERED, registeredAt: now, promotedAt: now, ...ticket } }
+                    )
                 );
             }
 
-            // Always emailed: this is the confirmation of a seat they asked for.
             await notify([claimed.user, ...teammates.map((row) => row.user)], {
                 type: NOTIFICATION_TYPES.REGISTRATION_CONFIRMED,
                 title: `You're in! A spot opened up for ${event.title}`,
                 message: `You've moved off the waitlist and are now registered. See you on ${formatDateKey(event.eventDate)} at ${event.startTime}. If you can no longer make it, cancel so the next person gets your seat.`,
-                link: `/events/${event._id}`,
-                email: true
+                link: `/events/${event._id}`
             });
+            // Always emailed (as the ticket): this is the confirmation of a seat they asked for.
+            for (const registrationId of [claimed._id, ...teammates.map((row) => row._id)]) {
+                await sendTicketEmail(registrationId, { reason: "promoted" });
+            }
         }
     } catch (error) {
         logger.error("Waitlist promotion failed", { eventId: String(eventId), message: error.message });

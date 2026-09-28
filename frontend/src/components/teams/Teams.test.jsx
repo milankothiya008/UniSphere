@@ -9,6 +9,7 @@ import { eventApi } from "../../api/endpoints";
 vi.mock("../../context/AuthContext", () => ({ useAuth: vi.fn() }));
 vi.mock("../../api/endpoints", () => ({
     eventApi: {
+        ticket: vi.fn().mockResolvedValue({ data: null }),
         register: vi.fn(),
         unregister: vi.fn(),
         teamCandidates: vi.fn(),

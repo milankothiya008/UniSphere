@@ -9,6 +9,7 @@ import {
     Lock,
     MessageSquareWarning,
     Rocket,
+    ScanLine,
     Send,
     Trophy,
     Unlock,
@@ -106,6 +107,23 @@ export const EventActions = ({ event, onChange }) => {
         );
     }
 
+    const checkInOpen = event.checkIn?.status === "OPEN";
+    if (viewer.canMarkAttendance && checkInOpen) {
+        staffActions.push(
+            <Link key="scanner" to={`/events/${event._id}/check-in`} className="btn btn-accent btn-block">
+                <ScanLine size={16} /> Check-in scanner
+            </Link>
+        );
+    }
+    if (viewer.canManageCheckIn && event.status === "PUBLISHED") {
+        staffActions.push(
+            <Button key="checkin" variant={checkInOpen ? "secondary" : "primary"} block onClick={() => setDialog(checkInOpen ? "checkin-close" : "checkin-open")}>
+                {checkInOpen ? <Lock size={16} /> : <ScanLine size={16} />}
+                {checkInOpen ? "Close check-in" : event.checkIn?.status === "CLOSED" ? "Reopen check-in" : "Start check-in"}
+            </Button>
+        );
+    }
+
     if (viewer.canManage && event.status === "PUBLISHED" && started) {
         staffActions.push(
             <Button key="complete" variant="success" block onClick={() => setDialog("complete")}>
@@ -171,6 +189,23 @@ export const EventActions = ({ event, onChange }) => {
                 confirmLabel="Publish"
                 variant="accent"
                 onConfirm={dialogAction(() => eventApi.publish(event._id), "Event published to the campus feed")}
+            />
+            <ConfirmDialog
+                open={dialog === "checkin-open"}
+                onClose={close}
+                title={event.checkIn?.status === "CLOSED" ? "Reopen check-in?" : "Start check-in?"}
+                description="Every club officer is notified and can scan tickets or mark students present from their phone. You can close it any time."
+                confirmLabel={event.checkIn?.status === "CLOSED" ? "Reopen check-in" : "Start check-in"}
+                variant="accent"
+                onConfirm={dialogAction(() => eventApi.openCheckIn(event._id), "Check-in is open — officers can now scan tickets")}
+            />
+            <ConfirmDialog
+                open={dialog === "checkin-close"}
+                onClose={close}
+                title="Close check-in?"
+                description="Scanning stops for everyone. Reopen it later to make corrections."
+                confirmLabel="Close check-in"
+                onConfirm={dialogAction(() => eventApi.closeCheckIn(event._id), "Check-in closed")}
             />
             <ConfirmDialog
                 open={dialog === "complete"}

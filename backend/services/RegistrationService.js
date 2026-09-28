@@ -24,6 +24,7 @@ const { recordAudit } = require("./AuditService");
 const { notify } = require("./NotificationService");
 const { promoteFromWaitlist, waitlistPosition, reserveSeat, releaseSeat, adjustWaitlistCount } = require("./WaitlistService");
 const teams = require("./TeamService");
+const { withTicketRetry, sendTicketEmail } = require("./TicketService");
 const Team = require("../models/Team");
 
 const findEvent = async (eventId) => {
@@ -191,23 +192,25 @@ const takePlace = async (actor, event, existing, teamFields, team = null) => {
 
     let registration;
     try {
-        if (existing) {
-            // Unique (event, user) index plus the status guard stop two parallel re-registrations.
-            registration = await EventRegistration.findOneAndUpdate(
-                { _id: existing._id, status: REGISTRATION_STATUS.CANCELLED },
-                { $set: { status: REGISTRATION_STATUS.REGISTERED, registeredAt: new Date(), waitlistedAt: null, promotedAt: null, ...teamFields } },
-                { returnDocument: "after" }
-            );
-            if (!registration) {
-                throw new AppError("You are already registered for this event", 409, ERROR_CODES.DUPLICATE_REGISTRATION);
-            }
-        } else {
-            registration = await EventRegistration.create({
-                event: event._id,
-                user: actor._id,
-                status: REGISTRATION_STATUS.REGISTERED,
-                ...teamFields
-            });
+        // A place always comes with a fresh ticket (a re-registration invalidates the old QR).
+        registration = await withTicketRetry((ticket) =>
+            existing
+                ? // Unique (event, user) index plus the status guard stop two parallel re-registrations.
+                  EventRegistration.findOneAndUpdate(
+                      { _id: existing._id, status: REGISTRATION_STATUS.CANCELLED },
+                      { $set: { status: REGISTRATION_STATUS.REGISTERED, registeredAt: new Date(), waitlistedAt: null, promotedAt: null, ...teamFields, ...ticket } },
+                      { returnDocument: "after" }
+                  )
+                : EventRegistration.create({
+                      event: event._id,
+                      user: actor._id,
+                      status: REGISTRATION_STATUS.REGISTERED,
+                      ...teamFields,
+                      ...ticket
+                  })
+        );
+        if (!registration) {
+            throw new AppError("You are already registered for this event", 409, ERROR_CODES.DUPLICATE_REGISTRATION);
         }
     } catch (error) {
         await releaseSeat(event._id);
@@ -232,10 +235,11 @@ const takePlace = async (actor, event, existing, teamFields, team = null) => {
         title: team ? `"${team.name}" is registered for ${event.title}` : `You're registered for ${event.title}`,
         message: team
             ? `You're the team leader. Your teammates join by accepting your invites; teams need at least ${event.minTeamSize} member${event.minTeamSize === 1 ? "" : "s"}. See you on ${eventDateLabel(event)}.`
-            : `See you on ${eventDateLabel(event)}.`,
-        link: `/events/${event._id}`,
-        email: true
+            : `See you on ${eventDateLabel(event)}. Your ticket is ready — show its QR code at the entrance.`,
+        link: `/events/${event._id}`
     });
+    // The ticket (QR + code) goes by email instead of the plain confirmation.
+    await sendTicketEmail(registration._id, { reason: team ? "team" : "registered" });
 
     return {
         registration,
@@ -271,6 +275,16 @@ const cancelRegistration = async (actor, eventId) => {
     }
 
     const wasWaitlisted = registration.status === REGISTRATION_STATUS.WAITLISTED;
+
+    if (!wasWaitlisted) {
+        // In-app only: the student did this themselves; it just records that the ticket is gone.
+        await notify(actor._id, {
+            type: NOTIFICATION_TYPES.REGISTRATION_REMOVED,
+            title: `You cancelled your registration for ${event.title}`,
+            message: "Your ticket is no longer valid. You can register again while registration is open.",
+            link: `/events/${event._id}`
+        });
+    }
 
     if (wasWaitlisted) {
         await adjustWaitlistCount(event._id, -1);
@@ -311,6 +325,7 @@ const listParticipants = async (actor, eventId, query = {}) => {
     const registrations = await EventRegistration.find({ event: event._id, status: REGISTRATION_STATUS.REGISTERED })
         .populate("user", "name email departmentCode batchCode")
         .populate("team", "name size")
+        .populate("checkedInBy", "name")
         .sort({ registeredAt: 1 });
 
     // The waitlist lists places in the queue: students, or teams through their leader.
@@ -345,6 +360,8 @@ const listParticipants = async (actor, eventId, query = {}) => {
             registeredCount: event.registeredCount,
             maxParticipants: event.maxParticipants,
             waitlistCount: event.waitlistCount,
+            attendedCount: items.filter((row) => row.checkedInAt).length,
+            checkIn: event.checkIn,
             participationMode: event.participationMode,
             minTeamSize: event.minTeamSize,
             maxTeamSize: event.maxTeamSize
@@ -388,7 +405,7 @@ const removeParticipant = async (actor, eventId, registrationId, reason = null) 
         await notify(registration.user, {
             type: NOTIFICATION_TYPES.REGISTRATION_REMOVED,
             title: `The organisers removed you from ${team ? `"${team.name}" for ` : ""}${event.title}`,
-            message: reason || "",
+            message: `${reason ? `${reason} ` : ""}Your ticket is no longer valid.`,
             link: `/events/${event._id}`,
             email: true
         });
@@ -432,7 +449,7 @@ const removeParticipant = async (actor, eventId, registrationId, reason = null) 
     await notify(registration.user, {
         type: NOTIFICATION_TYPES.REGISTRATION_REMOVED,
         title: `Your registration for ${event.title} was cancelled by the organisers`,
-        message: reason || "",
+        message: `${reason ? `${reason} ` : ""}Your ticket is no longer valid.`,
         link: `/events/${event._id}`,
         email: true
     });

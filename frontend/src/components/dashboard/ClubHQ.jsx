@@ -55,7 +55,13 @@ const HqTiles = ({ workspace }) => {
                     value={compact(insights.totalRegistrations)}
                     icon={Ticket}
                     tone="success"
-                    hint={insights.waitlisted ? `+${insights.waitlisted} on waitlists` : "across all events"}
+                    hint={
+                        insights.totalAttended
+                            ? `${insights.totalAttended} checked in${insights.attendanceRate !== null ? ` · ${insights.attendanceRate}% turnout` : ""}`
+                            : insights.waitlisted
+                              ? `+${insights.waitlisted} on waitlists`
+                              : "across all events"
+                    }
                 />
                 <StatTile
                     label="Avg. participation"
