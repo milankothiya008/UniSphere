@@ -6,7 +6,7 @@ import { useApi } from "../../hooks/useApi";
 import { useDebounce } from "../../hooks/useDebounce";
 import { useQrScanner } from "../../hooks/useQrScanner";
 import { useToast } from "../../context/ToastContext";
-import { Alert, AsyncContent, Avatar, Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, PageHeader, SearchInput, Tabs } from "../../components/ui";
+import { Alert, AsyncContent, Avatar, Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, PageHeader, SearchInput, Spinner, Tabs } from "../../components/ui";
 import { batchLabel, formatDateTime, formatTime, plural } from "../../lib/format";
 import { spacedCode } from "../../components/events/TicketButton";
 
@@ -22,6 +22,15 @@ const TONES = {
     NOT_REGISTERED: ["bad", XCircle],
     WRONG_EVENT: ["bad", XCircle],
     NOT_FOUND: ["bad", XCircle]
+};
+
+// A short buzz for a good scan, three for a problem.
+const buzz = (outcome) => {
+    if (outcome.result === "CHECKED_IN") {
+        navigator.vibrate?.(80);
+    } else if (outcome.result !== "UNMARKED") {
+        navigator.vibrate?.([60, 60, 60]);
+    }
 };
 
 const detail = (attendee) => [attendee.departmentCode, attendee.batchCode && `Batch ${batchLabel(attendee.batchCode)}`, attendee.team].filter(Boolean).join(" · ");
@@ -48,8 +57,66 @@ const ScanResult = ({ result, onDismiss }) => {
     );
 };
 
-const ScanTab = ({ onDecode, active }) => {
-    const { videoRef, state, error, start, stop, supported } = useQrScanner({ onDecode, enabled: active });
+// The scan outcome drawn over the camera area, on a blurred still of the moment it was read.
+const ScanOutcome = ({ outcome, still, onNext }) => {
+    const nextRef = useRef(null);
+    const [tone, Icon] = outcome ? TONES[outcome.result] || TONES.NOT_FOUND : ["checking", ScanLine];
+
+    useEffect(() => {
+        if (outcome) {
+            nextRef.current?.focus();
+        }
+    }, [outcome]);
+
+    return (
+        <div className={`scan-outcome is-${tone}`} role="status" aria-live="assertive">
+            {still && <img className="scan-outcome-still" src={still} alt="" aria-hidden="true" />}
+            <div className="scan-outcome-body">
+                {outcome ? (
+                    <>
+                        <span className="scan-outcome-icon">
+                            <Icon size={46} strokeWidth={2.4} />
+                        </span>
+                        <strong className="scan-outcome-title">{outcome.message}</strong>
+                        {outcome.attendee && (
+                            <span className="scan-outcome-person">
+                                {!outcome.message.includes(outcome.attendee.name) && <b>{outcome.attendee.name}</b>}
+                                {outcome.attendee.email}
+                                {detail(outcome.attendee) ? ` · ${detail(outcome.attendee)}` : ""}
+                            </span>
+                        )}
+                        <Button ref={nextRef} size="lg" variant="secondary" className="scan-outcome-next" onClick={onNext}>
+                            <ScanLine size={18} /> Scan next ticket
+                        </Button>
+                    </>
+                ) : (
+                    <>
+                        <span className="scan-outcome-icon is-spinning">
+                            <Spinner />
+                        </span>
+                        <strong className="scan-outcome-title">Checking ticket…</strong>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// One QR per camera session: the camera switches off as soon as a code is read, the result shows
+// on the viewport, and "Scan next ticket" turns it back on.
+const ScanTab = ({ onScan, active }) => {
+    const [phase, setPhase] = useState(null); // null | { still, outcome }
+    const scanner = useQrScanner({
+        enabled: active,
+        onDecode: async (token) => {
+            const still = scanner.snapshot();
+            scanner.stop();
+            setPhase({ still, outcome: null });
+            const outcome = await onScan(token);
+            setPhase(outcome ? { still, outcome } : null);
+        }
+    });
+    const { videoRef, state, error, start, stop, supported } = scanner;
 
     useEffect(() => {
         if (!active) {
@@ -57,14 +124,20 @@ const ScanTab = ({ onDecode, active }) => {
         }
     }, [active, stop]);
 
-    const scanning = state === "scanning" || state === "starting";
+    const next = () => {
+        setPhase(null);
+        start();
+    };
+
+    const scanning = !phase && (state === "scanning" || state === "starting");
 
     return (
         <div className="checkin-scan">
             <div className={`checkin-viewport ${scanning ? "is-live" : ""}`}>
                 <video ref={videoRef} autoPlay muted playsInline />
                 {scanning && <span className="checkin-reticle" aria-hidden="true" />}
-                {!scanning && (
+                {phase && <ScanOutcome outcome={phase.outcome} still={phase.still} onNext={next} />}
+                {!scanning && !phase && (
                     <div className="checkin-viewport-idle">
                         {state === "idle" && (
                             <>
@@ -72,7 +145,7 @@ const ScanTab = ({ onDecode, active }) => {
                                     <Camera size={30} />
                                 </span>
                                 <strong>Scan tickets with the camera</strong>
-                                <p>Point the back camera at a student's QR code. Each scan checks them in straight away.</p>
+                                <p>Point the back camera at a student's QR code. The camera pauses after each ticket so you can see the result.</p>
                                 <Button size="lg" onClick={start} disabled={!supported}>
                                     <PlayCircle size={18} /> Start camera
                                 </Button>
@@ -215,6 +288,7 @@ const CheckInPage = () => {
     const [busy, setBusy] = useState(false);
     const [dialog, setDialog] = useState(null);
     const timer = useRef(null);
+    const busyRef = useRef(false);
     const reloadRef = useRef(status.reload);
     reloadRef.current = status.reload;
 
@@ -227,41 +301,52 @@ const CheckInPage = () => {
         return () => clearInterval(poll);
     }, []);
 
-    const show = useCallback((outcome) => {
-        setResult(outcome);
-        if (outcome.result === "CHECKED_IN") {
-            navigator.vibrate?.(80);
-        } else if (outcome.result !== "UNMARKED") {
-            navigator.vibrate?.([60, 60, 60]);
-        }
-        clearTimeout(timer.current);
-        timer.current = setTimeout(() => setResult(null), RESULT_MS);
-        reloadRef.current({ silent: true });
-    }, []);
-
     useEffect(() => () => clearTimeout(timer.current), []);
 
-    // Runs one check-in action and shows its outcome; errors (e.g. check-in closed) go to a toast.
-    const perform = useCallback(
+    // Runs one check-in action and returns its outcome; errors (e.g. check-in closed) go to a toast.
+    const run = useCallback(
         async (call) => {
-            if (busy) {
-                return;
+            if (busyRef.current) {
+                return null;
             }
+            busyRef.current = true;
             setBusy(true);
             try {
-                const response = await call();
-                show(response.data);
+                const outcome = (await call()).data;
+                buzz(outcome);
+                reloadRef.current({ silent: true });
+                return outcome;
             } catch (error) {
                 toast.error(error);
                 reloadRef.current({ silent: true });
+                return null;
             } finally {
+                busyRef.current = false;
                 setBusy(false);
             }
         },
-        [busy, show, toast]
+        [toast]
     );
 
-    const onDecode = useCallback((token) => perform(() => eventApi.scanTicket(id, { token })), [id, perform]);
+    // Search and code tabs: the outcome shows as a banner above the tab.
+    const perform = useCallback(
+        async (call) => {
+            const outcome = await run(call);
+            if (outcome) {
+                setResult(outcome);
+                clearTimeout(timer.current);
+                timer.current = setTimeout(() => setResult(null), RESULT_MS);
+            }
+        },
+        [run]
+    );
+
+    const onScan = useCallback((token) => run(() => eventApi.scanTicket(id, { token })), [id, run]);
+
+    const changeTab = (value) => {
+        setResult(null);
+        setTab(value);
+    };
 
     const toggle = async () => {
         const response = open ? await eventApi.closeCheckIn(id) : await eventApi.openCheckIn(id);
@@ -338,9 +423,9 @@ const CheckInPage = () => {
                     ) : (
                         <div className="checkin-layout">
                             <div className="stack">
-                                <Tabs tabs={TABS} value={tab} onChange={setTab} />
-                                <ScanResult result={result} onDismiss={() => setResult(null)} />
-                                {tab === "scan" && <ScanTab onDecode={onDecode} active={tab === "scan" && open} />}
+                                <Tabs tabs={TABS} value={tab} onChange={changeTab} />
+                                {tab !== "scan" && <ScanResult result={result} onDismiss={() => setResult(null)} />}
+                                {tab === "scan" && <ScanTab onScan={onScan} active={open} />}
                                 {tab === "search" && <SearchTab eventId={id} onChange={perform} busy={busy} />}
                                 {tab === "code" && <CodeTab onSubmit={(code) => perform(() => eventApi.scanTicket(id, { code }))} busy={busy} />}
                             </div>

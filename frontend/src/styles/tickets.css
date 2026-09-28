@@ -449,6 +449,223 @@
     }
 }
 
+/* Scan outcome, drawn over the camera area once the camera has paused */
+.scan-outcome {
+    --tint: linear-gradient(160deg, rgba(5, 8, 26, 0.78), rgba(27, 42, 107, 0.7));
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    color: #fff;
+    animation: outcome-in 0.3s ease-out both;
+}
+
+.scan-outcome.is-ok {
+    --tint: linear-gradient(160deg, rgba(6, 95, 70, 0.9), rgba(22, 163, 74, 0.82));
+}
+
+.scan-outcome.is-warn {
+    --tint: linear-gradient(160deg, rgba(146, 64, 14, 0.9), rgba(217, 119, 6, 0.84));
+}
+
+.scan-outcome.is-bad {
+    --tint: linear-gradient(160deg, rgba(127, 29, 29, 0.92), rgba(220, 38, 38, 0.84));
+}
+
+.scan-outcome.is-info {
+    --tint: linear-gradient(160deg, rgba(27, 42, 107, 0.92), rgba(60, 91, 214, 0.84));
+}
+
+/* Colour wash over the frozen frame, and a quick shutter flash as the camera pauses. */
+.scan-outcome::before,
+.scan-outcome::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.scan-outcome::before {
+    z-index: 1;
+    background: var(--tint);
+    transition: background 0.3s ease;
+}
+
+.scan-outcome::after {
+    z-index: 3;
+    background: #fff;
+    animation: shutter 0.45s ease-out both;
+}
+
+.scan-outcome-still {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: blur(10px) saturate(1.2);
+    transform: scale(1.12);
+}
+
+.scan-outcome-body {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    max-width: 440px;
+    padding: 24px;
+    text-align: center;
+}
+
+.scan-outcome-icon {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 88px;
+    height: 88px;
+    margin-bottom: 4px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.18);
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    animation: outcome-pop 0.55s var(--ease-spring) 0.1s both;
+}
+
+/* A ring that ripples out once from the icon. */
+.scan-outcome-icon::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    animation: outcome-ring 0.9s ease-out 0.25s both;
+}
+
+.scan-outcome-icon.is-spinning {
+    animation: none;
+}
+
+.scan-outcome-icon.is-spinning::after {
+    display: none;
+}
+
+.scan-outcome-icon .spinner {
+    width: 34px;
+    height: 34px;
+    border-width: 3px;
+    border-color: rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+}
+
+/* Tick and cross draw themselves in. */
+.scan-outcome.is-ok .scan-outcome-icon svg path,
+.scan-outcome.is-bad .scan-outcome-icon svg path {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 24;
+    animation: outcome-draw 0.4s ease-out 0.4s forwards;
+}
+
+.scan-outcome.is-bad .scan-outcome-icon {
+    animation:
+        outcome-pop 0.55s var(--ease-spring) 0.1s both,
+        outcome-shake 0.45s ease-in-out 0.6s;
+}
+
+.scan-outcome-title {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    line-height: 1.3;
+    animation: outcome-rise 0.4s var(--ease-out) 0.18s both;
+}
+
+.scan-outcome-person {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.88rem;
+    color: rgba(255, 255, 255, 0.9);
+    overflow-wrap: anywhere;
+    animation: outcome-rise 0.4s var(--ease-out) 0.26s both;
+}
+
+.scan-outcome-person b {
+    font-size: 1.05rem;
+    color: #fff;
+}
+
+.btn.scan-outcome-next {
+    margin-top: 10px;
+    background: #fff;
+    color: var(--ink-800);
+    border-color: transparent;
+    box-shadow: 0 14px 30px -14px rgba(0, 0, 0, 0.55);
+    animation: outcome-rise 0.4s var(--ease-out) 0.34s both;
+}
+
+.btn.scan-outcome-next:hover {
+    background: #f1f4ff;
+}
+
+@keyframes outcome-in {
+    from {
+        opacity: 0;
+    }
+}
+
+@keyframes shutter {
+    from {
+        opacity: 0.55;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+@keyframes outcome-pop {
+    from {
+        opacity: 0;
+        transform: scale(0.4);
+    }
+}
+
+@keyframes outcome-ring {
+    from {
+        opacity: 0.9;
+        transform: scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: scale(1.8);
+    }
+}
+
+@keyframes outcome-draw {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes outcome-shake {
+    20%,
+    60% {
+        transform: translateX(-7px);
+    }
+    40%,
+    80% {
+        transform: translateX(7px);
+    }
+}
+
+@keyframes outcome-rise {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+}
+
 /* Search tab */
 .checkin-list,
 .checkin-recent {
@@ -583,7 +800,24 @@
     .ticket-checked-stamp,
     .scan-result,
     .checkin-recent-row,
-    .checkin-reticle::after {
-        animation: none;
+    .checkin-reticle::after,
+    .scan-outcome,
+    .scan-outcome::after,
+    .scan-outcome-icon,
+    .scan-outcome-icon::after,
+    .scan-outcome-icon svg path,
+    .scan-outcome-title,
+    .scan-outcome-person,
+    .btn.scan-outcome-next {
+        animation: none !important;
+    }
+
+    .scan-outcome-icon svg path {
+        stroke-dashoffset: 0 !important;
+    }
+
+    .scan-outcome::after,
+    .scan-outcome-icon::after {
+        display: none;
     }
 }

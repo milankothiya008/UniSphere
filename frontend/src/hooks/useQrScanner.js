@@ -36,6 +36,24 @@ export const useQrScanner = ({ onDecode, enabled = true }) => {
         setState((current) => (current === "scanning" || current === "starting" ? "idle" : current));
     }, []);
 
+    // The current camera frame as a small JPEG, so the result can be shown over a frozen picture.
+    const snapshot = useCallback(() => {
+        const video = videoRef.current;
+        if (!video || video.readyState < 2 || !video.videoWidth) {
+            return null;
+        }
+        try {
+            const scale = Math.min(1, MAX_FRAME / Math.max(video.videoWidth, video.videoHeight));
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.round(video.videoWidth * scale);
+            canvas.height = Math.round(video.videoHeight * scale);
+            canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL("image/jpeg", 0.6);
+        } catch {
+            return null;
+        }
+    }, []);
+
     const handleHit = (text) => {
         const now = Date.now();
         if (text === lastRef.current.text && now - lastRef.current.at < REPEAT_IGNORE_MS) {
@@ -52,6 +70,7 @@ export const useQrScanner = ({ onDecode, enabled = true }) => {
         }
         setState("starting");
         setError(null);
+        lastRef.current = { text: null, at: 0 };
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -146,5 +165,5 @@ export const useQrScanner = ({ onDecode, enabled = true }) => {
         };
     }, [stop]);
 
-    return { videoRef, state, error, start, stop, supported: cameraSupported() };
+    return { videoRef, state, error, start, stop, snapshot, supported: cameraSupported() };
 };
