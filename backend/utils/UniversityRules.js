@@ -47,9 +47,14 @@ const parseFacultyEmail = (email) => {
     return { departmentCode: match[2].toUpperCase(), namePart: match[1].toLowerCase() };
 };
 
+// The university admin signs in as admin@<domain>, which follows neither the student nor the faculty format.
+// It is accepted at sign-in only; registration still requires a student or faculty address.
+const adminEmail = () => `admin@${domain()}`;
+const isAdminEmail = (email) => String(email).trim().toLowerCase() === adminEmail();
+
 // Format-only check (no database lookups), used at login.
 const isValidUniversityEmailFormat = (email) =>
-    isUniversityEmail(email) && Boolean(parseStudentEmail(email) || parseFacultyEmail(email));
+    isUniversityEmail(email) && Boolean(parseStudentEmail(email) || parseFacultyEmail(email) || isAdminEmail(email));
 
 const classifyUniversityEmail = async (email) => {
     const normalized = String(email).trim().toLowerCase();
@@ -179,6 +184,8 @@ module.exports = {
     parseStudentEmail,
     parseFacultyEmail,
     isValidUniversityEmailFormat,
+    isAdminEmail,
+    adminEmail,
     EMAIL_FORMAT_HINT,
     STUDENT_FORMAT_HINT,
     FACULTY_FORMAT_HINT,

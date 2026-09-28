@@ -1,6 +1,9 @@
 export const UNIVERSITY_DOMAIN = import.meta.env.VITE_UNIVERSITY_DOMAIN || "ddu.ac.in";
 
 export const STUDENT_EMAIL_EXAMPLE = `24ceuog001@${UNIVERSITY_DOMAIN}`;
+// The university admin's sign-in address; it follows neither the student nor the faculty format.
+export const ADMIN_EMAIL = `admin@${UNIVERSITY_DOMAIN}`;
+export const isAdminEmail = (email) => String(email).trim().toLowerCase() === ADMIN_EMAIL;
 export const FACULTY_EMAIL_EXAMPLE = `mrudang.ce@${UNIVERSITY_DOMAIN}`;
 export const EMAIL_FORMAT_HELP = `Use your university email — students: ${STUDENT_EMAIL_EXAMPLE} (batch, department, 3-letter identity, 3-digit number); faculty: ${FACULTY_EMAIL_EXAMPLE} (first name, dot, department).`;
 

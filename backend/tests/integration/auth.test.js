@@ -234,6 +234,30 @@ describe("verification, login, refresh and logout", () => {
         }
     });
 
+    test("the university admin signs in as admin@ddu.ac.in, which nobody can register", async () => {
+        const { hashPassword } = require("../../utils/Password");
+        await User.create({
+            name: "University Admin",
+            email: "admin@ddu.ac.in",
+            password: await hashPassword("AdminPass123"),
+            accountType: "FACULTY",
+            globalRole: "ADMIN",
+            isEmailVerified: true
+        });
+
+        const res = await request(app).post("/api/auth/login").send({ email: "Admin@DDU.ac.in", password: "AdminPass123" });
+        expect(res.status).toBe(200);
+        expect(res.body.data.user).toMatchObject({ email: "admin@ddu.ac.in", globalRole: "ADMIN" });
+
+        // Only this one address is exempt from the formats, and only for signing in.
+        for (const accountType of ["STUDENT", "FACULTY"]) {
+            const signup = await register({ accountType, name: "Imposter", email: "admin@ddu.ac.in", password: "Secret123", confirmPassword: "Secret123" });
+            expect(signup.status).toBe(400);
+        }
+        const other = await request(app).post("/api/auth/login").send({ email: "administrator@ddu.ac.in", password: "AdminPass123" });
+        expect(other.body.errorCode).toBe("INVALID_EMAIL");
+    });
+
     test("rejects a wrong password with a generic message", async () => {
         await registerAndVerify();
         const res = await request(app).post("/api/auth/login").send({ email, password: "Wrong1234" });

@@ -28,6 +28,23 @@ describe("LoginPage", () => {
         expect(await screen.findByText("dashboard")).toBeInTheDocument();
     });
 
+    test("the university admin can sign in with admin@ddu.ac.in", async () => {
+        const login = vi.fn().mockResolvedValue({});
+        useAuth.mockReturnValue(authValue({ login, status: "anonymous" }));
+
+        renderWithRouter(<LoginPage />, { route: "/login", path: "/login", extraRoutes: <Route path="/dashboard" element={<p>dashboard</p>} /> });
+
+        const email = screen.getByLabelText(/university email/i);
+        await userEvent.type(email, "admin@ddu.ac.in");
+        await userEvent.tab();
+        expect(screen.queryByText(/Use your university email/)).not.toBeInTheDocument();
+        await userEvent.type(screen.getByLabelText(/password/i), "AdminPass123");
+        await userEvent.click(screen.getByRole("button", { name: /sign in/i }));
+
+        expect(login).toHaveBeenCalledWith("admin@ddu.ac.in", "AdminPass123");
+        expect(await screen.findByText("dashboard")).toBeInTheDocument();
+    });
+
     test("explains the email format and does not call the API for invalid emails", async () => {
         const login = vi.fn();
         useAuth.mockReturnValue(authValue({ login, status: "anonymous" }));

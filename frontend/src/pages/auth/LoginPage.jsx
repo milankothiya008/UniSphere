@@ -4,7 +4,7 @@ import { LogIn, ShieldCheck } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { authApi } from "../../api/endpoints";
 import { Alert, Button, Input } from "../../components/ui";
-import { detectAccountType, EMAIL_FORMAT_HELP, STUDENT_EMAIL_EXAMPLE } from "../../lib/validation";
+import { detectAccountType, EMAIL_FORMAT_HELP, isAdminEmail, STUDENT_EMAIL_EXAMPLE } from "../../lib/validation";
 
 const LoginPage = () => {
     const { login } = useAuth();
@@ -17,14 +17,15 @@ const LoginPage = () => {
     const [sendingCode, setSendingCode] = useState(false);
 
     const [emailTouched, setEmailTouched] = useState(false);
-    const emailError = emailTouched && form.email.trim() && !detectAccountType(form.email) ? EMAIL_FORMAT_HELP : null;
+    const knownFormat = (email) => Boolean(detectAccountType(email)) || isAdminEmail(email);
+    const emailError = emailTouched && form.email.trim() && !knownFormat(form.email) ? EMAIL_FORMAT_HELP : null;
 
     const update = (field) => (event) => setForm((prev) => ({ ...prev, [field]: event.target.value }));
 
     const submit = async (event) => {
         event.preventDefault();
         setEmailTouched(true);
-        if (!detectAccountType(form.email)) {
+        if (!knownFormat(form.email)) {
             return;
         }
         setPending(true);
