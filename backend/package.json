@@ -10,7 +10,8 @@
     "seed:demo": "node scripts/seedDemo.js",
     "test": "jest --runInBand",
     "test:unit": "jest --runInBand tests/unit",
-    "test:integration": "jest --runInBand tests/integration"
+    "test:integration": "jest --runInBand tests/integration",
+    "seed:showcase": "node scripts/seedShowcase.js"
   },
   "jest": {
     "testEnvironment": "node",
