@@ -419,7 +419,7 @@ const MyClubs = ({ memberships, hiddenClubIds }) => {
                         <Link key={m._id} to={`/clubs/${m.club._id}`} className="list-row">
                             <Avatar name={m.club.name} src={m.club.logo} size="sm" square />
                             <span className="grow title">{m.club.name}</span>
-                            <RoleBadge role={m.role} />
+                            <RoleBadge role={m.role} label={m.roleName} />
                         </Link>
                     ))}
                 </div>

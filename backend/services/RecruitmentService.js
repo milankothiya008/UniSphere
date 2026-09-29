@@ -4,37 +4,36 @@ const RecruitmentDrive = require("../models/RecruitmentDrive");
 const RecruitmentApplication = require("../models/RecruitmentApplication");
 const AppError = require("../utils/AppError");
 const ERROR_CODES = require("../constants/ErrorCodes");
-const { CLUB_ROLES } = require("../constants/Roles");
 const { CLUB_PERMISSIONS } = require("../constants/Permissions");
-const {
-    CLUB_STATUS,
-    MEMBERSHIP_STATUS,
-    RECRUITMENT_STATUS,
-    APPLICATION_STATUS,
-    QUESTION_TYPES,
-    NOTIFICATION_TYPES,
-    AUDIT_ACTIONS
-} = require("../constants/Statuses");
+const { CLUB_STATUS, MEMBERSHIP_STATUS, RECRUITMENT_STATUS, APPLICATION_STATUS, QUESTION_TYPES, NOTIFICATION_TYPES, AUDIT_ACTIONS } = require("../constants/Statuses");
 const { getClubContext, contextHas, isStudent } = require("./AuthorizationService");
 const { clubUsersWithPermission } = require("./MembershipService");
 const { belongsToScope, describeScope } = require("../utils/DepartmentScope");
+const { SYSTEM, findRole } = require("../utils/ClubRoles");
 const { formatDate, formatTime } = require("../utils/CampusTime");
 const { recordAudit } = require("./AuditService");
 const { notify } = require("./NotificationService");
 const mailer = require("./RecruitmentMailer");
 
-// Recruitment drives: the only way to join a club. The president builds the drive (positions + a custom
-// application form), the faculty mentor approves it, the president publishes it, eligible students apply,
-// and after applications close the president runs selection rounds (RecruitmentRoundService).
+// Recruitment drives: the only way to join a club. The president builds one drive with a position per club
+// role being recruited; every role has its own page-wise application form, its own selection rounds and its
+// own results. The faculty mentor approves the drive, the president publishes it and eligible students
+// apply — to one or several roles, one application each. Selected students get offers and join in exactly
+// one role (RecruitmentRoundService / ApplicationService).
 
 const S = RECRUITMENT_STATUS;
+const A = APPLICATION_STATUS;
 const MANAGE = CLUB_PERMISSIONS.MANAGE_RECRUITMENT;
 const EDITABLE = [S.DRAFT, S.NEEDS_CHANGES];
 // A club runs one drive at a time.
 const ACTIVE = [S.DRAFT, S.PENDING_APPROVAL, S.NEEDS_CHANGES, S.APPROVED, S.PUBLISHED];
-const ACTIVE_APPLICATION = [APPLICATION_STATUS.APPLIED, APPLICATION_STATUS.IN_ROUNDS];
+// Applications still in play in the rounds.
+const ACTIVE_APPLICATION = [A.APPLIED, A.IN_ROUNDS];
+// Applications that are not over yet (rounds, offers, reserve list).
+const OPEN_APPLICATION = [A.APPLIED, A.IN_ROUNDS, A.OFFERED, A.RESERVE];
 const MAX_POSITIONS = 10;
-const MAX_QUESTIONS = 20;
+const MAX_PAGES = 8;
+const MAX_QUESTIONS_PER_PAGE = 20;
 const MAX_OPTIONS = 12;
 const MAX_WINDOW_DAYS = 60;
 const CHOICE_TYPES = [QUESTION_TYPES.SINGLE_CHOICE, QUESTION_TYPES.MULTI_CHOICE];
@@ -42,7 +41,6 @@ const CHOICE_TYPES = [QUESTION_TYPES.SINGLE_CHOICE, QUESTION_TYPES.MULTI_CHOICE]
 const invalid = (message) => new AppError(message, 400, ERROR_CODES.VALIDATION_ERROR);
 const conflict = (message) => new AppError(message, 409, ERROR_CODES.INVALID_STATE);
 const forbidden = (message) => new AppError(message, 403, ERROR_CODES.FORBIDDEN);
-const roleLabel = (role) => String(role).replace(/_/g, " ").toLowerCase();
 const drivePath = (drive) => `/recruitment/${drive._id}`;
 
 const loadDrive = async (driveId) => {
@@ -52,6 +50,17 @@ const loadDrive = async (driveId) => {
     }
     return drive;
 };
+
+const findPosition = (drive, positionId) => {
+    const position = drive.positions.id(positionId);
+    if (!position) {
+        throw new AppError("This drive isn't recruiting for that role", 404, ERROR_CODES.NOT_FOUND);
+    }
+    return position;
+};
+
+/** All questions of a role's form, across its pages. */
+const questionsOf = (position) => position.form.pages.flatMap((page) => page.questions);
 
 /** The viewer's standing with the drive's club: president (manage), mentor (review / read). */
 const driveContext = async (actor, drive) => {
@@ -77,7 +86,7 @@ const assertStaff = async (actor, drive) => {
 
 /**
  * Where a published drive stands: UPCOMING (applications not open yet), OPEN, CLOSED (deadline passed or
- * closed early, no rounds yet) or ROUNDS. Other statuses map to themselves.
+ * closed early, no role in rounds yet) or ROUNDS. Other statuses map to themselves.
  */
 const phaseOf = (drive, now = new Date()) => {
     if (drive.status !== S.PUBLISHED) {
@@ -89,66 +98,108 @@ const phaseOf = (drive, now = new Date()) => {
     if (!drive.closedAt && now < new Date(drive.applicationEnd)) {
         return "OPEN";
     }
-    return drive.rounds.length ? "ROUNDS" : "CLOSED";
+    return drive.positions.some((position) => position.rounds.length || position.finalizedAt) ? "ROUNDS" : "CLOSED";
 };
 
 const applicationsOpen = (drive, now = new Date()) => phaseOf(drive, now) === "OPEN";
+
+/** A role's own stage once applications have closed: rounds, final selection done. */
+const stageOf = (drive, position) => {
+    if (position.finalizedAt) {
+        return "FINALIZED";
+    }
+    if (position.rounds.length) {
+        return "ROUNDS";
+    }
+    return ["UPCOMING", "OPEN"].includes(phaseOf(drive)) ? "APPLICATIONS" : drive.status === S.PUBLISHED ? "CLOSED" : drive.status;
+};
 
 // ---------------------------------------------------------------- Validation
 
 const cleanText = (value, max) => String(value ?? "").trim().slice(0, max);
 
-const normalizePositions = (positions) => {
-    if (!Array.isArray(positions) || !positions.length) {
-        throw invalid("Add at least one position you're recruiting for");
+const normalizeQuestion = (question, where) => {
+    const type = String(question?.type || "");
+    if (!Object.values(QUESTION_TYPES).includes(type)) {
+        throw invalid(`${where} has an unknown question type`);
     }
-    if (positions.length > MAX_POSITIONS) {
-        throw invalid(`Up to ${MAX_POSITIONS} positions per drive`);
+    const label = cleanText(question.label, 200);
+    if (!label) {
+        throw invalid(`${where} needs a question text`);
     }
-    const allowed = Object.values(CLUB_ROLES).filter((role) => role !== CLUB_ROLES.PRESIDENT);
-    const titles = new Set();
-    return positions.map((position) => {
-        const role = String(position?.role || "");
-        if (!allowed.includes(role)) {
-            throw invalid("Each position needs a club role (the president is appointed by the faculty mentor)");
+    let options = [];
+    if (CHOICE_TYPES.includes(type)) {
+        options = [...new Set((question.options || []).map((option) => cleanText(option, 100)).filter(Boolean))];
+        if (options.length < 2 || options.length > MAX_OPTIONS) {
+            throw invalid(`"${label}" needs between 2 and ${MAX_OPTIONS} different options`);
         }
-        const title = cleanText(position.title, 60) || roleLabel(role).replace(/\b\w/g, (letter) => letter.toUpperCase());
-        if (titles.has(title.toLowerCase())) {
-            throw invalid(`"${title}" is listed twice`);
-        }
-        titles.add(title.toLowerCase());
-        const openings = position.openings === null || position.openings === undefined || position.openings === "" ? null : Number(position.openings);
-        if (openings !== null && (!Number.isInteger(openings) || openings < 1 || openings > 500)) {
-            throw invalid(`Openings for "${title}" must be a whole number from 1`);
-        }
-        return { ...(position._id ? { _id: position._id } : {}), role, title, openings, description: cleanText(position.description, 400) };
-    });
+    }
+    return { ...(question._id ? { _id: question._id } : {}), type, label, help: cleanText(question.help, 300), required: Boolean(question.required), options };
 };
 
-const normalizeQuestions = (questions = []) => {
-    if (!Array.isArray(questions)) {
-        throw invalid("Invalid form questions");
+const normalizeForm = (form, roleTitle) => {
+    const pages = Array.isArray(form?.pages) ? form.pages : [];
+    if (pages.length > MAX_PAGES) {
+        throw invalid(`The ${roleTitle} form can have up to ${MAX_PAGES} pages`);
     }
-    if (questions.length > MAX_QUESTIONS) {
-        throw invalid(`Up to ${MAX_QUESTIONS} questions per form`);
-    }
-    return questions.map((question, index) => {
-        const type = String(question?.type || "");
-        if (!Object.values(QUESTION_TYPES).includes(type)) {
-            throw invalid(`Question ${index + 1} has an unknown type`);
-        }
-        const label = cleanText(question.label, 200);
-        if (!label) {
-            throw invalid(`Question ${index + 1} needs a question text`);
-        }
-        let options = [];
-        if (CHOICE_TYPES.includes(type)) {
-            options = [...new Set((question.options || []).map((option) => cleanText(option, 100)).filter(Boolean))];
-            if (options.length < 2 || options.length > MAX_OPTIONS) {
-                throw invalid(`"${label}" needs between 2 and ${MAX_OPTIONS} different options`);
+    return {
+        pages: pages.map((page, pageIndex) => {
+            const title = cleanText(page?.title, 80);
+            if (!title) {
+                throw invalid(`Page ${pageIndex + 1} of the ${roleTitle} form needs a title`);
             }
+            const questions = Array.isArray(page.questions) ? page.questions : [];
+            if (questions.length > MAX_QUESTIONS_PER_PAGE) {
+                throw invalid(`A page can have up to ${MAX_QUESTIONS_PER_PAGE} questions`);
+            }
+            return {
+                ...(page._id ? { _id: page._id } : {}),
+                title,
+                description: cleanText(page.description, 300),
+                questions: questions.map((question, index) => normalizeQuestion(question, `Question ${index + 1} on "${title}" (${roleTitle})`))
+            };
+        })
+    };
+};
+
+// Roles come from the club; the president can't be recruited, and the vice-president only into a free seat.
+const normalizePositions = async (club, positions) => {
+    if (!Array.isArray(positions) || !positions.length) {
+        throw invalid("Add at least one role you're recruiting for");
+    }
+    if (positions.length > MAX_POSITIONS) {
+        throw invalid(`Up to ${MAX_POSITIONS} roles per drive`);
+    }
+    const seen = new Set();
+    const viceTaken = await ClubMembership.exists({ club: club._id, role: SYSTEM.VICE_PRESIDENT, status: MEMBERSHIP_STATUS.APPROVED });
+    return positions.map((position) => {
+        const key = String(position?.role || "");
+        const role = findRole(club, key);
+        if (!role || key === SYSTEM.PRESIDENT) {
+            throw invalid("Recruit for one of your club's roles (the presidency is handed over, not recruited)");
         }
-        return { ...(question._id ? { _id: question._id } : {}), type, label, help: cleanText(question.help, 300), required: Boolean(question.required), options };
+        if (seen.has(key)) {
+            throw invalid(`"${role.name}" is listed twice`);
+        }
+        seen.add(key);
+        if (key === SYSTEM.VICE_PRESIDENT && viceTaken) {
+            throw conflict("Your club already has a vice-president");
+        }
+        let openings = position.openings === null || position.openings === undefined || position.openings === "" ? null : Number(position.openings);
+        if (openings !== null && (!Number.isInteger(openings) || openings < 1 || openings > 500)) {
+            throw invalid(`Openings for "${role.name}" must be a whole number from 1`);
+        }
+        if (key === SYSTEM.VICE_PRESIDENT) {
+            openings = 1;
+        }
+        return {
+            ...(position._id ? { _id: position._id } : {}),
+            role: key,
+            title: role.name,
+            openings,
+            description: cleanText(position.description, 400),
+            form: normalizeForm(position.form, role.name)
+        };
     });
 };
 
@@ -178,7 +229,7 @@ const normalizeBatches = (batches = []) => {
     return list;
 };
 
-const normalizeDrive = (payload) => {
+const normalizeDrive = async (club, payload) => {
     const title = cleanText(payload.title, 120);
     const description = cleanText(payload.description, 4000);
     if (!title) {
@@ -190,8 +241,7 @@ const normalizeDrive = (payload) => {
     return {
         title,
         description,
-        positions: normalizePositions(payload.positions),
-        questions: normalizeQuestions(payload.questions),
+        positions: await normalizePositions(club, payload.positions),
         eligibility: { batches: normalizeBatches(payload.eligibility?.batches) },
         ...normalizeWindow(payload)
     };
@@ -199,14 +249,27 @@ const normalizeDrive = (payload) => {
 
 // ---------------------------------------------------------------- Views
 
+/** Application counts per role and in total. */
 const applicationCounts = async (driveId) => {
-    const rows = await RecruitmentApplication.aggregate([{ $match: { drive: driveId } }, { $group: { _id: "$status", count: { $sum: 1 } } }]);
-    const by = Object.fromEntries(rows.map((row) => [row._id, row.count]));
-    const total = rows.reduce((sum, row) => sum + row.count, 0) - (by[APPLICATION_STATUS.WITHDRAWN] || 0);
-    return { total, active: (by.APPLIED || 0) + (by.IN_ROUNDS || 0), selected: by.SELECTED || 0, eliminated: by.ELIMINATED || 0, notSelected: by.NOT_SELECTED || 0, withdrawn: by.WITHDRAWN || 0 };
+    const rows = await RecruitmentApplication.aggregate([{ $match: { drive: driveId } }, { $group: { _id: { position: "$position", status: "$status" }, count: { $sum: 1 } } }]);
+    const blank = () => ({ total: 0, active: 0, offered: 0, accepted: 0, reserve: 0 });
+    const byPosition = {};
+    const total = blank();
+    rows.forEach(({ _id, count }) => {
+        const key = String(_id.position);
+        byPosition[key] ||= blank();
+        for (const bucket of [byPosition[key], total]) {
+            if (_id.status !== A.WITHDRAWN) bucket.total += count;
+            if (ACTIVE_APPLICATION.includes(_id.status)) bucket.active += count;
+            if (_id.status === A.OFFERED) bucket.offered += count;
+            if (_id.status === A.ACCEPTED) bucket.accepted += count;
+            if (_id.status === A.RESERVE) bucket.reserve += count;
+        }
+    });
+    return { ...total, byPosition };
 };
 
-/** Why this student can't apply right now, or null. */
+/** Why this student can't apply to the drive right now, or null. */
 const applyProblem = async (actor, drive, club, now = new Date()) => {
     if (!actor) {
         return "Sign in to apply";
@@ -236,14 +299,7 @@ const applyProblem = async (actor, drive, club, now = new Date()) => {
     return null;
 };
 
-const publicRound = (round) => ({
-    _id: round._id,
-    name: round.name,
-    mode: round.mode,
-    timing: round.timing,
-    status: round.status,
-    resultsPublishedAt: round.resultsPublishedAt
-});
+const publicRound = (round) => ({ _id: round._id, name: round.name, mode: round.mode, timing: round.timing, status: round.status, resultsPublishedAt: round.resultsPublishedAt });
 
 const staffRound = (round) => ({
     ...publicRound(round),
@@ -266,13 +322,25 @@ const clubSummary = (club) => ({
     departmentCodes: club.departmentCodes
 });
 
+const positionView = (drive, position, { staff = false, counts = null } = {}) => ({
+    _id: position._id,
+    role: position.role,
+    title: position.title,
+    openings: position.openings,
+    description: position.description,
+    form: position.form,
+    questionCount: questionsOf(position).length,
+    stage: stageOf(drive, position),
+    finalizedAt: position.finalizedAt,
+    rounds: position.rounds.map(staff ? staffRound : publicRound),
+    ...(staff ? { offerDays: position.offerDays, counts: counts?.byPosition?.[String(position._id)] || { total: 0, active: 0, offered: 0, accepted: 0, reserve: 0 } } : {})
+});
+
 const serializeDrive = (drive, club, extra = {}) => ({
     _id: drive._id,
     club: clubSummary(club),
     title: drive.title,
     description: drive.description,
-    positions: drive.positions,
-    questions: drive.questions,
     eligibility: drive.eligibility,
     applicationStart: drive.applicationStart,
     applicationEnd: drive.applicationEnd,
@@ -290,7 +358,7 @@ const serializeDrive = (drive, club, extra = {}) => ({
 /** The drive page: what a visitor, an applicant, the president or the mentor may see. */
 const getDrive = async (actor, driveId) => {
     const drive = await loadDrive(driveId);
-    await drive.populate("rounds.venue", "name location");
+    await drive.populate("positions.rounds.venue", "name location");
     const club = await Club.findById(drive.club);
     const context = actor ? await driveContext(actor, drive) : { canManage: false, isMentor: false };
     const staff = context.canManage || context.isMentor;
@@ -302,21 +370,28 @@ const getDrive = async (actor, driveId) => {
 
     const [counts, mine, problem] = await Promise.all([
         staff ? applicationCounts(drive._id) : null,
-        actor ? RecruitmentApplication.findOne({ drive: drive._id, applicant: actor._id }).select("status createdAt") : null,
+        actor ? RecruitmentApplication.find({ drive: drive._id, applicant: actor._id, status: { $ne: A.WITHDRAWN } }).select("position status createdAt offerExpiresAt") : [],
         applyProblem(actor, drive, club)
     ]);
+    const joined = mine.find((application) => application.status === A.ACCEPTED);
 
     return serializeDrive(drive, club, {
-        rounds: drive.rounds.map(staff ? staffRound : publicRound),
+        positions: drive.positions.map((position) => positionView(drive, position, { staff, counts })),
         ...(staff ? { counts, submittedAt: drive.submittedAt, reviewComment: drive.reviewComment, reviewedAt: drive.reviewedAt } : {}),
         viewer: {
             canManage: context.canManage,
             isMentor: context.isMentor,
             canReview: context.isMentor && drive.status === S.PENDING_APPROVAL,
             canEdit: context.canManage && EDITABLE.includes(drive.status),
-            canApply: !mine || mine.status === APPLICATION_STATUS.WITHDRAWN ? !problem : false,
-            applyProblem: problem,
-            application: mine && mine.status !== APPLICATION_STATUS.WITHDRAWN ? { _id: mine._id, status: mine.status, createdAt: mine.createdAt } : null
+            canApply: !problem && !joined,
+            applyProblem: joined ? "You've joined the club through this drive" : problem,
+            applications: mine.map((application) => ({
+                _id: application._id,
+                position: application.position,
+                status: application.status,
+                createdAt: application.createdAt,
+                offerExpiresAt: application.offerExpiresAt
+            }))
         }
     });
 };
@@ -342,14 +417,15 @@ const listClubDrives = async (actor, clubId) => {
             positions: drive.positions.map((position) => position.title),
             applicationStart: drive.applicationStart,
             applicationEnd: drive.applicationEnd,
-            rounds: drive.rounds.length,
+            closedAt: drive.closedAt,
+            rounds: drive.positions.reduce((sum, position) => sum + position.rounds.length, 0),
             completedAt: drive.completedAt,
             ...(staff ? { counts: counts[index] } : {})
         }))
     };
 };
 
-/** Recruitment open across campus right now (published and not finished), newest deadline first. */
+/** Recruitment open across campus right now (published and not finished), earliest deadline first. */
 const listOpenDrives = async (actor) => {
     const now = new Date();
     const drives = await RecruitmentDrive.find({ status: S.PUBLISHED, closedAt: null, applicationEnd: { $gt: now } })
@@ -366,6 +442,7 @@ const listOpenDrives = async (actor) => {
                 positions: drive.positions.map((position) => position.title),
                 applicationStart: drive.applicationStart,
                 applicationEnd: drive.applicationEnd,
+                closedAt: drive.closedAt,
                 phase: phaseOf(drive, now),
                 eligible: actor ? !problem || /^Applications open/.test(problem) : null
             };
@@ -391,7 +468,7 @@ const listDrivesToReview = async (actor) => {
         title: drive.title,
         club: clubs.find((club) => String(club._id) === String(drive.club)),
         positions: drive.positions.map((position) => position.title),
-        questions: drive.questions.length,
+        questions: drive.positions.reduce((sum, position) => sum + questionsOf(position).length, 0),
         applicationEnd: drive.applicationEnd,
         submittedAt: drive.submittedAt
     }));
@@ -413,18 +490,18 @@ const createDrive = async (actor, clubId, payload) => {
     if (await RecruitmentDrive.exists({ club: context.club._id, status: { $in: ACTIVE } })) {
         throw conflict("This club already has a recruitment drive in progress. Finish or cancel it first.");
     }
-    const drive = await RecruitmentDrive.create({ ...normalizeDrive(payload), club: context.club._id, createdBy: actor._id });
+    const drive = await RecruitmentDrive.create({ ...(await normalizeDrive(context.club, payload)), club: context.club._id, createdBy: actor._id });
     await audit(AUDIT_ACTIONS.RECRUITMENT_CREATED, actor, drive, { toState: S.DRAFT });
     return getDrive(actor, drive._id);
 };
 
 const updateDrive = async (actor, driveId, payload) => {
     const drive = await loadDrive(driveId);
-    await assertManager(actor, drive);
+    const { club } = await assertManager(actor, drive);
     if (!EDITABLE.includes(drive.status)) {
         throw conflict("A drive can only be edited while it's a draft or has changes requested");
     }
-    Object.assign(drive, normalizeDrive({ ...drive.toObject(), ...payload }));
+    Object.assign(drive, await normalizeDrive(club, { ...drive.toObject(), ...payload }));
     await drive.save();
     await audit(AUDIT_ACTIONS.RECRUITMENT_UPDATED, actor, drive);
     return getDrive(actor, drive._id);
@@ -457,7 +534,7 @@ const submitDrive = async (actor, driveId) => {
     await notify(club.mentor, {
         type: NOTIFICATION_TYPES.RECRUITMENT_REVIEW,
         title: `Recruitment to review: ${drive.title}`,
-        message: `${club.name} wants to recruit ${drive.positions.map((position) => position.title).join(", ")}. Review the form before it's published.`,
+        message: `${club.name} wants to recruit ${drive.positions.map((position) => position.title).join(", ")}. Review each role's form before it's published.`,
         link: drivePath(drive),
         email: true
     });
@@ -551,7 +628,7 @@ const publishDrive = async (actor, driveId) => {
 const extendDeadline = async (actor, driveId, applicationEnd) => {
     const drive = await loadDrive(driveId);
     await assertManager(actor, drive);
-    if (drive.status !== S.PUBLISHED || drive.rounds.length) {
+    if (drive.status !== S.PUBLISHED || drive.positions.some((position) => position.rounds.length || position.finalizedAt)) {
         throw conflict("The deadline can only change before selection rounds begin");
     }
     const end = new Date(applicationEnd);
@@ -593,22 +670,79 @@ const cancelDrive = async (actor, driveId, reason) => {
     drive.cancelledAt = new Date();
     drive.cancellationReason = note || null;
     await drive.save();
-    const active = await RecruitmentApplication.find({ drive: drive._id, status: { $in: ACTIVE_APPLICATION } }).select("applicant");
-    await RecruitmentApplication.updateMany({ drive: drive._id, status: { $in: ACTIVE_APPLICATION } }, { $set: { status: APPLICATION_STATUS.NOT_SELECTED, decidedAt: new Date() } });
+    const open = await RecruitmentApplication.find({ drive: drive._id, status: { $in: OPEN_APPLICATION } }).select("applicant");
+    await RecruitmentApplication.updateMany({ drive: drive._id, status: { $in: OPEN_APPLICATION } }, { $set: { status: A.NOT_SELECTED, decidedAt: new Date(), closedReason: "Recruitment cancelled" } });
     await audit(AUDIT_ACTIONS.RECRUITMENT_CANCELLED, actor, drive, { fromState: from, toState: S.CANCELLED, reason: note || null });
-    if (active.length) {
-        await mailer.sendDriveCancelled(drive, club, active.map((application) => application.applicant), note);
+    if (open.length) {
+        await mailer.sendDriveCancelled(drive, club, [...new Set(open.map((application) => String(application.applicant)))], note);
     }
     return getDrive(actor, drive._id);
 };
 
+/**
+ * Completes a published drive once every role has had its final selection and no offer is waiting for an
+ * answer: reserve candidates of roles that are full are thanked. Roles that still have free seats and
+ * reserves keep the drive open, so the president can make more offers (or close recruitment by hand).
+ */
+const completeIfDone = async (driveId, { force = false, actor = null } = {}) => {
+    const drive = await RecruitmentDrive.findById(driveId);
+    if (!drive || drive.status !== S.PUBLISHED) {
+        return false;
+    }
+    const applications = await RecruitmentApplication.find({ drive: drive._id, status: { $in: [...OPEN_APPLICATION, A.ACCEPTED] } }).populate("applicant", "name email");
+    const of = (position, statuses) => applications.filter((application) => String(application.position) === String(position._id) && statuses.includes(application.status));
+
+    if (!force) {
+        if (!drive.positions.every((position) => position.finalizedAt)) {
+            return false;
+        }
+        if (applications.some((application) => application.status === A.OFFERED)) {
+            return false;
+        }
+        const stillFilling = drive.positions.some((position) => of(position, [A.RESERVE]).length && (!position.openings || of(position, [A.ACCEPTED]).length < position.openings));
+        if (stillFilling) {
+            return false;
+        }
+    }
+
+    const club = await Club.findById(drive.club);
+    const leftOver = applications.filter((application) => [A.APPLIED, A.IN_ROUNDS, A.RESERVE, A.OFFERED].includes(application.status));
+    const now = new Date();
+    if (leftOver.length) {
+        await RecruitmentApplication.updateMany({ _id: { $in: leftOver.map((application) => application._id) } }, { $set: { status: A.NOT_SELECTED, decidedAt: now, slots: [] } });
+    }
+    drive.status = S.COMPLETED;
+    drive.completedAt = now;
+    await drive.save();
+    await recordAudit({ action: AUDIT_ACTIONS.RECRUITMENT_COMPLETED, actor: actor?._id || drive.createdBy, targetType: "RecruitmentDrive", targetId: drive._id, metadata: { clubId: drive.club, closedByHand: force } });
+
+    for (const application of leftOver) {
+        await mailer.sendNotSelected(drive, club, application.applicant, drive.positions.id(application.position)?.title || "the role");
+    }
+    const joined = applications.filter((application) => application.status === A.ACCEPTED).length;
+    if (club.mentor) {
+        await notify(club.mentor, {
+            type: NOTIFICATION_TYPES.RECRUITMENT_UPDATE,
+            title: `${club.name} finished recruiting`,
+            message: `${joined} new ${joined === 1 ? "member" : "members"} joined through ${drive.title}.`,
+            link: drivePath(drive)
+        });
+    }
+    return true;
+};
+
 module.exports = {
+    completeIfDone,
     ACTIVE_APPLICATION,
+    OPEN_APPLICATION,
     loadDrive,
+    findPosition,
+    questionsOf,
     driveContext,
     assertManager,
     assertStaff,
     phaseOf,
+    stageOf,
     applicationsOpen,
     applyProblem,
     applicationCounts,

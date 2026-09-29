@@ -1,26 +1,50 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { ArrowDown, ArrowUp, Copy, GripVertical, ListChecks, Megaphone, Plus, Save, Send, Trash2, UserRoundPlus } from "lucide-react";
-import { recruitmentApi, referenceApi } from "../../api/endpoints";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowDown, ArrowUp, Copy, Eye, FileText, GripVertical, Layers, Megaphone, PenLine, Plus, Save, Send, Trash2, UserRoundPlus, X } from "lucide-react";
+import { clubApi, recruitmentApi, referenceApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useToast } from "../../context/ToastContext";
 import { Alert, AsyncContent, Button, Card, Checkbox, Field, Input, PageHeader, Select, Switch, Textarea } from "../../components/ui";
-import { ASSIGNABLE_CLUB_ROLES, CLUB_ROLE_DESCRIPTIONS, QUESTION_TYPES } from "../../lib/constants";
-import { batchLabel, fromDateTimeInput, humanize, toDateTimeInput } from "../../lib/format";
+import { QUESTION_TYPES } from "../../lib/constants";
+import { batchLabel, fromDateTimeInput, plural, toDateTimeInput } from "../../lib/format";
 import { QuestionPreview } from "../../components/recruitment/QuestionPreview";
 
 const CHOICE = ["SINGLE_CHOICE", "MULTI_CHOICE"];
+const MAX_PAGES = 8;
+const MAX_QUESTIONS_PER_PAGE = 20;
 let keySeed = 0;
 const key = () => `k${(keySeed += 1)}`;
 
 const blankQuestion = (type = "SHORT") => ({ key: key(), type, label: "", help: "", required: false, options: CHOICE.includes(type) ? ["", ""] : [] });
+const blankPage = (number) => ({ key: key(), title: number === 1 ? "About you" : `Page ${number}`, description: "", questions: [] });
 
-// A sensible starting form; the president edits or removes anything.
-const STARTER_QUESTIONS = [
-    { key: key(), type: "PARAGRAPH", label: "Why do you want to join the club?", help: "", required: true, options: [] },
-    { key: key(), type: "SINGLE_CHOICE", label: "How much time can you give each week?", help: "", required: true, options: ["2–4 hours", "4–6 hours", "6+ hours"] },
-    { key: key(), type: "LINK", label: "Portfolio, GitHub or LinkedIn", help: "Optional", required: false, options: [] }
+// A sensible starting form for a new role; the president edits or removes anything.
+const starterPages = (roleName) => [
+    {
+        key: key(),
+        title: "About you",
+        description: "",
+        questions: [
+            { key: key(), type: "PARAGRAPH", label: `Why do you want to be ${roleName}?`, help: "", required: true, options: [] },
+            { key: key(), type: "SINGLE_CHOICE", label: "How much time can you give each week?", help: "", required: true, options: ["2–4 hours", "4–6 hours", "6+ hours"] }
+        ]
+    },
+    {
+        key: key(),
+        title: "Experience",
+        description: "",
+        questions: [{ key: key(), type: "LINK", label: "Portfolio, GitHub or LinkedIn", help: "Optional", required: false, options: [] }]
+    }
 ];
+
+// Fresh keys and no ids, so a copied form is independent of the one it came from.
+const clonePages = (pages) =>
+    pages.map((page) => ({
+        ...page,
+        key: key(),
+        _id: undefined,
+        questions: page.questions.map((question) => ({ ...question, key: key(), _id: undefined, options: [...question.options] }))
+    }));
 
 const inDays = (days) => toDateTimeInput(new Date(Date.now() + days * 86400000));
 
@@ -30,8 +54,20 @@ const fromDrive = (drive) => ({
     applicationStart: toDateTimeInput(drive.applicationStart),
     applicationEnd: toDateTimeInput(drive.applicationEnd),
     batches: drive.eligibility?.batches || [],
-    positions: drive.positions.map((position) => ({ ...position, key: position._id, openings: position.openings ?? "" })),
-    questions: drive.questions.map((question) => ({ ...question, key: question._id, options: question.options?.length ? question.options : CHOICE.includes(question.type) ? ["", ""] : [] }))
+    positions: drive.positions.map((position) => ({
+        _id: position._id,
+        key: position._id,
+        role: position.role,
+        title: position.title,
+        openings: position.openings ?? "",
+        description: position.description || "",
+        pages: (position.form?.pages || []).map((page) => ({
+            ...page,
+            key: page._id,
+            description: page.description || "",
+            questions: page.questions.map((question) => ({ ...question, key: question._id, help: question.help || "", options: question.options?.length ? question.options : CHOICE.includes(question.type) ? ["", ""] : [] }))
+        }))
+    }))
 });
 
 const emptyForm = () => ({
@@ -40,8 +76,7 @@ const emptyForm = () => ({
     applicationStart: toDateTimeInput(new Date()),
     applicationEnd: inDays(7),
     batches: [],
-    positions: [{ key: key(), role: "MEMBER", title: "Member", openings: "", description: "" }],
-    questions: STARTER_QUESTIONS.map((question) => ({ ...question, key: key() }))
+    positions: []
 });
 
 const validate = (form) => {
@@ -51,16 +86,21 @@ const validate = (form) => {
     if (!form.applicationEnd) errors.applicationEnd = "Set the deadline";
     else if (fromDateTimeInput(form.applicationEnd) <= new Date().toISOString()) errors.applicationEnd = "The deadline must be in the future";
     else if (form.applicationStart && form.applicationStart >= form.applicationEnd) errors.applicationEnd = "Applications must close after they open";
-    if (!form.positions.length) errors.positions = "Add at least one position";
-    form.positions.forEach((position, index) => {
-        if (!position.title.trim()) errors[`position-${index}`] = "Name this position";
-    });
-    form.questions.forEach((question, index) => {
-        if (!question.label.trim()) errors[`question-${index}`] = "Write the question";
-        else if (CHOICE.includes(question.type) && question.options.filter((option) => option.trim()).length < 2) errors[`question-${index}`] = "Add at least two options";
+    if (!form.positions.length) errors.positions = "Choose at least one role you're recruiting for";
+    form.positions.forEach((position, p) => {
+        position.pages.forEach((page, g) => {
+            if (!page.title.trim()) errors[`${p}.${g}`] = "Give this page a title";
+            page.questions.forEach((question, q) => {
+                if (!question.label.trim()) errors[`${p}.${g}.${q}`] = "Write the question";
+                else if (CHOICE.includes(question.type) && question.options.filter((option) => option.trim()).length < 2) errors[`${p}.${g}.${q}`] = "Add at least two options";
+            });
+        });
     });
     return errors;
 };
+
+// How many problems each role has, for the dot on its tab.
+const problemsIn = (errors, index) => Object.keys(errors).filter((name) => name.startsWith(`${index}.`)).length;
 
 const toPayload = (form) => ({
     title: form.title.trim(),
@@ -68,57 +108,24 @@ const toPayload = (form) => ({
     applicationStart: form.applicationStart ? fromDateTimeInput(form.applicationStart) : undefined,
     applicationEnd: fromDateTimeInput(form.applicationEnd),
     eligibility: { batches: form.batches },
-    positions: form.positions.map(({ key: _key, ...position }) => ({ ...position, openings: position.openings === "" ? null : Number(position.openings) })),
-    questions: form.questions.map(({ key: _key, ...question }) => ({ ...question, options: CHOICE.includes(question.type) ? question.options.map((option) => option.trim()).filter(Boolean) : [] }))
+    positions: form.positions.map((position) => ({
+        ...(position._id ? { _id: position._id } : {}),
+        role: position.role,
+        openings: position.openings === "" ? null : Number(position.openings),
+        description: position.description.trim(),
+        form: {
+            pages: position.pages.map((page) => ({
+                ...(page._id ? { _id: page._id } : {}),
+                title: page.title.trim(),
+                description: page.description.trim(),
+                questions: page.questions.map(({ key: _key, ...question }) => ({
+                    ...question,
+                    options: CHOICE.includes(question.type) ? question.options.map((option) => option.trim()).filter(Boolean) : []
+                }))
+            }))
+        }
+    }))
 });
-
-// ---------------------------------------------------------------- Positions
-
-const PositionsEditor = ({ positions, onChange, errors }) => {
-    const update = (index, changes) => onChange(positions.map((position, i) => (i === index ? { ...position, ...changes } : position)));
-    const add = () => onChange([...positions, { key: key(), role: "MEMBER", title: "", openings: "", description: "" }]);
-
-    return (
-        <div className="stack">
-            {positions.map((position, index) => (
-                <div key={position.key} className="recruit-position-row">
-                    <Input label="Position title" value={position.title} onChange={(event) => update(index, { title: event.target.value })} placeholder="e.g. Design lead" maxLength={60} error={errors[`position-${index}`]} required />
-                    <Select
-                        label="Club role when selected"
-                        value={position.role}
-                        onChange={(event) => update(index, { role: event.target.value, title: position.title || humanize(event.target.value) })}
-                        options={ASSIGNABLE_CLUB_ROLES.map((role) => ({ value: role, label: humanize(role) }))}
-                        hint={CLUB_ROLE_DESCRIPTIONS[position.role]}
-                    />
-                    <Input label="Openings" type="number" min={1} max={500} value={position.openings} onChange={(event) => update(index, { openings: event.target.value })} placeholder="Any" />
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="recruit-remove"
-                        onClick={() => onChange(positions.filter((_, i) => i !== index))}
-                        disabled={positions.length === 1}
-                        aria-label={`Remove ${position.title || "position"}`}
-                    >
-                        <Trash2 size={15} />
-                    </Button>
-                    <Input
-                        className="recruit-position-desc"
-                        label="What they'll do (optional)"
-                        value={position.description}
-                        onChange={(event) => update(index, { description: event.target.value })}
-                        maxLength={400}
-                    />
-                </div>
-            ))}
-            {errors.positions && <span className="field-error">{errors.positions}</span>}
-            {positions.length < 10 && (
-                <Button variant="secondary" size="sm" onClick={add}>
-                    <Plus size={15} /> Add position
-                </Button>
-            )}
-        </div>
-    );
-};
 
 // ---------------------------------------------------------------- Questions
 
@@ -190,7 +197,7 @@ const QuestionEditor = ({ question, index, count, onChange, onMove, onRemove, on
     );
 };
 
-const QuestionBuilder = ({ questions, onChange, errors }) => {
+const QuestionList = ({ questions, onChange, errorFor }) => {
     const update = (index, next) => onChange(questions.map((question, i) => (i === index ? next : question)));
     const move = (index, step) => {
         const next = [...questions];
@@ -200,23 +207,20 @@ const QuestionBuilder = ({ questions, onChange, errors }) => {
     };
     return (
         <div className="stack">
-            <p className="subtle small" style={{ margin: 0 }}>
-                The student's name, email, department and batch are filled in automatically — only ask for what you need.
-            </p>
             {questions.map((question, index) => (
                 <QuestionEditor
                     key={question.key}
                     question={question}
                     index={index}
                     count={questions.length}
-                    error={errors[`question-${index}`]}
+                    error={errorFor(index)}
                     onChange={(next) => update(index, next)}
                     onMove={(step) => move(index, step)}
                     onRemove={() => onChange(questions.filter((_, i) => i !== index))}
-                    onDuplicate={() => onChange([...questions.slice(0, index + 1), { ...question, key: key(), _id: undefined }, ...questions.slice(index + 1)])}
+                    onDuplicate={() => onChange([...questions.slice(0, index + 1), { ...question, key: key(), _id: undefined, options: [...question.options] }, ...questions.slice(index + 1)])}
                 />
             ))}
-            {questions.length < 20 && (
+            {questions.length < MAX_QUESTIONS_PER_PAGE && (
                 <div className="recruit-add-question">
                     {QUESTION_TYPES.map((type) => (
                         <Button key={type.value} variant="secondary" size="sm" onClick={() => onChange([...questions, blankQuestion(type.value)])}>
@@ -229,24 +233,191 @@ const QuestionBuilder = ({ questions, onChange, errors }) => {
     );
 };
 
+// ---------------------------------------------------------------- Pages
+
+const PagesEditor = ({ pages, onChange, errors, prefix }) => {
+    const update = (index, changes) => onChange(pages.map((page, i) => (i === index ? { ...page, ...changes } : page)));
+    const move = (index, step) => {
+        const next = [...pages];
+        const [item] = next.splice(index, 1);
+        next.splice(index + step, 0, item);
+        onChange(next);
+    };
+    return (
+        <div className="stack">
+            {!pages.length && <p className="subtle">No form pages — students only confirm their details. Add a page to ask questions.</p>}
+            {pages.map((page, index) => (
+                <section key={page.key} className="recruit-page-edit">
+                    <header className="recruit-page-edit-head">
+                        <span className="recruit-page-num">Page {index + 1}</span>
+                        <span className="recruit-page-count subtle small">{plural(page.questions.length, "question")}</span>
+                        <div className="row" style={{ gap: 2, marginLeft: "auto" }}>
+                            <Button variant="ghost" size="sm" onClick={() => move(index, -1)} disabled={index === 0} aria-label={`Move page ${index + 1} up`}>
+                                <ArrowUp size={15} />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => move(index, 1)} disabled={index === pages.length - 1} aria-label={`Move page ${index + 1} down`}>
+                                <ArrowDown size={15} />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => onChange(pages.filter((_, i) => i !== index))} aria-label={`Delete page ${index + 1}`}>
+                                <Trash2 size={15} />
+                            </Button>
+                        </div>
+                    </header>
+                    <div className="form-grid">
+                        <Input label="Page title" value={page.title} onChange={(event) => update(index, { title: event.target.value })} maxLength={80} placeholder="e.g. Your experience" error={errors[`${prefix}.${index}`]} required />
+                        <Input label="Intro (optional)" value={page.description} onChange={(event) => update(index, { description: event.target.value })} maxLength={300} placeholder="Shown at the top of the page" />
+                    </div>
+                    <QuestionList questions={page.questions} onChange={(questions) => update(index, { questions })} errorFor={(q) => errors[`${prefix}.${index}.${q}`]} />
+                </section>
+            ))}
+            {pages.length < MAX_PAGES && (
+                <Button variant="secondary" onClick={() => onChange([...pages, blankPage(pages.length + 1)])}>
+                    <Plus size={15} /> Add page
+                </Button>
+            )}
+        </div>
+    );
+};
+
+// What students will see: one step per page.
+const FormPreview = ({ pages }) =>
+    pages.length ? (
+        <ol className="recruit-preview-pages">
+            {pages.map((page, index) => (
+                <li key={page.key}>
+                    <div className="recruit-preview-page-head">
+                        <span className="recruit-step-dot">{index + 1}</span>
+                        <div>
+                            <strong>{page.title || "Untitled page"}</strong>
+                            {page.description && <p className="subtle small">{page.description}</p>}
+                        </div>
+                    </div>
+                    <div className="stack-sm">
+                        {page.questions.length ? page.questions.map((question) => <QuestionPreview key={question.key} question={question} />) : <p className="subtle small">No questions on this page yet.</p>}
+                    </div>
+                </li>
+            ))}
+        </ol>
+    ) : (
+        <p className="subtle">No questions — students confirm their details and submit.</p>
+    );
+
+// ---------------------------------------------------------------- Roles
+
+const RolePicker = ({ roles, positions, onAdd }) => {
+    const chosen = new Set(positions.map((position) => position.role));
+    const available = roles.filter((role) => role.key !== "PRESIDENT");
+    return (
+        <div className="recruit-role-picker" role="group" aria-label="Roles you can recruit for">
+            {available.map((role) => {
+                const taken = role.key === "VICE_PRESIDENT" && role.holder;
+                const selected = chosen.has(role.key);
+                return (
+                    <button
+                        key={role.key}
+                        type="button"
+                        className={`recruit-role-option ${selected ? "is-selected" : ""}`}
+                        onClick={() => onAdd(role)}
+                        disabled={selected || Boolean(taken) || positions.length >= 10}
+                        title={taken ? `${role.holder.name} is vice-president` : undefined}
+                    >
+                        {selected ? <UserRoundPlus size={14} /> : <Plus size={14} />} {role.name}
+                        {taken && <span className="subtle small"> · held</span>}
+                    </button>
+                );
+            })}
+        </div>
+    );
+};
+
+const PositionEditor = ({ position, index, positions, onChange, onRemove, errors }) => {
+    const [preview, setPreview] = useState(false);
+    const others = positions.filter((other) => other.key !== position.key && other.pages.length);
+    const vice = position.role === "VICE_PRESIDENT";
+    return (
+        <div className="stack-lg recruit-position-editor" key={position.key}>
+            <div className="recruit-position-settings">
+                <Input
+                    label="Openings"
+                    type="number"
+                    min={1}
+                    max={500}
+                    value={vice ? 1 : position.openings}
+                    onChange={(event) => onChange({ openings: event.target.value })}
+                    placeholder="Any"
+                    disabled={vice}
+                    hint={vice ? "One vice-president per club" : "Leave empty for no limit"}
+                />
+                <Input
+                    className="recruit-position-desc"
+                    label="What they'll do (optional)"
+                    value={position.description}
+                    onChange={(event) => onChange({ description: event.target.value })}
+                    maxLength={400}
+                    placeholder="Shown on the role's card"
+                />
+            </div>
+            <div className="row-between recruit-form-toolbar">
+                <h3 className="row">
+                    <FileText size={16} /> {position.title} application form
+                </h3>
+                <div className="row">
+                    {others.length > 0 && !preview && (
+                        <Select
+                            aria-label="Copy the form from another role"
+                            value=""
+                            onChange={(event) => {
+                                const source = others.find((other) => other.key === event.target.value);
+                                if (source) onChange({ pages: clonePages(source.pages) });
+                            }}
+                            options={[{ value: "", label: "Copy form from…" }, ...others.map((other) => ({ value: other.key, label: other.title }))]}
+                        />
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => setPreview((value) => !value)}>
+                        {preview ? (
+                            <>
+                                <PenLine size={14} /> Edit form
+                            </>
+                        ) : (
+                            <>
+                                <Eye size={14} /> Preview
+                            </>
+                        )}
+                    </Button>
+                </div>
+            </div>
+            {preview ? <FormPreview pages={position.pages} /> : <PagesEditor pages={position.pages} onChange={(pages) => onChange({ pages })} errors={errors} prefix={index} />}
+            <div>
+                <Button variant="ghost" size="sm" onClick={onRemove}>
+                    <X size={14} /> Stop recruiting for {position.title}
+                </Button>
+            </div>
+        </div>
+    );
+};
+
 // ---------------------------------------------------------------- Page
 
 /** Create (/clubs/:id/recruitment/new) or edit (/recruitment/:id/edit) a recruitment drive. */
 const DriveFormPage = () => {
-    const { id: clubId, driveId } = useParams();
+    const { id: routeClubId, driveId } = useParams();
     const navigate = useNavigate();
     const toast = useToast();
     const isEdit = Boolean(driveId);
     const existing = useApi(() => recruitmentApi.get(driveId), [driveId], { enabled: isEdit });
+    const clubId = routeClubId || existing.data?.club?._id;
+    const clubRoles = useApi(() => clubApi.roles(clubId), [clubId], { enabled: Boolean(clubId) });
     const batches = useApi(() => referenceApi.batches(), []);
     const [form, setForm] = useState(emptyForm);
+    const [active, setActive] = useState(null);
     const [touched, setTouched] = useState(false);
     const [saving, setSaving] = useState(null);
-    const [preview, setPreview] = useState(false);
 
     useEffect(() => {
         if (existing.data) {
-            setForm(fromDrive(existing.data));
+            const next = fromDrive(existing.data);
+            setForm(next);
+            setActive(next.positions[0]?.key || null);
         }
     }, [existing.data]);
 
@@ -254,10 +425,24 @@ const DriveFormPage = () => {
     const shown = touched ? errors : {};
     const set = (field) => (event) => setForm((current) => ({ ...current, [field]: event.target.value }));
     const toggleBatch = (code) => setForm((current) => ({ ...current, batches: current.batches.includes(code) ? current.batches.filter((item) => item !== code) : [...current.batches, code] }));
+    const setPositions = (update) => setForm((current) => ({ ...current, positions: update(current.positions) }));
+
+    const addRole = (role) => {
+        const position = { key: key(), role: role.key, title: role.name, openings: role.key === "VICE_PRESIDENT" ? 1 : "", description: "", pages: starterPages(role.name) };
+        setPositions((positions) => [...positions, position]);
+        setActive(position.key);
+    };
+    const removeRole = (positionKey) => {
+        const rest = form.positions.filter((position) => position.key !== positionKey);
+        setPositions(() => rest);
+        setActive(rest[0]?.key || null);
+    };
 
     const save = async (andSubmit) => {
         setTouched(true);
         if (Object.keys(errors).length) {
+            const firstRole = form.positions.findIndex((_, index) => problemsIn(errors, index));
+            if (firstRole >= 0) setActive(form.positions[firstRole].key);
             toast.error("Please fix the highlighted fields");
             return;
         }
@@ -281,18 +466,20 @@ const DriveFormPage = () => {
 
     const club = existing.data?.club;
     const locked = isEdit && existing.data && !existing.data.viewer?.canEdit;
+    const activeIndex = form.positions.findIndex((position) => position.key === active);
+    const current = form.positions[activeIndex];
 
     return (
-        <AsyncContent loading={isEdit && existing.loading} error={existing.error} onRetry={existing.reload}>
+        <AsyncContent loading={(isEdit && existing.loading) || clubRoles.loading} error={existing.error || clubRoles.error} onRetry={existing.error ? existing.reload : clubRoles.reload}>
             <PageHeader
-                back={{ to: isEdit ? `/recruitment/${driveId}` : `/clubs/${clubId}/recruitment`, label: isEdit ? "Back to the drive" : "Recruitment" }}
+                back={{ to: isEdit ? `/recruitment/${driveId}` : `/clubs/${routeClubId}/recruitment`, label: isEdit ? "Back to the drive" : "Recruitment" }}
                 eyebrow={
                     <>
                         <Megaphone size={14} /> {club ? club.name : "Recruitment"}
                     </>
                 }
                 title={isEdit ? "Edit recruitment drive" : "New recruitment drive"}
-                description="Set the positions and the application form. Your faculty mentor approves it before students can apply."
+                description="Pick the roles you're recruiting for and build a page-by-page form for each. Your faculty mentor approves the drive before students can apply."
             />
             {locked ? (
                 <Alert type="warning" title="This drive can't be edited now">
@@ -311,7 +498,7 @@ const DriveFormPage = () => {
                                     onChange={set("description")}
                                     rows={5}
                                     maxLength={4000}
-                                    placeholder="Who should apply, what members do, how selection works…"
+                                    placeholder="Who should apply, what the team does, how selection works…"
                                     error={shown.description}
                                     required
                                 />
@@ -327,25 +514,63 @@ const DriveFormPage = () => {
                             </div>
                         </Card>
 
-                        <Card title={<h2 className="row"><UserRoundPlus size={18} /> Open positions</h2>}>
-                            <PositionsEditor positions={form.positions} onChange={(positions) => setForm((current) => ({ ...current, positions }))} errors={shown} />
-                        </Card>
-
                         <Card
-                            title={<h2 className="row"><ListChecks size={18} /> Application form</h2>}
-                            actions={
-                                <Button variant="ghost" size="sm" onClick={() => setPreview((value) => !value)}>
-                                    {preview ? "Edit questions" : "Preview"}
-                                </Button>
+                            title={
+                                <h2 className="row">
+                                    <Layers size={18} /> Roles & application forms
+                                </h2>
                             }
                         >
-                            {preview ? (
-                                <div className="stack">
-                                    {form.questions.length ? form.questions.map((question) => <QuestionPreview key={question.key} question={question} />) : <p className="subtle">No questions — students only choose positions.</p>}
+                            <div className="stack-lg">
+                                <div className="stack-sm">
+                                    <p className="subtle small" style={{ margin: 0 }}>
+                                        Each role gets its own form, selection rounds and results. Students can apply for several roles but join in only one. Roles come from your club's{" "}
+                                        <Link to={`/clubs/${clubId}/members`}>Roles & authorities</Link> list.
+                                    </p>
+                                    <RolePicker roles={clubRoles.data?.roles || []} positions={form.positions} onAdd={addRole} />
+                                    {shown.positions && <span className="field-error">{shown.positions}</span>}
                                 </div>
-                            ) : (
-                                <QuestionBuilder questions={form.questions} onChange={(questions) => setForm((current) => ({ ...current, questions }))} errors={shown} />
-                            )}
+
+                                {form.positions.length > 0 && (
+                                    <>
+                                        <div className="recruit-role-tabs" role="tablist" aria-label="Roles in this drive">
+                                            {form.positions.map((position, index) => {
+                                                const problems = touched ? problemsIn(errors, index) : 0;
+                                                return (
+                                                    <button
+                                                        key={position.key}
+                                                        type="button"
+                                                        role="tab"
+                                                        aria-selected={position.key === active}
+                                                        className={`recruit-role-tab ${position.key === active ? "is-active" : ""}`}
+                                                        onClick={() => setActive(position.key)}
+                                                    >
+                                                        <span>{position.title}</span>
+                                                        <span className="recruit-role-tab-meta">
+                                                            {plural(position.pages.length, "page")}
+                                                            {problems > 0 && <span className="recruit-role-tab-error">{problems}</span>}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <p className="subtle small" style={{ margin: 0 }}>
+                                            The student's name, email, department and batch are filled in automatically — only ask for what you need.
+                                        </p>
+                                        {current && (
+                                            <PositionEditor
+                                                key={current.key}
+                                                position={current}
+                                                index={activeIndex}
+                                                positions={form.positions}
+                                                errors={shown}
+                                                onChange={(changes) => setPositions((positions) => positions.map((position) => (position.key === current.key ? { ...position, ...changes } : position)))}
+                                                onRemove={() => removeRole(current.key)}
+                                            />
+                                        )}
+                                    </>
+                                )}
+                            </div>
                         </Card>
 
                         <div className="form-actions">

@@ -9,13 +9,10 @@ const ACCOUNT_TYPES = Object.freeze({
     FACULTY: "FACULTY"
 });
 
+// The built-in club roles present in every club. Other roles are defined per club (Club.roles).
 const CLUB_ROLES = Object.freeze({
     PRESIDENT: "PRESIDENT",
     VICE_PRESIDENT: "VICE_PRESIDENT",
-    EVENT_COORDINATOR: "EVENT_COORDINATOR",
-    MARKETING_COORDINATOR: "MARKETING_COORDINATOR",
-    TECHNICAL_COORDINATOR: "TECHNICAL_COORDINATOR",
-    TREASURER: "TREASURER",
     MEMBER: "MEMBER"
 });
 

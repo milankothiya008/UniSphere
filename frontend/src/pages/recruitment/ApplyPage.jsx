@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { Check, FileText, FileUp, Image as ImageIcon, Link2, Megaphone, Send, Trash2, UserRound } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, ArrowRight, Check, FileText, FileUp, Image as ImageIcon, Link2, Megaphone, PencilLine, Send, Trash2 } from "lucide-react";
 import { recruitmentApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useAuth } from "../../context/AuthContext";
@@ -8,25 +8,30 @@ import { useToast } from "../../context/ToastContext";
 import { Alert, AsyncContent, Avatar, Button, Card, Field, PageHeader } from "../../components/ui";
 import { Deadline } from "../../components/recruitment/RecruitmentParts";
 import { uploadWithTicket, megabytes } from "../../lib/mediaUpload";
-import { batchLabel } from "../../lib/format";
+import { batchLabel, plural } from "../../lib/format";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const FILE_KIND = { "application/pdf": "DOCUMENT", "image/jpeg": "IMAGE", "image/png": "IMAGE", "image/webp": "IMAGE" };
 const LIMITS = { SHORT: 300, PARAGRAPH: 5000, LINK: 500 };
 const URL_PATTERN = /^https?:\/\/[^\s/$.?#].[^\s]*$/i;
+const CHOICE = ["SINGLE_CHOICE", "MULTI_CHOICE"];
 
 const emptyAnswer = () => ({ text: "", choices: [], file: null, media: null, keepFile: false });
 
 const fromApplication = (application) =>
-    Object.fromEntries(application.answers.map((answer) => [answer.question, { text: answer.text, choices: answer.choices, file: answer.file, media: null, keepFile: Boolean(answer.file) }]));
+    Object.fromEntries(
+        application.pages.flatMap((page) => page.answers).map((answer) => [answer.question, { text: answer.text, choices: answer.choices, file: answer.file, media: null, keepFile: Boolean(answer.file) }])
+    );
 
-const validate = (drive, positions, answers) => {
+const isFilled = (question, answer) =>
+    question.type === "FILE" ? Boolean(answer.media || answer.keepFile) : CHOICE.includes(question.type) ? answer.choices.length > 0 : answer.text.trim().length > 0;
+
+// Problems on one page of the form.
+const pageErrors = (page, answers) => {
     const errors = {};
-    if (!positions.length) errors.positions = "Choose at least one position";
-    drive.questions.forEach((question) => {
+    page.questions.forEach((question) => {
         const answer = answers[question._id] || emptyAnswer();
-        const filled = question.type === "FILE" ? Boolean(answer.media || answer.keepFile) : ["SINGLE_CHOICE", "MULTI_CHOICE"].includes(question.type) ? answer.choices.length > 0 : answer.text.trim().length > 0;
-        if (question.required && !filled) errors[question._id] = "This question is required";
+        if (question.required && !isFilled(question, answer)) errors[question._id] = "This question is required";
         if (question.type === "LINK" && answer.text.trim() && !URL_PATTERN.test(answer.text.trim())) errors[question._id] = "Paste the full link, starting with https://";
     });
     return errors;
@@ -123,54 +128,108 @@ const QuestionField = ({ driveId, question, answer, onChange, error }) => {
     );
 };
 
-/** The application form for a drive (/recruitment/:id/apply), also used to edit a submitted application. */
+// A read-only answer on the review step.
+const AnswerSummary = ({ question, answer }) => {
+    const filled = isFilled(question, answer);
+    return (
+        <div className="recruit-review-answer">
+            <span className="recruit-answer-q">{question.label}</span>
+            {!filled ? (
+                <span className="subtle">Not answered</span>
+            ) : question.type === "FILE" ? (
+                <span className="recruit-file-chip">
+                    <FileText size={16} /> {answer.media?.name || answer.file?.name || "Attached file"}
+                </span>
+            ) : CHOICE.includes(question.type) ? (
+                <div className="recruit-chips">
+                    {answer.choices.map((choice) => (
+                        <span key={choice} className="recruit-chip">
+                            {choice}
+                        </span>
+                    ))}
+                </div>
+            ) : (
+                <p className="pre-line" style={{ margin: 0 }}>
+                    {answer.text}
+                </p>
+            )}
+        </div>
+    );
+};
+
+/**
+ * The application for one role (/recruitment/:id/apply/:positionId), one page at a time: your details, each
+ * page of the role's form, then a review before submitting. Also edits a submitted application.
+ */
 const ApplyPage = () => {
-    const { id } = useParams();
+    const { id, positionId } = useParams();
     const navigate = useNavigate();
     const toast = useToast();
     const { user } = useAuth();
     const drive = useApi(() => recruitmentApi.get(id), [id]);
-    const hasApplication = Boolean(drive.data?.viewer?.application);
-    const mine = useApi(() => recruitmentApi.myApplication(id), [id], { enabled: hasApplication });
-    const [positions, setPositions] = useState([]);
+    const existing = drive.data?.viewer?.applications?.find((application) => application.position === positionId);
+    const editing = Boolean(existing);
+    const mine = useApi(() => recruitmentApi.myApplication(id, positionId), [id, positionId], { enabled: editing });
     const [answers, setAnswers] = useState({});
-    const [touched, setTouched] = useState(false);
+    const [step, setStep] = useState(0);
+    const [touched, setTouched] = useState({});
     const [saving, setSaving] = useState(false);
+    const top = useRef(null);
 
     useEffect(() => {
         if (mine.data) {
-            setPositions(mine.data.positions);
             setAnswers(fromApplication(mine.data));
         }
     }, [mine.data]);
 
-    const errors = useMemo(() => (drive.data ? validate(drive.data, positions, answers) : {}), [drive.data, positions, answers]);
-    const shown = touched ? errors : {};
+    const data = drive.data;
+    const position = data?.positions.find((item) => item._id === positionId);
+    const pages = useMemo(() => position?.form?.pages || [], [position]);
+    const steps = useMemo(() => [{ title: "Your details" }, ...pages.map((page) => ({ title: page.title })), { title: "Review" }], [pages]);
+    const last = steps.length - 1;
+    const page = step > 0 && step < last ? pages[step - 1] : null;
+    const errors = useMemo(() => (page ? pageErrors(page, answers) : {}), [page, answers]);
+    const shown = touched[step] ? errors : {};
     const answerOf = (questionId) => answers[questionId] || emptyAnswer();
-    const togglePosition = (positionId) => setPositions((current) => (current.includes(positionId) ? current.filter((item) => item !== positionId) : [...current, positionId]));
 
-    const submit = async (event) => {
-        event.preventDefault();
-        setTouched(true);
-        if (Object.keys(errors).length) {
-            toast.error("Please complete the highlighted questions");
+    const go = (next) => {
+        setStep(next);
+        top.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    };
+    const next = () => {
+        if (page && Object.keys(errors).length) {
+            setTouched((current) => ({ ...current, [step]: true }));
+            toast.error("Please complete this page first");
+            return;
+        }
+        go(step + 1);
+    };
+
+    const submit = async () => {
+        // Every page is checked once more before sending.
+        const broken = pages.findIndex((item) => Object.keys(pageErrors(item, answers)).length);
+        if (broken !== -1) {
+            setTouched((current) => ({ ...current, [broken + 1]: true }));
+            go(broken + 1);
+            toast.error("One of the pages still needs an answer");
             return;
         }
         setSaving(true);
         const body = {
-            positions,
-            answers: drive.data.questions.map((question) => {
-                const answer = answerOf(question._id);
-                return { question: question._id, text: answer.text.trim(), choices: answer.choices, ...(answer.media ? { media: answer.media } : answer.keepFile ? { keepFile: true } : {}) };
-            })
+            answers: pages
+                .flatMap((item) => item.questions)
+                .map((question) => {
+                    const answer = answerOf(question._id);
+                    return { question: question._id, text: answer.text.trim(), choices: answer.choices, ...(answer.media ? { media: answer.media } : answer.keepFile ? { keepFile: true } : {}) };
+                })
         };
         try {
-            if (hasApplication) {
-                await recruitmentApi.updateApplication(id, body);
+            if (editing) {
+                await recruitmentApi.updateApplication(id, positionId, body);
                 toast.success("Application updated");
             } else {
-                await recruitmentApi.apply(id, body);
-                toast.success("Application submitted — check your email for the confirmation");
+                await recruitmentApi.apply(id, positionId, body);
+                toast.success(`Applied for ${position.title} — check your email for the confirmation`);
             }
             navigate(`/recruitment/${id}`);
         } catch (error) {
@@ -180,13 +239,18 @@ const ApplyPage = () => {
         }
     };
 
-    const data = drive.data;
-    const blocked = data && !hasApplication && !data.viewer?.canApply;
+    if (data && !positionId) {
+        return <Navigate to={data.positions.length === 1 ? `/recruitment/${id}/apply/${data.positions[0]._id}` : `/recruitment/${id}#roles`} replace />;
+    }
+
+    const blocked = data && !editing && !data.viewer?.canApply;
+    const progress = steps.length > 1 ? step / last : 1;
 
     return (
-        <AsyncContent loading={drive.loading || (hasApplication && mine.loading)} error={drive.error || mine.error} onRetry={drive.reload}>
+        <AsyncContent loading={drive.loading || (editing && mine.loading)} error={drive.error || mine.error} onRetry={drive.reload}>
             {data && (
                 <>
+                    <div ref={top} />
                     <PageHeader
                         back={{ to: `/recruitment/${id}`, label: data.title }}
                         eyebrow={
@@ -194,75 +258,144 @@ const ApplyPage = () => {
                                 <Megaphone size={14} /> {data.club.name} · recruitment
                             </>
                         }
-                        title={hasApplication ? "Edit your application" : "Apply"}
+                        title={position ? `${editing ? "Edit your application" : "Apply"}: ${position.title}` : "Apply"}
                         description={data.title}
                         actions={<Deadline drive={data} />}
                     />
-                    {blocked ? (
+                    {!position ? (
+                        <Alert type="warning" title="This role isn't part of the drive">
+                            Go back to the drive to see the roles you can apply for.
+                        </Alert>
+                    ) : blocked ? (
                         <Alert type="warning" title="You can't apply to this drive">
                             {data.viewer?.applyProblem}
                         </Alert>
+                    ) : editing && !mine.data?.canEdit && mine.data ? (
+                        <Alert type="info" title="This application can't be changed any more">
+                            Applications can be edited until the deadline, before selection starts.
+                        </Alert>
                     ) : (
-                        <form className="recruit-apply stack-lg" onSubmit={submit} noValidate>
-                            <Card title={<h2 className="row"><UserRound size={18} /> Your details</h2>}>
-                                <div className="recruit-profile">
-                                    <Avatar name={user.name} />
-                                    <div>
-                                        <strong>{user.name}</strong>
-                                        <span className="subtle small">
-                                            {user.email} · {user.departmentCode} · Batch {batchLabel(user.batchCode)}
-                                        </span>
+                        <div className="recruit-wizard">
+                            <div className="recruit-wizard-progress" aria-hidden="true">
+                                <span style={{ "--p": progress }} />
+                            </div>
+                            <ol className="recruit-wizard-steps" aria-label="Application steps">
+                                {steps.map((item, index) => (
+                                    <li key={`${index}-${item.title}`} className={index < step ? "is-done" : index === step ? "is-current" : ""} aria-current={index === step ? "step" : undefined}>
+                                        <button type="button" onClick={() => index < step && go(index)} disabled={index >= step} aria-label={`Step ${index + 1}: ${item.title}`}>
+                                            <span className="recruit-step-dot">{index < step ? <Check size={12} strokeWidth={3} /> : index + 1}</span>
+                                            <span className="recruit-step-label">{item.title}</span>
+                                        </button>
+                                    </li>
+                                ))}
+                            </ol>
+                            <p className="subtle small recruit-wizard-count">
+                                Step {step + 1} of {steps.length}
+                            </p>
+
+                            <div className="recruit-wizard-page" key={step}>
+                                {step === 0 && (
+                                    <div className="stack-lg">
+                                        <Card title="Your details">
+                                            <div className="recruit-profile">
+                                                <Avatar name={user.name} />
+                                                <div>
+                                                    <strong>{user.name}</strong>
+                                                    <span className="subtle small">
+                                                        {user.email} · {user.departmentCode} · Batch {batchLabel(user.batchCode)}
+                                                    </span>
+                                                </div>
+                                                <span className="subtle small recruit-profile-note">From your profile</span>
+                                            </div>
+                                        </Card>
+                                        <Card title={`The role: ${position.title}`}>
+                                            <div className="stack-sm">
+                                                {position.description && <p style={{ margin: 0 }}>{position.description}</p>}
+                                                <div className="recruit-chips">
+                                                    {position.openings ? <span className="recruit-chip">{plural(position.openings, "opening")}</span> : null}
+                                                    <span className="recruit-chip">{plural(pages.length, "page")}</span>
+                                                    <span className="recruit-chip">{plural(position.questionCount, "question")}</span>
+                                                </div>
+                                                {data.positions.length > 1 && (
+                                                    <p className="subtle small" style={{ margin: 0 }}>
+                                                        You can apply for other roles too, each with its own application — but you can join the club in only one role.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </Card>
                                     </div>
-                                    <span className="subtle small recruit-profile-note">From your profile</span>
-                                </div>
-                            </Card>
+                                )}
 
-                            <Card title="Positions you're applying for">
-                                <p className="subtle small" style={{ marginTop: 0 }}>
-                                    Pick one or more, in order of preference.
-                                </p>
-                                <div className="recruit-position-picker">
-                                    {data.positions.map((position) => {
-                                        const rank = positions.indexOf(position._id);
-                                        return (
-                                            <button key={position._id} type="button" aria-pressed={rank !== -1} className={`recruit-position-card ${rank !== -1 ? "is-on" : ""}`} onClick={() => togglePosition(position._id)}>
-                                                <span className="recruit-position-rank">{rank !== -1 ? rank + 1 : ""}</span>
-                                                <strong>{position.title}</strong>
-                                                {position.description && <span className="subtle small">{position.description}</span>}
-                                                {position.openings && <span className="recruit-chip">{position.openings} open</span>}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                                {shown.positions && <span className="field-error">{shown.positions}</span>}
-                            </Card>
+                                {page && (
+                                    <Card title={page.title}>
+                                        <div className="stack">
+                                            {page.description && <p className="subtle" style={{ margin: 0 }}>{page.description}</p>}
+                                            {page.questions.length ? (
+                                                page.questions.map((question) => (
+                                                    <QuestionField
+                                                        key={question._id}
+                                                        driveId={id}
+                                                        question={question}
+                                                        answer={answerOf(question._id)}
+                                                        error={shown[question._id]}
+                                                        onChange={(answer) => setAnswers((current) => ({ ...current, [question._id]: answer }))}
+                                                    />
+                                                ))
+                                            ) : (
+                                                <p className="subtle">Nothing to answer on this page.</p>
+                                            )}
+                                        </div>
+                                    </Card>
+                                )}
 
-                            {data.questions.length > 0 && (
-                                <Card title="Questions from the club">
-                                    <div className="stack">
-                                        {data.questions.map((question) => (
-                                            <QuestionField
-                                                key={question._id}
-                                                driveId={id}
-                                                question={question}
-                                                answer={answerOf(question._id)}
-                                                error={shown[question._id]}
-                                                onChange={(answer) => setAnswers((current) => ({ ...current, [question._id]: answer }))}
-                                            />
+                                {step === last && (
+                                    <div className="stack-lg">
+                                        <Alert type="info" title={`Applying for ${position.title}`}>
+                                            Check your answers. {editing ? "Your changes replace the saved application." : "You can edit your application until the deadline."}
+                                        </Alert>
+                                        {pages.map((item, index) => (
+                                            <Card
+                                                key={item._id}
+                                                title={item.title}
+                                                actions={
+                                                    <Button variant="ghost" size="sm" onClick={() => go(index + 1)}>
+                                                        <PencilLine size={14} /> Edit
+                                                    </Button>
+                                                }
+                                            >
+                                                <div className="stack">
+                                                    {item.questions.map((question) => (
+                                                        <AnswerSummary key={question._id} question={question} answer={answerOf(question._id)} />
+                                                    ))}
+                                                    {!item.questions.length && <span className="subtle">No questions</span>}
+                                                </div>
+                                            </Card>
                                         ))}
                                     </div>
-                                </Card>
-                            )}
-
-                            <div className="form-actions">
-                                <Button variant="secondary" onClick={() => navigate(`/recruitment/${id}`)}>
-                                    Cancel
-                                </Button>
-                                <Button type="submit" size="lg" loading={saving}>
-                                    <Send size={16} /> {hasApplication ? "Save changes" : "Submit application"}
-                                </Button>
+                                )}
                             </div>
-                        </form>
+
+                            <div className="recruit-wizard-nav">
+                                {step === 0 ? (
+                                    <Button variant="secondary" onClick={() => navigate(`/recruitment/${id}`)}>
+                                        Cancel
+                                    </Button>
+                                ) : (
+                                    <Button variant="secondary" onClick={() => go(step - 1)} disabled={saving}>
+                                        <ArrowLeft size={16} /> Back
+                                    </Button>
+                                )}
+                                {step < last ? (
+                                    <Button onClick={next}>
+                                        {step === 0 ? "Start" : "Next"} <ArrowRight size={16} />
+                                    </Button>
+                                ) : (
+                                    <Button onClick={submit} loading={saving}>
+                                        <Send size={16} /> {editing ? "Save changes" : "Submit application"}
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
                     )}
                 </>
             )}

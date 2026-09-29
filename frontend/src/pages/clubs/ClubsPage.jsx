@@ -33,9 +33,9 @@ const ClubsPage = () => {
         { enabled: view === "all" }
     );
 
-    const roleFor = (clubId) => myClubs.memberships.find((m) => m.club._id === clubId && m.status === "APPROVED")?.role;
+    const membershipOf = (clubId) => myClubs.memberships.find((m) => m.club._id === clubId && m.status === "APPROVED");
     const mine = [
-        ...myClubs.memberships.map((m) => ({ club: m.club, role: m.role })),
+        ...myClubs.memberships.map((m) => ({ club: m.club, role: m.role, roleName: m.roleName })),
         ...myClubs.mentored.map((club) => ({ club, role: null, mentor: true }))
     ];
 
@@ -99,7 +99,7 @@ const ClubsPage = () => {
                         >
                             <div className="grid-cards">
                                 {data?.map((club) => (
-                                    <ClubCard key={club._id} club={club} role={roleFor(club._id)} />
+                                    <ClubCard key={club._id} club={club} role={membershipOf(club._id)?.role} roleName={membershipOf(club._id)?.roleName} />
                                 ))}
                             </div>
                             <Pagination meta={meta} onPage={(page) => setFilters({ page })} />
@@ -109,9 +109,9 @@ const ClubsPage = () => {
                     <EmptyState icon={Building2} title="You haven't joined any clubs" description="Browse clubs and apply when they open recruitment." />
                 ) : (
                     <div className="grid-cards">
-                        {mine.map(({ club, role, mentor }) => (
+                        {mine.map(({ club, role, roleName, mentor }) => (
                             <div key={club._id} style={{ position: "relative" }}>
-                                <ClubCard club={club} role={role} showStatus={!role} />
+                                <ClubCard club={club} role={role} roleName={roleName} showStatus={!role} />
                                 {mentor && (
                                     <span className="badge badge-warning" style={{ position: "absolute", top: 12, right: 12 }}>
                                         Faculty mentor

@@ -9,7 +9,7 @@ const ClubArt = ({ category }) => {
     return <Icon className="category-art" size={96} strokeWidth={1} aria-hidden="true" />;
 };
 
-export const ClubCard = ({ club, role, showStatus = false }) => (
+export const ClubCard = ({ club, role, roleName, showStatus = false }) => (
     <Link to={`/clubs/${club._id}`} className="card card-link club-card" style={categoryVars(club.category)}>
         <div className="club-card-banner" style={club.coverImage ? { backgroundImage: `url("${String(club.coverImage).replace(/"/g, "%22")}")` } : undefined}>
             {!club.coverImage && <ClubArt category={club.category} />}
@@ -36,7 +36,7 @@ export const ClubCard = ({ club, role, showStatus = false }) => (
                 <Users size={14} />
                 {club.memberCount !== undefined ? plural(club.memberCount, "member") : club.president?.name ? `President: ${club.president.name}` : ""}
             </span>
-            {role ? <RoleBadge role={role} /> : showStatus ? <StatusBadge status={club.status} /> : null}
+            {role ? <RoleBadge role={role} label={roleName} /> : showStatus ? <StatusBadge status={club.status} /> : null}
         </div>
     </Link>
 );

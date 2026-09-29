@@ -1,21 +1,7 @@
 const mongoose = require("mongoose");
 const { RECRUITMENT_STATUS, ROUND_STATUS, ROUND_MODES, ROUND_TIMING, QUESTION_TYPES } = require("../constants/Statuses");
-const { CLUB_ROLES } = require("../constants/Roles");
 
-// A position the club is recruiting for. The role is what a selected student becomes; the title is what
-// students see ("Design lead" can map to MARKETING_COORDINATOR, for example).
-const positionSchema = new mongoose.Schema({
-    role: {
-        type: String,
-        enum: Object.values(CLUB_ROLES).filter((role) => role !== CLUB_ROLES.PRESIDENT),
-        required: true
-    },
-    title: { type: String, trim: true, required: true, maxlength: 60 },
-    openings: { type: Number, min: 1, max: 500, default: null },
-    description: { type: String, trim: true, maxlength: 400, default: "" }
-});
-
-// One question on the application form. The applicant's name, email, department and batch come from
+// One question of a role's application form. The applicant's name, email, department and batch come from
 // their profile and are never asked again.
 const questionSchema = new mongoose.Schema({
     type: { type: String, enum: Object.values(QUESTION_TYPES), required: true },
@@ -25,9 +11,16 @@ const questionSchema = new mongoose.Schema({
     options: { type: [{ type: String, trim: true, maxlength: 100 }], default: [] }
 });
 
-// A selection round. Screening rounds have no meeting; online rounds have a meeting link, offline rounds a
-// venue. Timing is either one common slot for everyone or an individual slot per candidate (kept on the
-// application); startAt / endAt always span the whole round, so the venue booking covers every slot.
+// Forms are page-wise: applicants fill one page, then Next.
+const pageSchema = new mongoose.Schema({
+    title: { type: String, trim: true, required: true, maxlength: 80 },
+    description: { type: String, trim: true, maxlength: 300, default: "" },
+    questions: { type: [questionSchema], default: [] }
+});
+
+// A selection round of one role. Screening rounds have no meeting; online rounds have a meeting link,
+// offline rounds a venue. Timing is one common slot for everyone or an individual slot per candidate (kept
+// on the application); startAt / endAt always span the whole round, so the venue booking covers every slot.
 const roundSchema = new mongoose.Schema(
     {
         name: { type: String, trim: true, required: true, maxlength: 80 },
@@ -46,13 +39,29 @@ const roundSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+// A role being recruited for. Each role has its own form, its own rounds and its own results.
+const positionSchema = new mongoose.Schema({
+    // Key of one of the club's roles (Club.roles) — what a student who accepts becomes.
+    role: { type: String, required: true },
+    // The role's name when the drive was created.
+    title: { type: String, trim: true, required: true, maxlength: 60 },
+    openings: { type: Number, min: 1, max: 500, default: null },
+    description: { type: String, trim: true, maxlength: 400, default: "" },
+    form: {
+        pages: { type: [pageSchema], default: [] }
+    },
+    rounds: { type: [roundSchema], default: [] },
+    // Set when the president makes the final selection for this role (offers, reserves, not selected).
+    finalizedAt: { type: Date, default: null },
+    offerDays: { type: Number, min: 1, max: 14, default: 3 }
+});
+
 const recruitmentDriveSchema = new mongoose.Schema(
     {
         club: { type: mongoose.Schema.Types.ObjectId, ref: "Club", required: true },
         title: { type: String, trim: true, required: true, maxlength: 120 },
         description: { type: String, trim: true, required: true, maxlength: 4000 },
         positions: { type: [positionSchema], default: [] },
-        questions: { type: [questionSchema], default: [] },
         // Departments come from the club's own scope; the president can narrow the batches.
         eligibility: {
             batches: { type: [String], default: [] }
@@ -72,7 +81,6 @@ const recruitmentDriveSchema = new mongoose.Schema(
         cancelledAt: { type: Date, default: null },
         cancellationReason: { type: String, trim: true, maxlength: 500, default: null },
 
-        rounds: { type: [roundSchema], default: [] },
         createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true }
     },
     { timestamps: true }
@@ -81,6 +89,6 @@ const recruitmentDriveSchema = new mongoose.Schema(
 recruitmentDriveSchema.index({ club: 1, status: 1 });
 recruitmentDriveSchema.index({ status: 1, applicationEnd: 1 });
 // Venue bookings held by scheduled offline rounds.
-recruitmentDriveSchema.index({ "rounds.venue": 1, "rounds.startAt": 1 });
+recruitmentDriveSchema.index({ "positions.rounds.venue": 1, "positions.rounds.startAt": 1 });
 
 module.exports = mongoose.model("RecruitmentDrive", recruitmentDriveSchema);

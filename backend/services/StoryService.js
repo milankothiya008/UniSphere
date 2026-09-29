@@ -6,9 +6,10 @@ const AppError = require("../utils/AppError");
 const ERROR_CODES = require("../constants/ErrorCodes");
 const { env } = require("../config/env");
 const { CLUB_STATUS, MEMBERSHIP_STATUS, PUBLIC_EVENT_STATUSES, AUDIT_ACTIONS } = require("../constants/Statuses");
-const { CLUB_PERMISSIONS, roleHasPermission } = require("../constants/Permissions");
+const { CLUB_PERMISSIONS } = require("../constants/Permissions");
 const { parsePagination, paginationMeta } = require("../utils/Query");
 const { assertClubPermission } = require("./AuthorizationService");
+const { clubIdsWithAnyPermission } = require("./MembershipService");
 const { recordAudit } = require("./AuditService");
 const media = require("./StoryMediaService");
 const logger = require("../utils/Logger");
@@ -99,10 +100,7 @@ const bumpCached = (storyId, field, by) => {
     }
 };
 
-const managedClubIds = async (user) => {
-    const memberships = await ClubMembership.find({ user: user._id, status: MEMBERSHIP_STATUS.APPROVED }).select("club role").lean();
-    return new Set(memberships.filter((membership) => roleHasPermission(membership.role, MANAGE)).map((membership) => String(membership.club)));
-};
+const managedClubIds = async (user) => new Set((await clubIdsWithAnyPermission(user._id, [MANAGE])).map(String));
 
 // View and like counts are only for the club's story managers.
 const forViewer = (story, { seen, liked, canManage }) => {

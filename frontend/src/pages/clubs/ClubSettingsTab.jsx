@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Crown, GraduationCap, Save, ShieldAlert } from "lucide-react";
+import { ArrowRightLeft, Crown, GraduationCap, Save, ShieldAlert } from "lucide-react";
 import { clubApi } from "../../api/endpoints";
 import { useToast } from "../../context/ToastContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
+import { useAuth } from "../../context/AuthContext";
+import { useApi } from "../../hooks/useApi";
 import { Alert, ApiErrorAlert, Avatar, Button, Card, ConfirmDialog, ErrorState, ImageUpload, Input, Select, StatusBadge, Textarea, UserPicker } from "../../components/ui";
 import { CLUB_CATEGORIES, PERMISSIONS } from "../../lib/constants";
 import { departmentsLabel, humanize } from "../../lib/format";
@@ -217,6 +219,57 @@ const PresidentCard = ({ club, onSaved }) => {
     );
 };
 
+/** The president hands the presidency to another member and becomes a regular member themself. */
+const HandoverCard = ({ club, onSaved }) => {
+    const toast = useToast();
+    const { user } = useAuth();
+    const members = useApi(() => clubApi.members(club._id), [club._id]);
+    const [choice, setChoice] = useState("");
+    const [confirming, setConfirming] = useState(false);
+    const candidates = (members.data || []).filter((membership) => membership.user._id !== user._id);
+    const successor = candidates.find((membership) => membership.user._id === choice);
+
+    const handOver = async () => {
+        await clubApi.transferPresidency(club._id, choice);
+        toast.success(`${successor.user.name} is now president of ${club.name}`);
+        onSaved();
+    };
+
+    return (
+        <Card title={<h2 className="row"><ArrowRightLeft size={17} /> Hand over the presidency</h2>}>
+            <div className="stack">
+                <p className="subtle">
+                    Stepping down? Choose the member who takes over. The change happens immediately: they get every president authority and you become a regular member.
+                </p>
+                <Select
+                    label="New president"
+                    value={choice}
+                    onChange={(event) => setChoice(event.target.value)}
+                    options={[
+                        { value: "", label: members.loading ? "Loading members…" : candidates.length ? "Choose a member" : "No other members yet" },
+                        ...candidates.map((membership) => ({ value: membership.user._id, label: `${membership.user.name} · ${membership.roleName || "Member"}` }))
+                    ]}
+                    disabled={!candidates.length}
+                />
+                <div>
+                    <Button variant="secondary" onClick={() => setConfirming(true)} disabled={!successor}>
+                        <Crown size={16} /> Hand over
+                    </Button>
+                </div>
+            </div>
+            <ConfirmDialog
+                open={confirming}
+                onClose={() => setConfirming(false)}
+                onConfirm={handOver}
+                title={`Make ${successor?.user.name} president?`}
+                description={`${successor?.user.name} becomes president of ${club.name} right away and is notified by email, as is your faculty mentor. You become a regular member and lose club management — only the new president can give you a role again.`}
+                confirmLabel="Hand over presidency"
+                variant="danger"
+            />
+        </Card>
+    );
+};
+
 const AdminCard = ({ club, onSaved }) => {
     const toast = useToast();
     const [status, setStatus] = useState(null);
@@ -296,6 +349,7 @@ const ClubSettingsTab = () => {
     const canEditDetails = viewer.permissions?.includes(PERMISSIONS.MANAGE_CLUB);
     const canAppointPresident = viewer.isMentor && ["APPROVED", "ACTIVE"].includes(club.status);
     const canAdminister = viewer.isAdmin;
+    const isPresident = viewer.role === "PRESIDENT" && club.status === "ACTIVE";
 
     if (!canEditDetails && !viewer.isMentor && !canAdminister) {
         return <ErrorState error={{ status: 403, message: "Only the club's leadership, its faculty mentor and the university admin can open this page." }} />;
@@ -310,9 +364,7 @@ const ClubSettingsTab = () => {
         <div className="stack">
             {canAppointPresident && <PresidentCard club={club} onSaved={saved} />}
             {canAdminister && <AdminCard club={club} onSaved={saved} />}
-            {canEditDetails && (
-                <Alert type="info">The president is appointed by the club's faculty mentor. Contact them to hand over leadership.</Alert>
-            )}
+            {isPresident && <HandoverCard club={club} onSaved={saved} />}
             {!canEditDetails && (
                 <Alert type="info">Club details such as the name, logo and description are managed by the club's own leadership.</Alert>
             )}

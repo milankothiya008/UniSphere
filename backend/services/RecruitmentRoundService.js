@@ -1,32 +1,19 @@
-const Club = require("../models/Club");
 const ClubMembership = require("../models/ClubMembership");
 const RecruitmentApplication = require("../models/RecruitmentApplication");
 const Venue = require("../models/Venue");
 const AppError = require("../utils/AppError");
 const ERROR_CODES = require("../constants/ErrorCodes");
-const {
-    APPLICATION_STATUS,
-    CLUB_STATUS,
-    MEMBERSHIP_STATUS,
-    NOTIFICATION_TYPES,
-    RECRUITMENT_STATUS,
-    ROUND_MODES,
-    ROUND_OUTCOMES,
-    ROUND_STATUS,
-    ROUND_TIMING,
-    VENUE_STATUS,
-    AUDIT_ACTIONS
-} = require("../constants/Statuses");
+const { APPLICATION_STATUS, MEMBERSHIP_STATUS, RECRUITMENT_STATUS, ROUND_MODES, ROUND_OUTCOMES, ROUND_STATUS, ROUND_TIMING, VENUE_STATUS, AUDIT_ACTIONS } = require("../constants/Statuses");
+const { SYSTEM } = require("../utils/ClubRoles");
+const { formatSchedule } = require("../utils/CampusTime");
 const { recordAudit } = require("./AuditService");
-const { notify } = require("./NotificationService");
 const { assertVenueAvailable, withVenueLock } = require("./VenueService");
 const mailer = require("./RecruitmentMailer");
 const drives = require("./RecruitmentService");
-const { positionTitles } = require("./ApplicationService");
 
-// Selection rounds of a published drive, run by the president after applications close: screening,
-// online or offline interviews (a common time or one slot per candidate), results with an email for every
-// candidate, and the final selection that makes the chosen students members with their role.
+// Selection for each role of a published drive, run by the president after applications close. Every role
+// has its own rounds — screening, online or offline interviews (a common time or one slot per candidate) —
+// with results emailed to every candidate, and its own final selection: offers, a reserve list, and thanks.
 
 const A = APPLICATION_STATUS;
 const R = ROUND_STATUS;
@@ -34,54 +21,60 @@ const invalid = (message) => new AppError(message, 400, ERROR_CODES.VALIDATION_E
 const conflict = (message) => new AppError(message, 409, ERROR_CODES.INVALID_STATE);
 const HTTPS_URL = /^https:\/\/[^\s/$.?#].[^\s]*$/i;
 const MAX_ROUNDS = 8;
+const DECISIONS = ["OFFER", "RESERVE", "NOT_SELECTED"];
 
-const activeCandidates = (driveId) => RecruitmentApplication.find({ drive: driveId, status: { $in: drives.ACTIVE_APPLICATION } }).sort({ createdAt: 1, _id: 1 });
+const activeCandidates = (driveId, positionId) =>
+    RecruitmentApplication.find({ drive: driveId, position: positionId, status: { $in: drives.ACTIVE_APPLICATION } }).sort({ createdAt: 1, _id: 1 });
 
-const loadRunning = async (actor, driveId) => {
+const loadRunning = async (actor, driveId, positionId) => {
     const drive = await drives.loadDrive(driveId);
     const context = await drives.assertManager(actor, drive);
     if (drive.status !== RECRUITMENT_STATUS.PUBLISHED) {
-        throw conflict("Rounds run while the drive is published");
+        throw conflict("Selection runs while the drive is published");
     }
-    const phase = drives.phaseOf(drive);
-    if (phase === "UPCOMING" || phase === "OPEN") {
+    if (["UPCOMING", "OPEN"].includes(drives.phaseOf(drive))) {
         throw conflict("Close applications before starting the selection rounds");
     }
-    return { drive, club: context.club };
+    const position = drives.findPosition(drive, positionId);
+    return { drive, position, club: context.club };
 };
 
-const currentRound = (drive, roundId) => {
-    const round = drive.rounds.id(roundId);
+const currentRound = (position, roundId) => {
+    const round = position.rounds.id(roundId);
     if (!round) {
         throw new AppError("Round not found", 404, ERROR_CODES.NOT_FOUND);
     }
-    const last = drive.rounds[drive.rounds.length - 1];
+    const last = position.rounds[position.rounds.length - 1];
     if (String(last._id) !== String(round._id)) {
         throw conflict("Only the latest round can change");
     }
     if (round.status === R.RESULTS_PUBLISHED) {
         throw conflict("This round's results are published, so it can't change any more");
     }
+    if (position.finalizedAt) {
+        throw conflict("The final selection for this role is done");
+    }
     return round;
 };
 
-const audit = (action, actor, drive, metadata = {}) =>
-    recordAudit({ action, actor: actor._id, targetType: "RecruitmentDrive", targetId: drive._id, metadata: { clubId: drive.club, ...metadata } });
+const audit = (action, actor, drive, position, metadata = {}) =>
+    recordAudit({ action, actor: actor._id, targetType: "RecruitmentDrive", targetId: drive._id, metadata: { clubId: drive.club, role: position.role, positionTitle: position.title, ...metadata } });
 
 // ---------------------------------------------------------------- Views
 
-/** The Rounds tab: every round with its candidates, their slots and outcomes. */
-const getRounds = async (actor, driveId) => {
+/** The Selection tab for one role: its rounds with candidates, the final selection and the offers. */
+const getRounds = async (actor, driveId, positionId) => {
     const drive = await drives.loadDrive(driveId);
     await drives.assertStaff(actor, drive);
-    await drive.populate("rounds.venue", "name location capacity");
-    const applications = await RecruitmentApplication.find({ drive: drive._id, status: { $ne: A.WITHDRAWN } })
+    await drive.populate("positions.rounds.venue", "name location capacity");
+    const position = drives.findPosition(drive, positionId);
+    const applications = await RecruitmentApplication.find({ drive: drive._id, position: position._id, status: { $ne: A.WITHDRAWN } })
         .sort({ createdAt: 1, _id: 1 })
         .populate("applicant", "name email departmentCode batchCode");
-    const last = drive.rounds[drive.rounds.length - 1];
+    const last = position.rounds[position.rounds.length - 1];
 
-    const rounds = drive.rounds.map((round) => {
-        const isCurrent = last && String(last._id) === String(round._id) && round.status !== R.RESULTS_PUBLISHED;
+    const rounds = position.rounds.map((round) => {
+        const isCurrent = last && String(last._id) === String(round._id) && round.status !== R.RESULTS_PUBLISHED && !position.finalizedAt;
         const candidates = applications
             .filter((application) => {
                 const result = application.roundResults.find((item) => String(item.round) === String(round._id));
@@ -94,77 +87,73 @@ const getRounds = async (actor, driveId) => {
                 return {
                     applicationId: application._id,
                     applicant: application.applicant,
-                    positionTitles: positionTitles(drive, application.positions),
                     outcome: result ? result.outcome : pending?.outcome || null,
                     note: result ? result.note : pending?.note || null,
                     published: Boolean(result),
                     slot: slot ? { startAt: slot.startAt, endAt: slot.endAt } : null
                 };
             });
-        return {
-            _id: round._id,
-            name: round.name,
-            mode: round.mode,
-            timing: round.timing,
-            status: round.status,
-            startAt: round.startAt,
-            endAt: round.endAt,
-            slotMinutes: round.slotMinutes,
-            venue: round.venue,
-            meetingLink: round.meetingLink,
-            instructions: round.instructions,
-            scheduledAt: round.scheduledAt,
-            resultsPublishedAt: round.resultsPublishedAt,
-            isCurrent,
-            candidates
-        };
+        return { ...round.toObject(), isCurrent, candidates };
     });
 
     const active = applications.filter((application) => drives.ACTIVE_APPLICATION.includes(application.status));
     const phase = drives.phaseOf(drive);
+    const selectionOpen = drive.status === RECRUITMENT_STATUS.PUBLISHED && ["CLOSED", "ROUNDS"].includes(phase) && !position.finalizedAt;
     const roundOpen = last && last.status !== R.RESULTS_PUBLISHED;
+    const offers = applications.filter((application) => [A.OFFERED, A.ACCEPTED, A.DECLINED, A.EXPIRED, A.RESERVE].includes(application.status) && position.finalizedAt);
+    const accepted = offers.filter((application) => application.status === A.ACCEPTED).length;
+    const pendingOffers = offers.filter((application) => application.status === A.OFFERED).length;
+    const openSeats = position.openings ? Math.max(0, position.openings - accepted - pendingOffers) : null;
+
     return {
         phase,
+        position: { _id: position._id, title: position.title, role: position.role, openings: position.openings, finalizedAt: position.finalizedAt, offerDays: position.offerDays, stage: drives.stageOf(drive, position) },
         rounds,
         activeCount: active.length,
-        canAddRound: drive.status === RECRUITMENT_STATUS.PUBLISHED && ["CLOSED", "ROUNDS"].includes(phase) && !roundOpen && active.length > 0 && drive.rounds.length < MAX_ROUNDS,
-        canFinalize: drive.status === RECRUITMENT_STATUS.PUBLISHED && ["CLOSED", "ROUNDS"].includes(phase) && !roundOpen,
-        finalists: !roundOpen
-            ? active.map((application) => ({
-                  applicationId: application._id,
-                  applicant: application.applicant,
-                  positions: application.positions,
-                  positionTitles: positionTitles(drive, application.positions)
-              }))
-            : []
+        canAddRound: selectionOpen && !roundOpen && active.length > 0 && position.rounds.length < MAX_ROUNDS,
+        canFinalize: selectionOpen && !roundOpen,
+        finalists: selectionOpen && !roundOpen ? active.map((application) => ({ applicationId: application._id, applicant: application.applicant })) : [],
+        offers: offers.map((application) => ({
+            applicationId: application._id,
+            applicant: application.applicant,
+            status: application.status,
+            offeredAt: application.offeredAt,
+            offerExpiresAt: application.offerExpiresAt,
+            respondedAt: application.respondedAt
+        })),
+        seats: { openings: position.openings, accepted, pending: pendingOffers, open: openSeats },
+        canOfferReserve: Boolean(position.finalizedAt) && drive.status === RECRUITMENT_STATUS.PUBLISHED && (openSeats === null || openSeats > 0) && offers.some((application) => application.status === A.RESERVE)
     };
 };
 
 // ---------------------------------------------------------------- Rounds
 
-const createRound = async (actor, driveId, { name, mode }) => {
-    const { drive } = await loadRunning(actor, driveId);
-    const last = drive.rounds[drive.rounds.length - 1];
+const createRound = async (actor, driveId, positionId, { name, mode }) => {
+    const { drive, position } = await loadRunning(actor, driveId, positionId);
+    if (position.finalizedAt) {
+        throw conflict("The final selection for this role is done");
+    }
+    const last = position.rounds[position.rounds.length - 1];
     if (last && last.status !== R.RESULTS_PUBLISHED) {
         throw conflict(`Publish the results of "${last.name}" before adding the next round`);
     }
-    if (drive.rounds.length >= MAX_ROUNDS) {
-        throw conflict(`A drive can have up to ${MAX_ROUNDS} rounds`);
+    if (position.rounds.length >= MAX_ROUNDS) {
+        throw conflict(`A role can have up to ${MAX_ROUNDS} rounds`);
     }
     if (!Object.values(ROUND_MODES).includes(mode)) {
         throw invalid("Choose screening, online interview or offline interview");
     }
     const title = String(name || "").trim().slice(0, 80);
     if (!title) {
-        throw invalid("Name the round, e.g. \"Technical interview\"");
+        throw invalid('Name the round, e.g. "Technical interview"');
     }
-    if (!(await RecruitmentApplication.exists({ drive: drive._id, status: { $in: drives.ACTIVE_APPLICATION } }))) {
+    if (!(await RecruitmentApplication.exists({ drive: drive._id, position: position._id, status: { $in: drives.ACTIVE_APPLICATION } }))) {
         throw conflict("There are no candidates left for another round");
     }
-    drive.rounds.push({ name: title, mode, status: R.DRAFT });
+    position.rounds.push({ name: title, mode, status: R.DRAFT });
     await drive.save();
-    await audit(AUDIT_ACTIONS.ROUND_CREATED, actor, drive, { round: title, mode });
-    return getRounds(actor, drive._id);
+    await audit(AUDIT_ACTIONS.ROUND_CREATED, actor, drive, position, { round: title, mode });
+    return getRounds(actor, drive._id, position._id);
 };
 
 const readTime = (value, label) => {
@@ -175,13 +164,32 @@ const readTime = (value, label) => {
     return date;
 };
 
+const overlaps = (a, b) => a.startAt < b.endAt && b.startAt < a.endAt;
+
+// A candidate's interview times in the drive's other roles (they can apply to several).
+const otherSlots = async (drive, position, candidates) => {
+    const others = await RecruitmentApplication.find({
+        drive: drive._id,
+        applicant: { $in: candidates.map((candidate) => candidate.applicant) },
+        position: { $ne: position._id },
+        status: { $in: drives.ACTIVE_APPLICATION }
+    }).select("applicant slots position");
+    const byApplicant = new Map();
+    others.forEach((other) => {
+        const key = String(other.applicant);
+        byApplicant.set(key, [...(byApplicant.get(key) || []), ...other.slots.map((slot) => ({ startAt: slot.startAt, endAt: slot.endAt, role: drive.positions.id(other.position)?.title }))]);
+    });
+    return byApplicant;
+};
+
 /**
  * Sets (or changes) an interview round's time and place and invites every candidate. COMMON: one start and
- * end for everyone; SLOTS: back-to-back slots of `slotMinutes` from `startAt`, in application order.
+ * end for everyone; SLOTS: back-to-back slots of `slotMinutes`. Candidates also interviewing for another role
+ * are placed in slots that don't clash with it; anyone who still clashes is listed in `warnings`.
  */
-const scheduleRound = async (actor, driveId, roundId, payload) => {
-    const { drive, club } = await loadRunning(actor, driveId);
-    const round = currentRound(drive, roundId);
+const scheduleRound = async (actor, driveId, positionId, roundId, payload) => {
+    const { drive, position, club } = await loadRunning(actor, driveId, positionId);
+    const round = currentRound(position, roundId);
     if (round.mode === ROUND_MODES.SCREENING) {
         throw conflict("Screening rounds have no interview to schedule");
     }
@@ -193,7 +201,7 @@ const scheduleRound = async (actor, driveId, roundId, payload) => {
     if (startAt <= new Date()) {
         throw invalid("The round must start in the future");
     }
-    const candidates = await activeCandidates(drive._id);
+    const candidates = await activeCandidates(drive._id, position._id);
     if (!candidates.length) {
         throw conflict("There are no candidates in this round");
     }
@@ -230,8 +238,35 @@ const scheduleRound = async (actor, driveId, roundId, payload) => {
         }
     }
 
+    // Who gets which time: slot by slot, the first waiting candidate free at that time.
+    const busy = await otherSlots(drive, position, candidates);
+    const clashesFor = (candidate, slot) => (busy.get(String(candidate.applicant)) || []).filter((other) => overlaps(slot, other));
+    const assignments = [];
+    const warnings = [];
+    if (timing === ROUND_TIMING.COMMON) {
+        candidates.forEach((candidate) => {
+            const slot = { startAt, endAt };
+            assignments.push({ candidate, slot });
+            const clash = clashesFor(candidate, slot)[0];
+            if (clash) warnings.push({ applicationId: candidate._id, clashWith: clash.role, at: formatSchedule(clash.startAt, clash.endAt) });
+        });
+    } else {
+        const waiting = [...candidates];
+        for (let index = 0; index < candidates.length; index += 1) {
+            const slot = { startAt: new Date(startAt.getTime() + index * slotMinutes * 60000), endAt: new Date(startAt.getTime() + (index + 1) * slotMinutes * 60000) };
+            let pick = waiting.findIndex((candidate) => !clashesFor(candidate, slot).length);
+            if (pick === -1) {
+                pick = 0;
+                const clash = clashesFor(waiting[0], slot)[0];
+                warnings.push({ applicationId: waiting[0]._id, clashWith: clash.role, at: formatSchedule(clash.startAt, clash.endAt) });
+            }
+            assignments.push({ candidate: waiting[pick], slot });
+            waiting.splice(pick, 1);
+        }
+    }
+
     const wasScheduled = round.status === R.SCHEDULED;
-    const apply = async () => {
+    const save = async () => {
         if (venue) {
             await assertVenueAvailable({ venueId: venue._id, startAt, endAt, excludeRoundId: round._id });
         }
@@ -249,38 +284,36 @@ const scheduleRound = async (actor, driveId, roundId, payload) => {
         await drive.save();
     };
     if (venue) {
-        await withVenueLock(venue._id, apply);
+        await withVenueLock(venue._id, save);
     } else {
-        await apply();
+        await save();
     }
 
-    // Each candidate's own time: the common one, or their slot. Reminders start afresh for the new times.
+    // Each candidate's own time. Reminders start afresh for the new times.
     await Promise.all(
-        candidates.map((application, index) => {
-            const slotStart = timing === ROUND_TIMING.COMMON ? startAt : new Date(startAt.getTime() + index * slotMinutes * 60000);
-            const slotEnd = timing === ROUND_TIMING.COMMON ? endAt : new Date(slotStart.getTime() + slotMinutes * 60000);
-            application.slots = [...application.slots.filter((slot) => String(slot.round) !== String(round._id)), { round: round._id, startAt: slotStart, endAt: slotEnd }];
-            application.remindersSent = application.remindersSent.filter((sent) => String(sent.round) !== String(round._id));
-            if ([A.APPLIED].includes(application.status)) {
-                application.status = A.IN_ROUNDS;
+        assignments.map(({ candidate, slot }) => {
+            candidate.slots = [...candidate.slots.filter((item) => String(item.round) !== String(round._id)), { round: round._id, ...slot }];
+            candidate.remindersSent = candidate.remindersSent.filter((sent) => String(sent.round) !== String(round._id));
+            if (candidate.status === A.APPLIED) {
+                candidate.status = A.IN_ROUNDS;
             }
-            return application.save();
+            return candidate.save();
         })
     );
-    await audit(AUDIT_ACTIONS.ROUND_SCHEDULED, actor, drive, { round: round.name, timing, startAt, endAt, rescheduled: wasScheduled });
+    await audit(AUDIT_ACTIONS.ROUND_SCHEDULED, actor, drive, position, { round: round.name, timing, startAt, endAt, rescheduled: wasScheduled });
 
     const populated = await RecruitmentApplication.find({ _id: { $in: candidates.map((item) => item._id) } }).populate("applicant", "name email");
     for (const application of populated) {
         const slot = application.slots.find((item) => String(item.round) === String(round._id));
-        await mailer.sendInterviewInvite(drive, club, round, slot, application.applicant, venue, wasScheduled ? "changed" : "invite");
+        await mailer.sendInterviewInvite(drive, club, position, round, slot, application.applicant, venue, wasScheduled ? "changed" : "invite");
     }
-    return getRounds(actor, drive._id);
+    return { ...(await getRounds(actor, drive._id, position._id)), warnings };
 };
 
 /** Moves one candidate's slot (individual-slot rounds) and tells them. */
-const updateSlot = async (actor, driveId, roundId, applicationId, { startAt: value }) => {
-    const { drive, club } = await loadRunning(actor, driveId);
-    const round = currentRound(drive, roundId);
+const updateSlot = async (actor, driveId, positionId, roundId, applicationId, { startAt: value }) => {
+    const { drive, position, club } = await loadRunning(actor, driveId, positionId);
+    const round = currentRound(position, roundId);
     if (round.status !== R.SCHEDULED || round.timing !== ROUND_TIMING.SLOTS) {
         throw conflict("Only scheduled rounds with individual slots have slots to move");
     }
@@ -289,7 +322,10 @@ const updateSlot = async (actor, driveId, roundId, applicationId, { startAt: val
         throw invalid("The new time must be in the future");
     }
     const endAt = new Date(startAt.getTime() + round.slotMinutes * 60000);
-    const application = await RecruitmentApplication.findOne({ _id: applicationId, drive: drive._id, status: { $in: drives.ACTIVE_APPLICATION } }).populate("applicant", "name email");
+    const application = await RecruitmentApplication.findOne({ _id: applicationId, drive: drive._id, position: position._id, status: { $in: drives.ACTIVE_APPLICATION } }).populate(
+        "applicant",
+        "name email"
+    );
     if (!application) {
         throw new AppError("Candidate not found", 404, ERROR_CODES.NOT_FOUND);
     }
@@ -314,17 +350,21 @@ const updateSlot = async (actor, driveId, roundId, applicationId, { startAt: val
     application.slots = [...application.slots.filter((slot) => String(slot.round) !== String(round._id)), { round: round._id, startAt, endAt }];
     application.remindersSent = application.remindersSent.filter((sent) => String(sent.round) !== String(round._id));
     await application.save();
-    await audit(AUDIT_ACTIONS.INTERVIEW_SLOT_CHANGED, actor, drive, { round: round.name, applicationId, startAt });
+    await audit(AUDIT_ACTIONS.INTERVIEW_SLOT_CHANGED, actor, drive, position, { round: round.name, applicationId, startAt });
 
+    const clash = ((await otherSlots(drive, position, [application])).get(String(application.applicant._id)) || []).find((other) => overlaps({ startAt, endAt }, other));
     const venue = round.venue ? await Venue.findById(round.venue) : null;
-    await mailer.sendInterviewInvite(drive, club, round, { startAt, endAt }, application.applicant, venue, "changed");
-    return getRounds(actor, drive._id);
+    await mailer.sendInterviewInvite(drive, club, position, round, { startAt, endAt }, application.applicant, venue, "changed");
+    return {
+        ...(await getRounds(actor, drive._id, position._id)),
+        warnings: clash ? [{ applicationId: application._id, clashWith: clash.role, at: formatSchedule(clash.startAt, clash.endAt) }] : []
+    };
 };
 
 /** Draft decisions for the current round; nothing is shown to candidates until the results are published. */
-const setOutcomes = async (actor, driveId, roundId, decisions = []) => {
-    const { drive } = await loadRunning(actor, driveId);
-    const round = currentRound(drive, roundId);
+const setOutcomes = async (actor, driveId, positionId, roundId, decisions = []) => {
+    const { drive, position } = await loadRunning(actor, driveId, positionId);
+    const round = currentRound(position, roundId);
     if (round.mode !== ROUND_MODES.SCREENING && round.status !== R.SCHEDULED) {
         throw conflict("Schedule the interview before recording results");
     }
@@ -335,21 +375,21 @@ const setOutcomes = async (actor, driveId, roundId, decisions = []) => {
             throw invalid("Mark each candidate as qualified or eliminated");
         }
         await RecruitmentApplication.updateOne(
-            { _id: decision.applicationId, drive: drive._id, status: { $in: drives.ACTIVE_APPLICATION } },
+            { _id: decision.applicationId, drive: drive._id, position: position._id, status: { $in: drives.ACTIVE_APPLICATION } },
             { $set: { pendingOutcome: { round: round._id, outcome, note: String(decision.note || "").trim().slice(0, 500) || null } } }
         );
     }
-    return getRounds(actor, drive._id);
+    return getRounds(actor, drive._id, position._id);
 };
 
 /** Publishes the current round: qualified candidates are congratulated, eliminated ones thanked. */
-const publishRoundResults = async (actor, driveId, roundId) => {
-    const { drive, club } = await loadRunning(actor, driveId);
-    const round = currentRound(drive, roundId);
+const publishRoundResults = async (actor, driveId, positionId, roundId) => {
+    const { drive, position, club } = await loadRunning(actor, driveId, positionId);
+    const round = currentRound(position, roundId);
     if (round.mode !== ROUND_MODES.SCREENING && round.status !== R.SCHEDULED) {
         throw conflict("Schedule the interview before publishing results");
     }
-    const candidates = await activeCandidates(drive._id).populate("applicant", "name email");
+    const candidates = await activeCandidates(drive._id, position._id).populate("applicant", "name email");
     const undecided = candidates.filter((application) => String(application.pendingOutcome?.round) !== String(round._id) || !application.pendingOutcome?.outcome);
     if (undecided.length) {
         throw conflict(`Decide every candidate first — ${undecided.length} still ${undecided.length === 1 ? "has" : "have"} no result`);
@@ -371,84 +411,114 @@ const publishRoundResults = async (actor, driveId, roundId) => {
     await drive.save();
 
     const qualified = candidates.filter((application) => application.status === A.IN_ROUNDS);
-    await audit(AUDIT_ACTIONS.ROUND_RESULTS_PUBLISHED, actor, drive, { round: round.name, qualified: qualified.length, eliminated: candidates.length - qualified.length });
+    await audit(AUDIT_ACTIONS.ROUND_RESULTS_PUBLISHED, actor, drive, position, { round: round.name, qualified: qualified.length, eliminated: candidates.length - qualified.length });
     for (const application of candidates) {
-        await mailer.sendRoundResult(drive, club, round, application.applicant, application.status === A.IN_ROUNDS);
+        await mailer.sendRoundResult(drive, club, position, round, application.applicant, application.status === A.IN_ROUNDS);
     }
-    return getRounds(actor, drive._id);
+    return getRounds(actor, drive._id, position._id);
 };
 
-// ---------------------------------------------------------------- Final selection
+// ---------------------------------------------------------------- Final selection and offers
+
+const makeOffer = async (drive, club, position, application, now) => {
+    application.status = A.OFFERED;
+    application.offeredAt = now;
+    application.offerExpiresAt = new Date(now.getTime() + position.offerDays * 86400000);
+    application.decidedAt = now;
+    await application.save();
+    await mailer.sendOffer(drive, club, position, application.applicant, application.offerExpiresAt);
+};
 
 /**
- * Ends the drive. Every remaining candidate is either selected (with one of the drive's roles — they become a
- * member with it) or not selected. Everyone gets their result by email.
+ * Final selection for one role. Each remaining candidate gets an OFFER (they accept or decline by the
+ * deadline), goes on the RESERVE list (offered a seat that frees up), or is NOT_SELECTED.
  */
-const finalizeDrive = async (actor, driveId, decisions = []) => {
-    const { drive } = await loadRunning(actor, driveId);
-    const club = await Club.findById(drive.club);
-    if (club.status !== CLUB_STATUS.ACTIVE) {
-        throw new AppError("Only active clubs can take in members", 409, ERROR_CODES.CLUB_NOT_ACTIVE);
+const finalizePosition = async (actor, driveId, positionId, { decisions = [], offerDays } = {}) => {
+    const { drive, position, club } = await loadRunning(actor, driveId, positionId);
+    if (position.finalizedAt) {
+        throw conflict("The final selection for this role is done");
     }
-    const last = drive.rounds[drive.rounds.length - 1];
+    const last = position.rounds[position.rounds.length - 1];
     if (last && last.status !== R.RESULTS_PUBLISHED) {
         throw conflict(`Publish the results of "${last.name}" first`);
     }
-    const candidates = await activeCandidates(drive._id).populate("applicant", "name email");
-    const byId = new Map((Array.isArray(decisions) ? decisions : []).map((decision) => [String(decision.applicationId), decision]));
-    const missing = candidates.filter((application) => !byId.has(String(application._id)));
+    if (offerDays !== undefined) {
+        const days = Number(offerDays);
+        if (!Number.isInteger(days) || days < 1 || days > 14) {
+            throw invalid("Give students 1 to 14 days to answer an offer");
+        }
+        position.offerDays = days;
+    }
+    const candidates = await activeCandidates(drive._id, position._id).populate("applicant", "name email");
+    const byId = new Map((Array.isArray(decisions) ? decisions : []).map((decision) => [String(decision.applicationId), decision.decision]));
+    const missing = candidates.filter((application) => !DECISIONS.includes(byId.get(String(application._id))));
     if (missing.length) {
         throw conflict(`Decide every finalist — ${missing.length} still ${missing.length === 1 ? "has" : "have"} no decision`);
     }
-    const roles = new Set(drive.positions.map((position) => position.role));
-    for (const application of candidates) {
-        const decision = byId.get(String(application._id));
-        if (decision.selected && !roles.has(decision.role)) {
-            throw invalid(`Choose one of this drive's roles for ${application.applicant?.name || "each selected student"}`);
-        }
+    const offers = candidates.filter((application) => byId.get(String(application._id)) === "OFFER");
+    if (position.openings && offers.length > position.openings) {
+        throw invalid(`${position.title} has ${position.openings} ${position.openings === 1 ? "opening" : "openings"} — make at most that many offers and put the rest on the reserve list`);
+    }
+    if (position.role === SYSTEM.VICE_PRESIDENT && offers.length && (await ClubMembership.exists({ club: club._id, role: SYSTEM.VICE_PRESIDENT, status: MEMBERSHIP_STATUS.APPROVED }))) {
+        throw conflict("Your club already has a vice-president");
     }
 
     const now = new Date();
-    const results = [];
     for (const application of candidates) {
         const decision = byId.get(String(application._id));
-        const selected = Boolean(decision.selected);
-        application.status = selected ? A.SELECTED : A.NOT_SELECTED;
-        application.finalRole = selected ? decision.role : null;
-        application.decidedAt = now;
-        await application.save();
-        if (selected) {
-            await ClubMembership.findOneAndUpdate(
-                { club: club._id, user: application.applicant._id },
-                { $set: { status: MEMBERSHIP_STATUS.APPROVED, role: decision.role, joinedAt: now, decidedBy: actor._id, decidedAt: now, decisionReason: null } },
-                { upsert: true, setDefaultsOnInsert: true }
-            );
+        if (decision === "OFFER") {
+            await makeOffer(drive, club, position, application, now);
+        } else if (decision === "RESERVE") {
+            application.status = A.RESERVE;
+            application.decidedAt = now;
+            await application.save();
+            await mailer.sendReserve(drive, club, position, application.applicant);
+        } else {
+            application.status = A.NOT_SELECTED;
+            application.decidedAt = now;
+            await application.save();
+            await mailer.sendNotSelected(drive, club, application.applicant, position.title);
         }
-        // Prefer the title of a position the student applied for, else the first with that role.
-        const position =
-            drive.positions.find((item) => item.role === decision.role && application.positions.some((id) => String(id) === String(item._id))) ||
-            drive.positions.find((item) => item.role === decision.role);
-        results.push({ application, selected, positionTitle: position?.title || null });
     }
-
-    drive.status = RECRUITMENT_STATUS.COMPLETED;
-    drive.completedAt = now;
+    position.finalizedAt = now;
     await drive.save();
-    const selectedCount = results.filter((result) => result.selected).length;
-    await audit(AUDIT_ACTIONS.RECRUITMENT_COMPLETED, actor, drive, { selected: selectedCount, notSelected: results.length - selectedCount });
+    await audit(AUDIT_ACTIONS.POSITION_FINALIZED, actor, drive, position, { offers: offers.length, reserve: candidates.filter((item) => byId.get(String(item._id)) === "RESERVE").length });
+    await drives.completeIfDone(drive._id);
+    return getRounds(actor, drive._id, position._id);
+};
 
-    for (const { application, selected, positionTitle } of results) {
-        await mailer.sendFinalDecision(drive, club, application.applicant, { selected, positionTitle });
+/** Offers a freed seat (declined or expired offer) to a candidate on the reserve list. */
+const offerToReserve = async (actor, driveId, positionId, applicationId) => {
+    const drive = await drives.loadDrive(driveId);
+    const { club } = await drives.assertManager(actor, drive);
+    const position = drives.findPosition(drive, positionId);
+    if (drive.status !== RECRUITMENT_STATUS.PUBLISHED || !position.finalizedAt) {
+        throw conflict("Offers to the reserve list come after the final selection");
     }
-    if (club.mentor) {
-        await notify(club.mentor, {
-            type: NOTIFICATION_TYPES.RECRUITMENT_UPDATE,
-            title: `${club.name} finished recruiting`,
-            message: `${selectedCount} new ${selectedCount === 1 ? "member" : "members"} joined through ${drive.title}.`,
-            link: `/recruitment/${drive._id}`
-        });
+    const application = await RecruitmentApplication.findOne({ _id: applicationId, drive: drive._id, position: position._id, status: A.RESERVE }).populate("applicant", "name email");
+    if (!application) {
+        throw conflict("This candidate isn't on the reserve list any more");
     }
+    if (position.openings) {
+        const taken = await RecruitmentApplication.countDocuments({ drive: drive._id, position: position._id, status: { $in: [A.ACCEPTED, A.OFFERED] } });
+        if (taken >= position.openings) {
+            throw conflict(`All ${position.openings} ${position.title} seats are taken or offered`);
+        }
+    }
+    await makeOffer(drive, club, position, application, new Date());
+    await audit(AUDIT_ACTIONS.OFFER_MADE, actor, drive, position, { applicationId, fromReserve: true });
+    return getRounds(actor, drive._id, position._id);
+};
+
+/** President: end recruitment now. Anyone still waiting (rounds, reserve, unanswered offers) is thanked. */
+const closeRecruitment = async (actor, driveId) => {
+    const drive = await drives.loadDrive(driveId);
+    await drives.assertManager(actor, drive);
+    if (drive.status !== RECRUITMENT_STATUS.PUBLISHED || ["UPCOMING", "OPEN"].includes(drives.phaseOf(drive))) {
+        throw conflict("Recruitment can be completed once applications have closed");
+    }
+    await drives.completeIfDone(drive._id, { force: true, actor });
     return drives.getDrive(actor, drive._id);
 };
 
-module.exports = { getRounds, createRound, scheduleRound, updateSlot, setOutcomes, publishRoundResults, finalizeDrive };
+module.exports = { getRounds, createRound, scheduleRound, updateSlot, setOutcomes, publishRoundResults, finalizePosition, offerToReserve, closeRecruitment };

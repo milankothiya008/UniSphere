@@ -3,23 +3,65 @@ import { ExternalLink, FileText, Inbox } from "lucide-react";
 import { recruitmentApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useDebounce } from "../../hooks/useDebounce";
-import { AsyncContent, Avatar, Card, EmptyState, Modal, SearchInput, Select, Skeleton } from "../ui";
+import { Alert, AsyncContent, Avatar, Card, EmptyState, Modal, SearchInput, Select, Skeleton } from "../ui";
+import { APPLICATION_STATUSES } from "../../lib/constants";
 import { ApplicationBadge } from "./RecruitmentParts";
 import { batchLabel, formatDateTime, timeAgo } from "../../lib/format";
 
 const STATUS_FILTERS = [
     { value: "", label: "All applications" },
-    { value: "active", label: "Still in selection" },
-    { value: "SELECTED", label: "Selected" },
+    { value: "active", label: "Still open" },
+    { value: "OFFERED", label: "Offer sent" },
+    { value: "ACCEPTED", label: "Joined" },
+    { value: "RESERVE", label: "Reserve list" },
     { value: "ELIMINATED", label: "Not shortlisted" },
-    { value: "NOT_SELECTED", label: "Not selected" }
+    { value: "NOT_SELECTED", label: "Not selected" },
+    { value: "DECLINED", label: "Declined" },
+    { value: "EXPIRED", label: "Offer expired" }
 ];
+
+const Answer = ({ answer }) => (
+    <div className="recruit-answer">
+        <span className="recruit-answer-q">{answer.label}</span>
+        {answer.type === "FILE" ? (
+            answer.file ? (
+                <a className="recruit-file-chip is-link" href={answer.file.url} target="_blank" rel="noreferrer">
+                    <FileText size={18} /> <span className="grow">{answer.file.name || "Attached file"}</span> <ExternalLink size={14} />
+                </a>
+            ) : (
+                <span className="subtle">No file</span>
+            )
+        ) : answer.type === "LINK" && answer.text ? (
+            <a href={answer.text} target="_blank" rel="noreferrer" className="recruit-answer-link">
+                {answer.text} <ExternalLink size={13} />
+            </a>
+        ) : answer.choices.length ? (
+            <div className="recruit-chips">
+                {answer.choices.map((choice) => (
+                    <span key={choice} className="recruit-chip">
+                        {choice}
+                    </span>
+                ))}
+            </div>
+        ) : (
+            <p className="pre-line" style={{ margin: 0 }}>
+                {answer.text || <span className="subtle">No answer</span>}
+            </p>
+        )}
+    </div>
+);
 
 // One application's answers, for the president and the mentor.
 const ApplicationDetail = ({ driveId, applicationId, onClose }) => {
     const { data, loading } = useApi(() => recruitmentApi.application(driveId, applicationId), [driveId, applicationId]);
     return (
-        <Modal open onClose={onClose} size="lg" title={data?.applicant?.name || "Application"} description={data ? `${data.applicant.email} · applied ${formatDateTime(data.createdAt)}` : undefined}>
+        <Modal
+            open
+            onClose={onClose}
+            size="lg"
+            title={data ? `${data.applicant.name} · ${data.positionTitle}` : "Application"}
+            description={data ? `${data.applicant.email} · applied ${formatDateTime(data.createdAt)}` : undefined}
+        >
             {loading || !data ? (
                 <Skeleton height={240} />
             ) : (
@@ -30,44 +72,22 @@ const ApplicationDetail = ({ driveId, applicationId, onClose }) => {
                             {data.applicant.departmentCode} · Batch {batchLabel(data.applicant.batchCode)}
                         </span>
                     </div>
-                    <div className="recruit-answer">
-                        <span className="recruit-answer-q">Positions (in order of preference)</span>
-                        <ol className="recruit-answer-list">
-                            {data.positionTitles.map((title) => (
-                                <li key={title}>{title}</li>
+                    {data.otherApplications.length > 0 && (
+                        <Alert type="info" title="Also applied for">
+                            {data.otherApplications.map((other) => `${other.positionTitle} (${(APPLICATION_STATUSES[other.status] || [other.status])[0].toLowerCase()})`).join(", ")}. A student can join in only one role.
+                        </Alert>
+                    )}
+                    {data.pages.map((page, index) => (
+                        <section key={page._id} className="recruit-answer-page">
+                            <h3>
+                                <span className="recruit-step-dot">{index + 1}</span> {page.title}
+                            </h3>
+                            {page.answers.map((answer) => (
+                                <Answer key={answer.question} answer={answer} />
                             ))}
-                        </ol>
-                    </div>
-                    {data.answers.map((answer) => (
-                        <div key={answer.question} className="recruit-answer">
-                            <span className="recruit-answer-q">{answer.label}</span>
-                            {answer.type === "FILE" ? (
-                                answer.file ? (
-                                    <a className="recruit-file-chip is-link" href={answer.file.url} target="_blank" rel="noreferrer">
-                                        <FileText size={18} /> <span className="grow">{answer.file.name || "Attached file"}</span> <ExternalLink size={14} />
-                                    </a>
-                                ) : (
-                                    <span className="subtle">No file</span>
-                                )
-                            ) : answer.type === "LINK" && answer.text ? (
-                                <a href={answer.text} target="_blank" rel="noreferrer" className="recruit-answer-link">
-                                    {answer.text} <ExternalLink size={13} />
-                                </a>
-                            ) : answer.choices.length ? (
-                                <div className="recruit-chips">
-                                    {answer.choices.map((choice) => (
-                                        <span key={choice} className="recruit-chip">
-                                            {choice}
-                                        </span>
-                                    ))}
-                                </div>
-                            ) : (
-                                <p className="pre-line" style={{ margin: 0 }}>
-                                    {answer.text || <span className="subtle">No answer</span>}
-                                </p>
-                            )}
-                        </div>
+                        </section>
                     ))}
+                    {!data.pages.length && <p className="subtle">This role's form has no questions.</p>}
                 </div>
             )}
         </Modal>
@@ -75,10 +95,10 @@ const ApplicationDetail = ({ driveId, applicationId, onClose }) => {
 };
 
 /** Applications tab: every applicant, searchable, with their answers one click away. */
-export const ApplicationsPanel = ({ drive }) => {
+export const ApplicationsPanel = ({ drive, initialPosition = "" }) => {
     const [search, setSearch] = useState("");
     const [status, setStatus] = useState("");
-    const [position, setPosition] = useState("");
+    const [position, setPosition] = useState(initialPosition);
     const [open, setOpen] = useState(null);
     const debounced = useDebounce(search.trim(), 300);
     const { data, loading, error, reload } = useApi(
@@ -91,7 +111,7 @@ export const ApplicationsPanel = ({ drive }) => {
             <div className="recruit-filters">
                 <SearchInput value={search} onChange={setSearch} placeholder="Search by name or email" />
                 <Select aria-label="Status" value={status} onChange={(event) => setStatus(event.target.value)} options={STATUS_FILTERS} />
-                <Select aria-label="Position" value={position} onChange={(event) => setPosition(event.target.value)} options={[{ value: "", label: "All positions" }, ...drive.positions.map((item) => ({ value: item._id, label: item.title }))]} />
+                <Select aria-label="Role" value={position} onChange={(event) => setPosition(event.target.value)} options={[{ value: "", label: "All roles" }, ...drive.positions.map((item) => ({ value: item._id, label: item.title }))]} />
             </div>
             <AsyncContent
                 loading={loading && !data}
@@ -111,7 +131,10 @@ export const ApplicationsPanel = ({ drive }) => {
                                         {application.applicant.email} · {application.applicant.departmentCode} · {batchLabel(application.applicant.batchCode)}
                                     </span>
                                 </span>
-                                <span className="recruit-app-positions small">{application.positionTitles.join(", ")}</span>
+                                <span className="recruit-app-positions small">
+                                    {application.positionTitle}
+                                    {application.otherRoles > 0 && <span className="subtle"> · +{application.otherRoles} other {application.otherRoles === 1 ? "role" : "roles"}</span>}
+                                </span>
                                 <ApplicationBadge status={application.status} />
                                 <span className="subtle small recruit-app-when">{timeAgo(application.createdAt)}</span>
                             </button>

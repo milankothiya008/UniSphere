@@ -101,6 +101,24 @@ const clubSchema = new mongoose.Schema(
             ref: "User",
             default: null
         },
+        // The club's roles (see utils/ClubRoles.js). PRESIDENT, VICE_PRESIDENT and MEMBER are built in;
+        // the president adds the rest, each with the authorities it grants.
+        roles: {
+            type: [
+                new mongoose.Schema(
+                    {
+                        key: { type: String, required: true },
+                        name: { type: String, trim: true, required: true, maxlength: 40 },
+                        description: { type: String, trim: true, maxlength: 200, default: "" },
+                        permissions: { type: [String], default: [] },
+                        system: { type: Boolean, default: false },
+                        order: { type: Number, default: 50 }
+                    },
+                    { _id: false }
+                )
+            ],
+            default: undefined
+        },
         status: {
             type: String,
             enum: Object.values(CLUB_STATUS),

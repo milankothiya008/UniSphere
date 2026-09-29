@@ -6,10 +6,10 @@ const AppError = require("../utils/AppError");
 const ERROR_CODES = require("../constants/ErrorCodes");
 const { env } = require("../config/env");
 const { GALLERY_STATUS, MEMBERSHIP_STATUS, REGISTRATION_STATUS, PUBLIC_EVENT_STATUSES, NOTIFICATION_TYPES, AUDIT_ACTIONS } = require("../constants/Statuses");
-const { CLUB_PERMISSIONS, CLUB_ROLE_PERMISSIONS } = require("../constants/Permissions");
+const { CLUB_PERMISSIONS } = require("../constants/Permissions");
 const { parsePagination, paginationMeta, searchRegex } = require("../utils/Query");
 const { getClubContext, contextHas } = require("./AuthorizationService");
-const { clubUsersWithPermission } = require("./MembershipService");
+const { clubUsersWithPermission, clubIdsWithAnyPermission } = require("./MembershipService");
 const { recordAudit } = require("./AuditService");
 const { notify } = require("./NotificationService");
 const media = require("./GalleryMediaService");
@@ -365,9 +365,7 @@ const moderatedClubIds = async (actor) => {
     if (!actor) {
         return [];
     }
-    const roles = Object.keys(CLUB_ROLE_PERMISSIONS).filter((role) => CLUB_ROLE_PERMISSIONS[role].includes(MODERATE));
-    const memberships = await ClubMembership.find({ user: actor._id, status: MEMBERSHIP_STATUS.APPROVED, role: { $in: roles } }).select("club");
-    return memberships.map((membership) => membership.club);
+    return clubIdsWithAnyPermission(actor._id, [MODERATE]);
 };
 
 /**

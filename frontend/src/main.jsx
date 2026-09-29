@@ -17,6 +17,7 @@ import "./styles/teams.css";
 import "./styles/tickets.css";
 import "./styles/gallery.css";
 import "./styles/recruitment.css";
+import "./styles/roles.css";
 
 createRoot(document.getElementById("root")).render(
     <StrictMode>

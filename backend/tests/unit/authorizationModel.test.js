@@ -1,60 +1,38 @@
-const { GLOBAL_ROLES, CLUB_ROLES } = require("../../constants/Roles");
-const { EVENT_STATUS, CLUB_STATUS, EVENT_STATUSES_HOLDING_VENUE } = require("../../constants/Statuses");
-const { CLUB_PERMISSIONS, roleHasPermission } = require("../../constants/Permissions");
+const { CLUB_PERMISSIONS: P } = require("../../constants/Permissions");
+const { DEFAULT_ROLES, GRANTABLE, PRESIDENT_ONLY, permissionsFor, keysWith, roleName, rolesOf, roleRank } = require("../../utils/ClubRoles");
 
-describe("authorization model", () => {
-    test("system roles are STUDENT, FACULTY and ADMIN only", () => {
-        expect(Object.values(GLOBAL_ROLES).sort()).toEqual(["ADMIN", "FACULTY", "STUDENT"]);
-        expect(GLOBAL_ROLES.CLUB_PRESIDENT).toBeUndefined();
+const club = (roles) => ({ roles });
+
+describe("per-club roles", () => {
+    test("the president holds every authority, whatever the club's roles say", () => {
+        const custom = club([{ key: "PRESIDENT", name: "President", permissions: [], system: true }]);
+        Object.values(P).forEach((permission) => expect(permissionsFor(custom, "PRESIDENT")).toContain(permission));
     });
 
-    test("president holds every club permission", () => {
-        Object.values(CLUB_PERMISSIONS).forEach((permission) => {
-            expect(roleHasPermission(CLUB_ROLES.PRESIDENT, permission)).toBe(true);
-        });
+    test("president-only authorities can never come from another role", () => {
+        expect(PRESIDENT_ONLY).toEqual(expect.arrayContaining([P.MANAGE_CLUB, P.ASSIGN_ROLES, P.MANAGE_RECRUITMENT, P.PUBLISH_RESULTS, P.MANAGE_CHECK_IN]));
+        const sneaky = club([...DEFAULT_ROLES(), { key: "R_1", name: "Sneaky", permissions: [P.ASSIGN_ROLES, P.POST_UPDATES], system: false }]);
+        expect(permissionsFor(sneaky, "R_1")).toEqual([P.POST_UPDATES]);
+        PRESIDENT_ONLY.forEach((permission) => expect(GRANTABLE).not.toContain(permission));
     });
 
-    test("event coordinator manages participants but not members or roles", () => {
-        expect(roleHasPermission(CLUB_ROLES.EVENT_COORDINATOR, CLUB_PERMISSIONS.MANAGE_PARTICIPANTS)).toBe(true);
-        expect(roleHasPermission(CLUB_ROLES.EVENT_COORDINATOR, CLUB_PERMISSIONS.MANAGE_MEMBERS)).toBe(false);
-        expect(roleHasPermission(CLUB_ROLES.EVENT_COORDINATOR, CLUB_PERMISSIONS.ASSIGN_ROLES)).toBe(false);
+    test("a club's custom roles grant exactly what the president chose", () => {
+        const roles = club([...DEFAULT_ROLES(), { key: "R_design", name: "Design lead", permissions: [P.POST_UPDATES, P.MODERATE_GALLERY], system: false, order: 6 }]);
+        expect(permissionsFor(roles, "R_design")).toEqual([P.POST_UPDATES, P.MODERATE_GALLERY]);
+        expect(roleName(roles, "R_design")).toBe("Design lead");
+        expect(keysWith(roles, P.MODERATE_GALLERY)).toEqual(expect.arrayContaining(["PRESIDENT", "VICE_PRESIDENT", "R_design"]));
+        expect(keysWith(roles, P.MODERATE_GALLERY)).not.toContain("MEMBER");
+        expect(permissionsFor(roles, "MEMBER")).toEqual([]);
+        expect(permissionsFor(roles, "R_unknown")).toEqual([]);
     });
 
-    test("marketing coordinator can post updates and mark attendance, nothing else", () => {
-        expect(roleHasPermission(CLUB_ROLES.MARKETING_COORDINATOR, CLUB_PERMISSIONS.POST_UPDATES)).toBe(true);
-        expect(roleHasPermission(CLUB_ROLES.MARKETING_COORDINATOR, CLUB_PERMISSIONS.MARK_ATTENDANCE)).toBe(true);
-        expect(roleHasPermission(CLUB_ROLES.MARKETING_COORDINATOR, CLUB_PERMISSIONS.VIEW_PARTICIPANTS)).toBe(false);
-        expect(roleHasPermission(CLUB_ROLES.MARKETING_COORDINATOR, CLUB_PERMISSIONS.MANAGE_CHECK_IN)).toBe(false);
-    });
-
-    test("every officer can mark attendance; only the president opens check-in", () => {
-        const officers = Object.values(CLUB_ROLES).filter((role) => ![CLUB_ROLES.PRESIDENT, CLUB_ROLES.MEMBER].includes(role));
-        officers.forEach((role) => {
-            expect(roleHasPermission(role, CLUB_PERMISSIONS.MARK_ATTENDANCE)).toBe(true);
-            expect(roleHasPermission(role, CLUB_PERMISSIONS.MANAGE_CHECK_IN)).toBe(false);
-        });
-        expect(roleHasPermission(CLUB_ROLES.PRESIDENT, CLUB_PERMISSIONS.MANAGE_CHECK_IN)).toBe(true);
-        expect(roleHasPermission(CLUB_ROLES.MEMBER, CLUB_PERMISSIONS.MARK_ATTENDANCE)).toBe(false);
-    });
-
-    test("plain members have no management permissions", () => {
-        Object.values(CLUB_PERMISSIONS).forEach((permission) => {
-            expect(roleHasPermission(CLUB_ROLES.MEMBER, permission)).toBe(false);
-        });
-    });
-
-    test("only role assignment is president-exclusive among officers", () => {
-        const officers = Object.values(CLUB_ROLES).filter((role) => role !== CLUB_ROLES.PRESIDENT);
-        officers.forEach((role) => expect(roleHasPermission(role, CLUB_PERMISSIONS.ASSIGN_ROLES)).toBe(false));
-    });
-
-    test("event lifecycle includes review, change-request and publication states", () => {
-        expect(EVENT_STATUS.NEEDS_CHANGES).toBe("NEEDS_CHANGES");
-        expect(EVENT_STATUS.APPROVED).not.toBe(EVENT_STATUS.PUBLISHED);
-        expect(EVENT_STATUSES_HOLDING_VENUE).toEqual([EVENT_STATUS.PENDING_APPROVAL, EVENT_STATUS.APPROVED, EVENT_STATUS.PUBLISHED]);
-    });
-
-    test("suspended clubs are distinct from active clubs", () => {
-        expect(CLUB_STATUS.ACTIVE).not.toBe(CLUB_STATUS.SUSPENDED);
+    test("clubs stored before roles were per-club use the default roles, keyed as before", () => {
+        const legacy = { roles: undefined };
+        expect(rolesOf(legacy).map((role) => role.key)).toEqual(["PRESIDENT", "VICE_PRESIDENT", "EVENT_COORDINATOR", "MARKETING_COORDINATOR", "TECHNICAL_COORDINATOR", "TREASURER", "MEMBER"]);
+        expect(permissionsFor(legacy, "EVENT_COORDINATOR")).toEqual(expect.arrayContaining([P.MANAGE_EVENTS, P.MANAGE_PARTICIPANTS, P.MARK_ATTENDANCE]));
+        expect(permissionsFor(legacy, "MARKETING_COORDINATOR")).not.toContain(P.VIEW_PARTICIPANTS);
+        expect(permissionsFor(legacy, "VICE_PRESIDENT")).not.toContain(P.ASSIGN_ROLES);
+        expect(roleRank(legacy, "PRESIDENT")).toBeLessThan(roleRank(legacy, "TREASURER"));
+        expect(roleRank(legacy, "TREASURER")).toBeLessThan(roleRank(legacy, "MEMBER"));
     });
 });

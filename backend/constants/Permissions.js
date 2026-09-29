@@ -1,5 +1,3 @@
-const { CLUB_ROLES } = require("./Roles");
-
 const CLUB_PERMISSIONS = Object.freeze({
     MANAGE_CLUB: "MANAGE_CLUB",
     MANAGE_MEMBERS: "MANAGE_MEMBERS",
@@ -22,40 +20,5 @@ const CLUB_PERMISSIONS = Object.freeze({
     MANAGE_RECRUITMENT: "MANAGE_RECRUITMENT"
 });
 
-const P = CLUB_PERMISSIONS;
-
-const CLUB_ROLE_PERMISSIONS = Object.freeze({
-    [CLUB_ROLES.PRESIDENT]: Object.values(P),
-    [CLUB_ROLES.VICE_PRESIDENT]: [
-        P.MANAGE_MEMBERS,
-        P.MANAGE_EVENTS,
-        P.PUBLISH_EVENTS,
-        P.VIEW_PARTICIPANTS,
-        P.MANAGE_PARTICIPANTS,
-        P.MANAGE_RESULTS,
-        P.POST_UPDATES,
-        P.MARK_ATTENDANCE,
-        P.MODERATE_GALLERY
-    ],
-    [CLUB_ROLES.EVENT_COORDINATOR]: [
-        P.MANAGE_EVENTS,
-        P.VIEW_PARTICIPANTS,
-        P.MANAGE_PARTICIPANTS,
-        P.MANAGE_RESULTS,
-        P.MARK_ATTENDANCE
-    ],
-    [CLUB_ROLES.MARKETING_COORDINATOR]: [P.POST_UPDATES, P.MARK_ATTENDANCE],
-    [CLUB_ROLES.TECHNICAL_COORDINATOR]: [P.MANAGE_EVENTS, P.VIEW_PARTICIPANTS, P.MARK_ATTENDANCE],
-    [CLUB_ROLES.TREASURER]: [P.VIEW_PARTICIPANTS, P.MARK_ATTENDANCE],
-    [CLUB_ROLES.MEMBER]: []
-});
-
-const roleHasPermission = (role, permission) => {
-    return (CLUB_ROLE_PERMISSIONS[role] || []).includes(permission);
-};
-
-module.exports = {
-    CLUB_PERMISSIONS,
-    CLUB_ROLE_PERMISSIONS,
-    roleHasPermission
-};
+// Which roles hold which authorities is decided per club: see utils/ClubRoles.js and Club.roles.
+module.exports = { CLUB_PERMISSIONS };

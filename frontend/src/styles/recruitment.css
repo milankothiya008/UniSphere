@@ -1266,3 +1266,710 @@
         transition: none;
     }
 }
+
+/* ================================================================ Role-wise recruitment */
+
+/* ---------------------------------------------------------------- Builder: roles and pages */
+.recruit-role-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.recruit-role-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px;
+    border-radius: 999px;
+    border: 1px dashed var(--border-strong);
+    background: var(--surface);
+    color: var(--ink-700);
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+        background 0.2s ease,
+        border-color 0.2s ease,
+        transform 0.2s var(--ease-spring);
+}
+
+.recruit-role-option:hover:not(:disabled) {
+    border-style: solid;
+    border-color: var(--ink-500);
+    transform: translateY(-1px);
+}
+
+.recruit-role-option.is-selected {
+    border-style: solid;
+    border-color: var(--ink-700);
+    background: var(--ink-700);
+    color: #fff;
+    opacity: 1;
+    cursor: default;
+}
+
+.recruit-role-option:disabled:not(.is-selected) {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.recruit-role-tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+}
+
+.recruit-role-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 150px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        background 0.2s ease;
+}
+
+.recruit-role-tab:hover {
+    border-color: var(--ink-500);
+}
+
+.recruit-role-tab.is-active {
+    border-color: var(--ink-700);
+    background: var(--ink-50);
+    box-shadow: inset 0 -3px 0 var(--ink-700);
+}
+
+.recruit-role-tab-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.76rem;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.recruit-role-tab-error {
+    display: inline-grid;
+    place-items: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--danger-600);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.recruit-position-editor {
+    animation: rise-in 0.3s var(--ease-out) both;
+}
+
+.recruit-position-settings {
+    display: grid;
+    grid-template-columns: 140px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+}
+
+.recruit-form-toolbar {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+}
+
+.recruit-form-toolbar h3 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.recruit-form-toolbar .select {
+    height: 34px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+.recruit-page-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--surface-muted);
+    animation: rise-in 0.3s var(--ease-out) both;
+}
+
+.recruit-page-edit-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.recruit-page-num {
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--ink-700);
+    color: #fff;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.recruit-step-dot {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--ink-50);
+    color: var(--ink-700);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.recruit-preview-pages {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.recruit-preview-pages > li {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-left: 14px;
+    border-left: 2px solid var(--ink-100);
+}
+
+.recruit-preview-pages.is-compact {
+    margin-top: 12px;
+}
+
+.recruit-preview-page-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-left: -28px;
+}
+
+.recruit-preview-page-head .recruit-step-dot {
+    background: var(--ink-700);
+    color: #fff;
+}
+
+.recruit-preview-page-head p {
+    margin: 2px 0 0;
+}
+
+/* ---------------------------------------------------------------- Drive page: role cards */
+.recruit-role-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+}
+
+.recruit-role-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    animation: rise-in 0.4s var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 60ms);
+    transition:
+        transform 0.2s var(--ease-out),
+        box-shadow 0.2s ease;
+}
+
+.recruit-role-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+}
+
+.recruit-role-card.is-offered {
+    border-color: var(--gold-500);
+    box-shadow: 0 0 0 3px var(--gold-100);
+}
+
+.recruit-role-card.is-accepted {
+    border-color: var(--success-600);
+}
+
+.recruit-role-card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.recruit-role-card-head h3 {
+    margin: 0 0 6px;
+    font-size: 1.05rem;
+}
+
+.recruit-role-card-desc {
+    margin: 0;
+}
+
+.recruit-role-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: auto;
+}
+
+.recruit-role-card-actions .is-flipped {
+    transform: rotate(180deg);
+}
+
+.recruit-role-card-actions svg {
+    transition: transform 0.2s ease;
+}
+
+.recruit-role-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    margin: 0;
+}
+
+.recruit-role-stats div {
+    padding: 8px;
+    border-radius: 10px;
+    background: var(--surface-muted);
+    text-align: center;
+}
+
+.recruit-role-stats dt {
+    font-size: 0.7rem;
+    color: var(--text-subtle);
+}
+
+.recruit-role-stats dd {
+    margin: 2px 0 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.recruit-mine-title {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    line-height: 1.25;
+}
+
+.recruit-mine-title .subtle {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.7rem;
+}
+
+.recruit-mine.is-offered {
+    border-color: var(--gold-500);
+}
+
+.recruit-mine.is-accepted {
+    border-color: var(--success-600);
+}
+
+/* ---------------------------------------------------------------- Offers */
+.recruit-offer {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--ink-800), var(--ink-600));
+    color: #fff;
+    overflow: hidden;
+    animation: recruit-offer-in 0.5s var(--ease-spring) both;
+}
+
+.recruit-offer::after {
+    content: "";
+    position: absolute;
+    inset: -40% -20% auto auto;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(250, 204, 21, 0.35), transparent 65%);
+    pointer-events: none;
+}
+
+.recruit-offer-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.recruit-offer-head > div {
+    display: flex;
+    flex-direction: column;
+}
+
+.recruit-offer-head strong {
+    font-size: 1.08rem;
+}
+
+.recruit-offer-head span {
+    color: #d7defa;
+    font-size: 0.9rem;
+}
+
+.recruit-offer-icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: var(--gold-500);
+    color: var(--ink-900);
+    animation: recruit-pop 0.5s 0.2s var(--ease-spring) both;
+}
+
+.recruit-offer-clock {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    font-size: 0.86rem;
+}
+
+.recruit-offer-clock.is-urgent {
+    background: rgba(250, 204, 21, 0.22);
+    color: #fef3c7;
+}
+
+.recruit-offer-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 0;
+    color: #d7defa;
+}
+
+.recruit-offer-note svg {
+    flex: none;
+    margin-top: 2px;
+}
+
+.recruit-offer-actions {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.recruit-offer-actions .btn-ghost {
+    color: #fff;
+}
+
+.recruit-offer-actions .btn-ghost:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* ---------------------------------------------------------------- Final selection and offers (club side) */
+.recruit-final-tally {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.recruit-final-tally span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 11px;
+    border-radius: 999px;
+    background: var(--surface-muted);
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.recruit-final-tally span.is-over {
+    background: var(--warning-100);
+    color: var(--warning-600);
+}
+
+.recruit-candidate.is-reserve {
+    border-color: var(--warning-600);
+    background: var(--warning-100);
+}
+
+.recruit-outcome button.is-on.is-maybe {
+    background: var(--warning-600);
+    color: #fff;
+}
+
+.recruit-final-footer {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.recruit-final-footer .field {
+    width: 190px;
+    margin: 0;
+}
+
+.recruit-seats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.recruit-seats div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px;
+    border-radius: 12px;
+    background: var(--surface-muted);
+}
+
+.recruit-seats strong {
+    font-size: 1.5rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.recruit-seats span {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.recruit-answer-page {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.recruit-answer-page h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0 0;
+    font-size: 0.98rem;
+}
+
+/* ---------------------------------------------------------------- Apply wizard */
+.recruit-wizard {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 760px;
+}
+
+.recruit-wizard-progress {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--ink-50);
+    overflow: hidden;
+}
+
+.recruit-wizard-progress span {
+    display: block;
+    height: 100%;
+    width: calc(var(--p, 0) * 100%);
+    min-width: 6px;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--ink-600), var(--gold-500));
+    transition: width 0.45s var(--ease-out);
+}
+
+.recruit-wizard-steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.recruit-wizard-steps li {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.recruit-wizard-steps button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 10px;
+    background: none;
+    color: var(--text-subtle);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: default;
+}
+
+.recruit-wizard-steps li.is-done button {
+    color: var(--ink-700);
+    cursor: pointer;
+}
+
+.recruit-wizard-steps li.is-done button:hover {
+    background: var(--ink-50);
+}
+
+.recruit-wizard-steps li.is-done .recruit-step-dot {
+    background: var(--success-600);
+    color: #fff;
+}
+
+.recruit-wizard-steps li.is-current button {
+    color: var(--text);
+}
+
+.recruit-wizard-steps li.is-current .recruit-step-dot {
+    background: var(--ink-700);
+    color: #fff;
+    box-shadow: 0 0 0 4px var(--ink-100);
+}
+
+.recruit-step-label {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.recruit-wizard-count {
+    display: none;
+    margin: -6px 0 0;
+}
+
+.recruit-wizard-page {
+    animation: recruit-step-in 0.35s var(--ease-out) both;
+}
+
+.recruit-wizard-nav {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 0;
+    background: linear-gradient(to top, var(--bg) 70%, transparent);
+}
+
+.recruit-review-answer {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.recruit-review-answer:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+@keyframes recruit-step-in {
+    from {
+        opacity: 0;
+        transform: translateX(14px);
+    }
+}
+
+@keyframes recruit-offer-in {
+    from {
+        opacity: 0;
+        transform: scale(0.96) translateY(6px);
+    }
+}
+
+@media (max-width: 720px) {
+    .recruit-position-settings,
+    .recruit-seats {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .recruit-role-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .recruit-wizard-steps li:not(.is-current) .recruit-step-label {
+        display: none;
+    }
+
+    .recruit-wizard-steps li {
+        flex: 0 0 auto;
+    }
+
+    .recruit-wizard-steps li.is-current {
+        flex: 1 1 auto;
+    }
+
+    .recruit-wizard-count {
+        display: block;
+    }
+
+    .recruit-wizard-nav .btn {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .recruit-final-footer .field,
+    .recruit-final-footer .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .recruit-outcome {
+        flex-wrap: wrap;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .recruit-position-editor,
+    .recruit-page-edit,
+    .recruit-role-card,
+    .recruit-offer,
+    .recruit-offer-icon,
+    .recruit-wizard-page,
+    .recruit-wizard-progress span {
+        animation: none !important;
+        transition: none;
+    }
+}

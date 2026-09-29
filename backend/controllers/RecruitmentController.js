@@ -6,7 +6,8 @@ const { sendSuccess } = require("../utils/ApiResponse");
 
 const ok = (message, work, status = 200) =>
     asyncHandler(async (req, res) => {
-        sendSuccess(res, status, message, await work(req));
+        const data = await work(req);
+        sendSuccess(res, status, typeof message === "function" ? message(data, req) : message, data);
     });
 
 module.exports = {
@@ -29,27 +30,32 @@ module.exports = {
     extend: ok("Deadline updated", (req) => drives.extendDeadline(req.user, req.params.id, req.body.applicationEnd)),
     close: ok("Applications closed", (req) => drives.closeApplications(req.user, req.params.id)),
     cancel: ok("Recruitment cancelled", (req) => drives.cancelDrive(req.user, req.params.id, req.body.reason)),
+    complete: ok("Recruitment completed — everyone still waiting has been told", (req) => rounds.closeRecruitment(req.user, req.params.id)),
 
-    // Applications
+    // Applying (one application per role)
     mine: ok("Your applications fetched", (req) => applications.myApplications(req.user)),
-    myApplication: ok("Your application fetched", (req) => applications.getMyApplication(req.user, req.params.id)),
-    apply: ok("Application submitted", (req) => applications.apply(req.user, req.params.id, req.body), 201),
-    updateApplication: ok("Application updated", (req) => applications.updateMyApplication(req.user, req.params.id, req.body)),
+    myApplications: ok("Your applications fetched", (req) => applications.getMyApplications(req.user, req.params.id)),
+    myApplication: ok("Your application fetched", (req) => applications.getMyApplication(req.user, req.params.id, req.params.positionId)),
+    apply: ok("Application submitted", (req) => applications.apply(req.user, req.params.id, req.params.positionId, req.body), 201),
+    updateApplication: ok("Application updated", (req) => applications.updateMyApplication(req.user, req.params.id, req.params.positionId, req.body)),
     withdraw: ok("Application withdrawn", async (req) => {
-        await applications.withdraw(req.user, req.params.id);
+        await applications.withdraw(req.user, req.params.id, req.params.positionId);
         return null;
     }),
+    accept: ok("Offer accepted — welcome to the club!", (req) => applications.respondToOffer(req.user, req.params.id, req.params.applicationId, true)),
+    decline: ok("Offer declined", (req) => applications.respondToOffer(req.user, req.params.id, req.params.applicationId, false)),
     uploadTickets: ok("Uploads ready", (req) => applications.createUploadTickets(req.user, req.params.id, req.body.kinds), 201),
     uploadLocal: ok("File uploaded", (req) => applications.uploadLocalFile(req.user, req.params.id, req.file), 201),
     listApplications: ok("Applications fetched", (req) => applications.listApplications(req.user, req.params.id, req.query)),
     getApplication: ok("Application fetched", (req) => applications.getApplication(req.user, req.params.id, req.params.applicationId)),
 
-    // Rounds
-    rounds: ok("Rounds fetched", (req) => rounds.getRounds(req.user, req.params.id)),
-    createRound: ok("Round added", (req) => rounds.createRound(req.user, req.params.id, req.body), 201),
-    scheduleRound: ok("Round scheduled — candidates are being invited", (req) => rounds.scheduleRound(req.user, req.params.id, req.params.roundId, req.body)),
-    updateSlot: ok("Slot moved — the candidate has been told", (req) => rounds.updateSlot(req.user, req.params.id, req.params.roundId, req.params.applicationId, req.body)),
-    setOutcomes: ok("Results saved", (req) => rounds.setOutcomes(req.user, req.params.id, req.params.roundId, req.body.decisions)),
-    publishRound: ok("Results published — every candidate is being emailed", (req) => rounds.publishRoundResults(req.user, req.params.id, req.params.roundId)),
-    finalize: ok("Recruitment complete — welcome emails are on their way", (req) => rounds.finalizeDrive(req.user, req.params.id, req.body.decisions))
+    // Selection per role
+    rounds: ok("Selection fetched", (req) => rounds.getRounds(req.user, req.params.id, req.params.positionId)),
+    createRound: ok("Round added", (req) => rounds.createRound(req.user, req.params.id, req.params.positionId, req.body), 201),
+    scheduleRound: ok("Round scheduled — candidates are being invited", (req) => rounds.scheduleRound(req.user, req.params.id, req.params.positionId, req.params.roundId, req.body)),
+    updateSlot: ok("Slot moved — the candidate has been told", (req) => rounds.updateSlot(req.user, req.params.id, req.params.positionId, req.params.roundId, req.params.applicationId, req.body)),
+    setOutcomes: ok("Results saved", (req) => rounds.setOutcomes(req.user, req.params.id, req.params.positionId, req.params.roundId, req.body.decisions)),
+    publishRound: ok("Results published — every candidate is being emailed", (req) => rounds.publishRoundResults(req.user, req.params.id, req.params.positionId, req.params.roundId)),
+    finalize: ok("Final selection sent — offers are on their way", (req) => rounds.finalizePosition(req.user, req.params.id, req.params.positionId, req.body)),
+    offerToReserve: ok("Offer sent", (req) => rounds.offerToReserve(req.user, req.params.id, req.params.positionId, req.params.applicationId))
 };

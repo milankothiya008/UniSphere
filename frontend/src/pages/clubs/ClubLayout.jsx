@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Outlet, useParams } from "react-router-dom";
-import { CalendarDays, GraduationCap, Info, Lock, LogOut, Megaphone, Settings, UserPlus, Users, Crown, Clock } from "lucide-react";
+import { CalendarDays, GraduationCap, Info, Lock, LogOut, Megaphone, Settings, UserPlus, Users, Crown, Clock, Gift } from "lucide-react";
 import { clubApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useAuth } from "../../context/AuthContext";
@@ -61,7 +61,7 @@ const ClubLayout = () => {
                                     <Badge>{humanize(club.category)}</Badge>
                                     <Badge>{departmentsLabel(club)}</Badge>
                                     {club.status !== "ACTIVE" && <StatusBadge status={club.status} />}
-                                    {viewer.role && <RoleBadge role={viewer.role} />}
+                                    {viewer.role && <RoleBadge role={viewer.role} label={viewer.roleName} />}
                                 </div>
                                 <h1>{club.name}</h1>
                                 {club.tagline && <p className="hero-tagline">{club.tagline}</p>}
@@ -90,9 +90,16 @@ const ClubLayout = () => {
                                         <span className="hero-note">
                                             <Lock size={14} /> Only for {departmentsLabel(club)} students
                                         </span>
-                                    ) : viewer.application ? (
+                                    ) : viewer.applications?.some((application) => application.status === "OFFERED") ? (
+                                        <ButtonLink to={`/recruitment/${club.recruiting._id}?offer=1`} variant="accent">
+                                            <Gift size={16} /> You have an offer — respond
+                                        </ButtonLink>
+                                    ) : viewer.applications?.length ? (
                                         <ButtonLink to={`/recruitment/${club.recruiting._id}`} variant="secondary">
-                                            <Clock size={16} /> Application: {APPLICATION_STATUSES[viewer.application.status]?.[0] || "Submitted"}
+                                            <Clock size={16} />{" "}
+                                            {viewer.applications.length === 1
+                                                ? `Application: ${APPLICATION_STATUSES[viewer.applications[0].status]?.[0] || "Submitted"}`
+                                                : `Applied for ${viewer.applications.length} roles`}
                                         </ButtonLink>
                                     ) : club.recruiting?.open ? (
                                         <ButtonLink to={`/recruitment/${club.recruiting._id}`} variant="accent">
@@ -141,7 +148,7 @@ const ClubLayout = () => {
                         onClose={() => setLeaving(false)}
                         onConfirm={leave}
                         title={`Leave ${club.name}?`}
-                        description="You'll lose access to member-only posts and any club role you hold."
+                        description={`You'll lose access to member-only posts${viewer.roleName && viewer.role !== "MEMBER" ? ` and your role as ${viewer.roleName}` : ""}.`}
                         confirmLabel="Leave club"
                         variant="danger"
                     />

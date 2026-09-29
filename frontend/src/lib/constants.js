@@ -10,28 +10,6 @@ export const ROLE_LABELS = {
     ADMIN: "University Admin"
 };
 
-export const CLUB_ROLES = [
-    "PRESIDENT",
-    "VICE_PRESIDENT",
-    "EVENT_COORDINATOR",
-    "MARKETING_COORDINATOR",
-    "TECHNICAL_COORDINATOR",
-    "TREASURER",
-    "MEMBER"
-];
-
-export const ASSIGNABLE_CLUB_ROLES = CLUB_ROLES.filter((role) => role !== "PRESIDENT");
-
-export const CLUB_ROLE_DESCRIPTIONS = {
-    PRESIDENT: "Full club management, publishes results",
-    VICE_PRESIDENT: "Members, events, publishing, participants, result drafts, posts",
-    EVENT_COORDINATOR: "Events, participants and result drafts",
-    MARKETING_COORDINATOR: "Club announcements and updates",
-    TECHNICAL_COORDINATOR: "Event drafts and participant lists",
-    TREASURER: "View participant lists",
-    MEMBER: "Basic club access"
-};
-
 export const PERMISSIONS = {
     MANAGE_CLUB: "MANAGE_CLUB",
     MANAGE_MEMBERS: "MANAGE_MEMBERS",
@@ -48,6 +26,52 @@ export const PERMISSIONS = {
     MANAGE_RECRUITMENT: "MANAGE_RECRUITMENT",
     POST_UPDATES: "POST_UPDATES"
 };
+
+// What each club authority allows, grouped for the roles editor. President-only authorities can't be
+// given to other roles.
+export const PERMISSION_GROUPS = [
+    {
+        title: "Events",
+        items: [
+            ["MANAGE_EVENTS", "Create and edit events", "Draft events and send them for approval"],
+            ["PUBLISH_EVENTS", "Publish events", "Publish approved events and open registration"]
+        ]
+    },
+    {
+        title: "Participants & results",
+        items: [
+            ["VIEW_PARTICIPANTS", "See participants", "Registration lists and exports"],
+            ["MANAGE_PARTICIPANTS", "Manage participants", "Approve, remove and move people off the waitlist"],
+            ["MANAGE_RESULTS", "Prepare results", "Draft rounds and results"],
+            ["PUBLISH_RESULTS", "Publish results", "Make results public", true]
+        ]
+    },
+    {
+        title: "Check-in",
+        items: [
+            ["MANAGE_CHECK_IN", "Run check-in", "Open and close check-in for an event", true],
+            ["MARK_ATTENDANCE", "Scan tickets", "Scan QR tickets at the door"]
+        ]
+    },
+    {
+        title: "Members & club",
+        items: [
+            ["MANAGE_MEMBERS", "Manage members", "Add and remove members"],
+            ["ASSIGN_ROLES", "Roles & appointments", "Create roles and appoint members", true],
+            ["MANAGE_RECRUITMENT", "Run recruitment", "Recruitment drives and selection", true],
+            ["MANAGE_CLUB", "Club settings", "Edit the club profile", true]
+        ]
+    },
+    {
+        title: "Communication",
+        items: [
+            ["POST_UPDATES", "Post updates", "Announcements and stories"],
+            ["MODERATE_GALLERY", "Approve gallery uploads", "Review photos and videos from events"]
+        ]
+    }
+];
+
+export const PERMISSION_LABELS = Object.fromEntries(PERMISSION_GROUPS.flatMap((group) => group.items.map(([key, label]) => [key, label])));
 
 export const CLUB_CATEGORIES = [
     "TECHNOLOGY",
@@ -122,8 +146,12 @@ export const RECRUITMENT_PHASES = {
 export const APPLICATION_STATUSES = {
     APPLIED: ["Applied", "info"],
     IN_ROUNDS: ["In selection", "violet"],
-    SELECTED: ["Selected", "success"],
     ELIMINATED: ["Not shortlisted", "neutral"],
+    OFFERED: ["Offer received", "success"],
+    RESERVE: ["Reserve list", "warning"],
+    ACCEPTED: ["Joined", "success"],
+    DECLINED: ["Offer declined", "neutral"],
+    EXPIRED: ["Offer expired", "neutral"],
     NOT_SELECTED: ["Not selected", "neutral"],
     WITHDRAWN: ["Withdrawn", "neutral"]
 };

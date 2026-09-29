@@ -51,8 +51,9 @@ const recruitmentApplicationSchema = new mongoose.Schema(
         drive: { type: mongoose.Schema.Types.ObjectId, ref: "RecruitmentDrive", required: true },
         club: { type: mongoose.Schema.Types.ObjectId, ref: "Club", required: true },
         applicant: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-        // Position ids from the drive, in order of preference.
-        positions: { type: [mongoose.Schema.Types.ObjectId], default: [] },
+        // The role (drive position) this application is for. A student may apply to several roles, each
+        // with its own application.
+        position: { type: mongoose.Schema.Types.ObjectId, required: true },
         answers: { type: [answerSchema], default: [] },
         status: { type: String, enum: Object.values(APPLICATION_STATUS), default: APPLICATION_STATUS.APPLIED },
         // Published results, one per round the candidate took part in.
@@ -70,15 +71,21 @@ const recruitmentApplicationSchema = new mongoose.Schema(
             type: [new mongoose.Schema({ round: mongoose.Schema.Types.ObjectId, kind: String, at: Date }, { _id: false })],
             default: []
         },
-        finalRole: { type: String, default: null },
+        // Offer to join in this role: accept by offerExpiresAt.
+        offeredAt: { type: Date, default: null },
+        offerExpiresAt: { type: Date, default: null },
+        respondedAt: { type: Date, default: null },
         decidedAt: { type: Date, default: null },
-        withdrawnAt: { type: Date, default: null }
+        withdrawnAt: { type: Date, default: null },
+        // Why the application ended without the student acting (e.g. they accepted another role).
+        closedReason: { type: String, trim: true, maxlength: 200, default: null }
     },
     { timestamps: true }
 );
 
-recruitmentApplicationSchema.index({ drive: 1, applicant: 1 }, { unique: true });
-recruitmentApplicationSchema.index({ drive: 1, status: 1, createdAt: 1 });
+recruitmentApplicationSchema.index({ drive: 1, applicant: 1, position: 1 }, { unique: true });
+recruitmentApplicationSchema.index({ drive: 1, position: 1, status: 1, createdAt: 1 });
+recruitmentApplicationSchema.index({ status: 1, offerExpiresAt: 1 });
 recruitmentApplicationSchema.index({ applicant: 1, createdAt: -1 });
 recruitmentApplicationSchema.index({ "slots.startAt": 1 });
 

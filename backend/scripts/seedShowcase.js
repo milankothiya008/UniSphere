@@ -32,6 +32,7 @@ const RecruitmentApplication = require("../models/RecruitmentApplication");
 const recruitment = require("../services/RecruitmentService");
 const recruitmentApps = require("../services/ApplicationService");
 const recruitmentRounds = require("../services/RecruitmentRoundService");
+const clubRoles = require("../services/ClubRoleService");
 const galleryMedia = require("../services/GalleryMediaService");
 const FeedPost = require("../models/FeedPost");
 const EventResult = require("../models/EventResult");
@@ -285,34 +286,54 @@ const publishedEvent = async ({ club, actor, mentor, ...fields }) => {
 
 // ---------------------------------------------------------------- Recruitment helpers
 
-const RECRUITMENT_QUESTIONS = [
-    { type: "PARAGRAPH", label: "Why do you want to join the club?", required: true },
-    { type: "SINGLE_CHOICE", label: "How much time can you give each week?", options: ["2–4 hours", "4–6 hours", "6+ hours"], required: true },
-    { type: "MULTI_CHOICE", label: "What would you like to work on?", options: ["Events", "Design", "Content", "Tech"], required: true },
-    { type: "LINK", label: "Portfolio, GitHub or LinkedIn (optional)" },
-    { type: "FILE", label: "Resume (PDF, optional)" }
-];
+// Every role gets its own page-wise form: a common "About you" page, then a page about the role.
+const aboutYou = {
+    title: "About you",
+    description: "Tell us a little about yourself.",
+    questions: [
+        { type: "PARAGRAPH", label: "Why do you want this role?", required: true },
+        { type: "SINGLE_CHOICE", label: "How much time can you give each week?", options: ["2–4 hours", "4–6 hours", "6+ hours"], required: true }
+    ]
+};
+const roleForm = (title, questions) => ({ pages: [aboutYou, { title, questions: [...questions, { type: "FILE", label: "Resume (PDF, optional)" }] }] });
+const FORMS = {
+    tech: roleForm("Your skills", [
+        { type: "MULTI_CHOICE", label: "Which areas are you comfortable with?", options: ["Web", "Android / Flutter", "Cloud", "ML"], required: true },
+        { type: "LINK", label: "GitHub profile", required: true }
+    ]),
+    design: roleForm("Your work", [
+        { type: "MULTI_CHOICE", label: "What do you design?", options: ["Posters", "Reels", "UI", "Photography"], required: true },
+        { type: "LINK", label: "Portfolio (Behance, Instagram or Drive)" }
+    ]),
+    events: roleForm("Running events", [
+        { type: "PARAGRAPH", label: "Tell us about an event you helped organise", required: true },
+        { type: "LINK", label: "LinkedIn (optional)" }
+    ]),
+    member: { pages: [aboutYou] }
+};
 
-const answersFor = (drive, { why, link }) =>
-    drive.questions.map((question) => {
-        if (question.type === "PARAGRAPH" || question.type === "SHORT") {
-            return { question: question._id, text: why };
-        }
-        if (question.type === "SINGLE_CHOICE") {
-            return { question: question._id, choices: [question.options[1] || question.options[0]] };
-        }
-        if (question.type === "MULTI_CHOICE") {
-            return { question: question._id, choices: question.options.slice(0, 2) };
-        }
-        if (question.type === "LINK") {
-            return { question: question._id, text: link || "" };
-        }
-        return { question: question._id };
-    });
+const answersFor = (position, { why, link }) =>
+    position.form.pages
+        .flatMap((page) => page.questions)
+        .map((question) => {
+            if (question.type === "PARAGRAPH" || question.type === "SHORT") {
+                return { question: question._id, text: why };
+            }
+            if (question.type === "SINGLE_CHOICE") {
+                return { question: question._id, choices: [question.options[1] || question.options[0]] };
+            }
+            if (question.type === "MULTI_CHOICE") {
+                return { question: question._id, choices: question.options.slice(0, 2) };
+            }
+            if (question.type === "LINK") {
+                return { question: question._id, text: link || "" };
+            }
+            return { question: question._id };
+        });
 
 // Builds a drive through the real flow: president drafts → mentor approves → president publishes.
 const recruitmentDrive = async ({ club, president, mentor, stage = "PUBLISHED", ...fields }) => {
-    const drive = await recruitment.createDrive(president, club._id, { questions: RECRUITMENT_QUESTIONS, ...fields });
+    const drive = await recruitment.createDrive(president, club._id, fields);
     await recruitment.submitDrive(president, drive._id);
     if (stage === "PENDING_APPROVAL") {
         return drive;
@@ -322,25 +343,43 @@ const recruitmentDrive = async ({ club, president, mentor, stage = "PUBLISHED", 
     return RecruitmentDrive.findById(drive._id);
 };
 
-const applyTo = async (drive, student, positionIndex, why, link) => {
+const positionFor = (drive, role) => drive.positions.find((position) => position.role === role);
+
+const applyTo = async (drive, student, role, why, link) => {
+    const position = positionFor(drive, role);
     try {
-        await recruitmentApps.apply(student, drive._id, { positions: [drive.positions[positionIndex]._id], answers: answersFor(drive, { why, link }) });
+        await recruitmentApps.apply(student, drive._id, position._id, { answers: answersFor(position, { why, link }) });
     } catch (error) {
         logger.warn("Showcase application skipped", { student: student.name, message: error.message });
     }
 };
 
-const outcomes = (president, drive, round, decisions) =>
-    RecruitmentApplication.find({ drive: drive._id, status: { $in: ["APPLIED", "IN_ROUNDS"] } })
-        .populate("applicant", "name")
-        .then((applications) =>
-            recruitmentRounds.setOutcomes(
-                president,
-                drive._id,
-                round._id,
-                applications.map((application) => ({ applicationId: application._id, outcome: decisions[application.applicant.name] || "QUALIFIED" }))
-            )
-        );
+const applicationsFor = (drive, role) =>
+    RecruitmentApplication.find({ drive: drive._id, position: positionFor(drive, role)._id, status: { $in: ["APPLIED", "IN_ROUNDS"] } }).populate("applicant", "name");
+
+const outcomes = async (president, drive, role, round, decisions) =>
+    recruitmentRounds.setOutcomes(
+        president,
+        drive._id,
+        positionFor(drive, role)._id,
+        round._id,
+        (await applicationsFor(drive, role)).map((application) => ({ applicationId: application._id, outcome: decisions[application.applicant.name] || "QUALIFIED" }))
+    );
+
+// Screening → publish results for one role.
+const screen = async (president, drive, role, name = "Application screening") => {
+    const positionId = positionFor(drive, role)._id;
+    const state = await recruitmentRounds.createRound(president, drive._id, positionId, { name, mode: "SCREENING" });
+    const round = state.rounds[state.rounds.length - 1];
+    await outcomes(president, drive, role, round, {});
+    await recruitmentRounds.publishRoundResults(president, drive._id, positionId, round._id);
+};
+
+// Final selection for one role: { "Student name": "OFFER" | "RESERVE" | "NOT_SELECTED" }.
+const finalize = async (president, drive, role, decisions) =>
+    recruitmentRounds.finalizePosition(president, drive._id, positionFor(drive, role)._id, {
+        decisions: (await applicationsFor(drive, role)).map((application) => ({ applicationId: application._id, decision: decisions[application.applicant.name] || "NOT_SELECTED" }))
+    });
 
 const register = (student, event, body) => registrations.registerForEvent(student, event._id, body);
 
@@ -421,8 +460,9 @@ const cloudinaryMedia = (uploaded, kind) => ({
 
 // ---------------------------------------------------------------- Recruitment drives
 
-// GDG: applications open now. CSI: applications closed, screening done, offline interviews tomorrow (slots).
-// ShutterBug: next drive waiting for the faculty mentor's approval.
+// GDG: applications open now for two roles, each with its own two-page form (Sneha applied to both).
+// CSI: applications closed; the Technical coordinator role has interviews tomorrow (slots) and the
+// Event coordinator role has an offer waiting for Diya. ShutterBug: next drive waiting for approval.
 const loadRecruitment = async (cast) => {
     const { aarav, diya, kabir, sneha, mehta, shah, desai } = cast;
     const [csi, gdg, shutter] = await Promise.all(["CSI DDU Student Chapter", "GDG on Campus DDU", "ShutterBug"].map((name) => Club.findOne({ name })));
@@ -436,43 +476,55 @@ const loadRecruitment = async (cast) => {
         description:
             "We're building the team that runs Study Jams, I/O Extended and DevFest on campus. No experience needed — curiosity and consistency matter most. Selected students join the core team from next month.",
         positions: [
-            { role: "TECHNICAL_COORDINATOR", title: "Tech lead", openings: 2, description: "Mentor study jams and build demos." },
-            { role: "MARKETING_COORDINATOR", title: "Design & social", openings: 2, description: "Posters, reels and our Instagram." },
-            { role: "MEMBER", title: "Core member", description: "Help run events end to end." }
+            { role: "TECHNICAL_COORDINATOR", openings: 2, description: "Mentor study jams and build demos.", form: FORMS.tech },
+            { role: "MARKETING_COORDINATOR", openings: 2, description: "Posters, reels and our Instagram.", form: FORMS.design },
+            { role: "MEMBER", description: "Help run events end to end.", form: FORMS.member }
         ],
         applicationStart: new Date(Date.now() - 2 * 86400000).toISOString(),
         applicationEnd: new Date(Date.now() + 5 * 86400000).toISOString()
     });
-    await applyTo(gdgDrive, sneha, 0, "I've built two Flutter apps and want to help others start.", "https://github.com/sneha-builds");
-    await applyTo(gdgDrive, kabir, 1, "I design posters for ShutterBug and would love to do the same for GDG.", "https://behance.net/kabir");
+    await applyTo(gdgDrive, sneha, "TECHNICAL_COORDINATOR", "I've built two Flutter apps and want to help others start.", "https://github.com/sneha-builds");
+    await applyTo(gdgDrive, sneha, "MARKETING_COORDINATOR", "I make the posters for my hostel's fest every year.", "https://behance.net/sneha-builds");
+    await applyTo(gdgDrive, kabir, "MARKETING_COORDINATOR", "I design posters for ShutterBug and would love to do the same for GDG.", "https://behance.net/kabir");
 
+    // CSI runs its own "Design lead" role alongside the starter roles.
+    await clubRoles.createRole(aarav, csi._id, {
+        name: "Design lead",
+        description: "Owns CSI's posters, social media and event branding.",
+        permissions: ["POST_UPDATES", "MODERATE_GALLERY"]
+    });
+    const designLead = (await Club.findById(csi._id)).roles.find((role) => role.name === "Design lead").key;
     const csiDrive = await recruitmentDrive({
         club: csi,
         president: aarav,
         mentor: mehta,
         title: "CSI executive team recruitment",
-        description: "CSI is looking for coordinators to run HackNight, CodeSprint and our workshop series. Two rounds: application screening and a short interview with the core team.",
+        description:
+            "CSI is looking for coordinators to run HackNight, CodeSprint and our workshop series. Each role has its own form and selection: application screening, then a short interview with the core team.",
         positions: [
-            { role: "EVENT_COORDINATOR", title: "Event coordinator", openings: 2 },
-            { role: "TECHNICAL_COORDINATOR", title: "Technical coordinator", openings: 1 },
-            { role: "MEMBER", title: "Executive member" }
+            { role: "EVENT_COORDINATOR", openings: 2, form: FORMS.events },
+            { role: "TECHNICAL_COORDINATOR", openings: 1, form: FORMS.tech },
+            { role: designLead, openings: 1, form: FORMS.design }
         ],
         applicationStart: new Date(Date.now() - 6 * 86400000).toISOString(),
         applicationEnd: new Date(Date.now() + 1 * 86400000).toISOString()
     });
-    await applyTo(csiDrive, sneha, 1, "Competitive programmer, 400+ problems solved. I'd love to set problems for CodeSprint.", "https://codeforces.com/profile/sneha");
-    await applyTo(csiDrive, diya, 0, "I've organised two GDG events and want to bring that experience to CSI.", "https://linkedin.com/in/diya");
+    await applyTo(csiDrive, sneha, "TECHNICAL_COORDINATOR", "Competitive programmer, 400+ problems solved. I'd love to set problems for CodeSprint.", "https://github.com/sneha-builds");
+    await applyTo(csiDrive, diya, "EVENT_COORDINATOR", "I've organised two GDG events and want to bring that experience to CSI.", "https://linkedin.com/in/diya");
     await recruitment.closeApplications(aarav, csiDrive._id);
-    let state = await recruitmentRounds.createRound(aarav, csiDrive._id, { name: "Application screening", mode: "SCREENING" });
-    await outcomes(aarav, csiDrive, state.rounds[0], {});
-    await recruitmentRounds.publishRoundResults(aarav, csiDrive._id, state.rounds[0]._id);
-    state = await recruitmentRounds.createRound(aarav, csiDrive._id, { name: "Core team interview", mode: "OFFLINE" });
+
+    await screen(aarav, csiDrive, "EVENT_COORDINATOR");
+    await finalize(aarav, csiDrive, "EVENT_COORDINATOR", { "Diya Sharma": "OFFER" });
+
+    await screen(aarav, csiDrive, "TECHNICAL_COORDINATOR");
+    const tech = positionFor(csiDrive, "TECHNICAL_COORDINATOR");
+    const state = await recruitmentRounds.createRound(aarav, csiDrive._id, tech._id, { name: "Core team interview", mode: "OFFLINE" });
     const interview = state.rounds[1];
     // Tomorrow 16:00 campus time, 20-minute slots; the next day if the hall is taken.
     for (const days of [1, 2, 3]) {
         const day = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
         try {
-            await recruitmentRounds.scheduleRound(aarav, csiDrive._id, interview._id, {
+            await recruitmentRounds.scheduleRound(aarav, csiDrive._id, tech._id, interview._id, {
                 timing: "SLOTS",
                 startAt: `${day}T16:00:00+05:30`,
                 slotMinutes: 20,
@@ -492,7 +544,7 @@ const loadRecruitment = async (cast) => {
         stage: "PENDING_APPROVAL",
         title: "Exhibition volunteers",
         description: "Help us curate and run the annual photo exhibition in the library foyer.",
-        positions: [{ role: "MEMBER", title: "Exhibition volunteer", openings: 6 }],
+        positions: [{ role: "MEMBER", openings: 6, description: "Set up frames, guide visitors and run the entry desk.", form: FORMS.member }],
         applicationEnd: new Date(Date.now() + 10 * 86400000).toISOString()
     });
 };
@@ -836,25 +888,22 @@ const loadShowcase = async () => {
     await memberships.changeMemberRole(diya, gdg._id, rohan._id, "TECHNICAL_COORDINATOR");
     await memberships.addMember(diya, gdg._id, aarav._id);
     await memberships.changeMemberRole(kabir, shutter._id, rohan._id, "MARKETING_COORDINATOR");
-    // Diya joined ShutterBug through its last recruitment drive (applied → selected as a member).
+    // Diya joined ShutterBug through its last recruitment drive (applied → offered → accepted).
     const crew = await recruitmentDrive({
         club: shutter,
         president: kabir,
         mentor: desai,
         title: "ShutterBug crew 2026",
         description: "Join the crew that runs our photo walks, editing workshops and the annual exhibition.",
-        positions: [{ role: "MEMBER", title: "Crew member", openings: 10 }],
+        positions: [{ role: "MEMBER", openings: 10, description: "Photo walks, editing workshops and the exhibition.", form: FORMS.member }],
         applicationEnd: new Date(Date.now() + 2 * 86400000).toISOString()
     });
-    await applyTo(crew, diya, 0, "Phone photographer, keen to learn editing!", "https://instagram.com/diya.frames");
-    await applyTo(crew, aarav, 0, "I'd like to learn street photography.");
+    await applyTo(crew, diya, "MEMBER", "Phone photographer, keen to learn editing!", "https://instagram.com/diya.frames");
+    await applyTo(crew, aarav, "MEMBER", "I'd like to learn street photography.");
     await recruitment.closeApplications(kabir, crew._id);
-    const crewApps = await RecruitmentApplication.find({ drive: crew._id }).populate("applicant", "name");
-    await recruitmentRounds.finalizeDrive(
-        kabir,
-        crew._id,
-        crewApps.map((application) => ({ applicationId: application._id, selected: application.applicant.name === "Diya Sharma", role: "MEMBER" }))
-    );
+    await finalize(kabir, crew, "MEMBER", { "Diya Sharma": "OFFER" });
+    const diyaOffer = await RecruitmentApplication.findOne({ drive: crew._id, applicant: diya._id });
+    await recruitmentApps.respondToOffer(diya, crew._id, diyaOffer._id, true);
     await RecruitmentDrive.updateOne(
         { _id: crew._id },
         { $set: { applicationStart: new Date(Date.now() - 40 * 86400000), applicationEnd: new Date(Date.now() - 30 * 86400000), publishedAt: new Date(Date.now() - 40 * 86400000), completedAt: new Date(Date.now() - 25 * 86400000) } }

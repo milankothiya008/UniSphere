@@ -4,7 +4,9 @@ const AppError = require("../utils/AppError");
 const ERROR_CODES = require("../constants/ErrorCodes");
 const { CLUB_STATUS, MEMBERSHIP_STATUS, AUDIT_ACTIONS, NOTIFICATION_TYPES } = require("../constants/Statuses");
 const { CLUB_ROLES, ACCOUNT_TYPES, GLOBAL_ROLES } = require("../constants/Roles");
-const { CLUB_PERMISSIONS, CLUB_ROLE_PERMISSIONS, roleHasPermission } = require("../constants/Permissions");
+const { CLUB_PERMISSIONS } = require("../constants/Permissions");
+const Club = require("../models/Club");
+const { keysWith, permissionsFor, findRole, roleName, SYSTEM } = require("../utils/ClubRoles");
 const { contextHas, assertClubPermission, loadClub } = require("./AuthorizationService");
 const { recordAudit } = require("./AuditService");
 const { notify } = require("./NotificationService");
@@ -14,13 +16,22 @@ const clubLink = (club) => `/clubs/${club._id}`;
 
 // Approved members whose club role grants the permission (e.g. who should hear about join requests).
 const clubUsersWithPermission = async (clubId, permission) => {
-    const roles = Object.keys(CLUB_ROLE_PERMISSIONS).filter((role) => roleHasPermission(role, permission));
+    const club = await Club.findById(clubId?._id || clubId).select("roles");
+    const roles = keysWith(club, permission);
     const members = await ClubMembership.find({
         club: clubId,
         status: MEMBERSHIP_STATUS.APPROVED,
         role: { $in: roles }
     }).select("user");
     return members.map((member) => member.user);
+};
+
+/** Clubs where the user holds any of the given authorities (via their role in that club). */
+const clubIdsWithAnyPermission = async (userId, permissions) => {
+    const memberships = await ClubMembership.find({ user: userId, status: MEMBERSHIP_STATUS.APPROVED }).select("club role").populate("club", "roles");
+    return memberships
+        .filter((membership) => membership.club && permissionsFor(membership.club, membership.role).some((permission) => permissions.includes(permission)))
+        .map((membership) => membership.club._id);
 };
 
 const approvedMemberIds = async (clubId) => {
@@ -49,7 +60,7 @@ const leaveClub = async (actor, clubId) => {
     }
 
     if (membership.role === CLUB_ROLES.PRESIDENT) {
-        throw new AppError("The president cannot leave until the mentor appoints a new president", 409, ERROR_CODES.INVALID_STATE);
+        throw new AppError("Hand over the presidency to another member before you leave", 409, ERROR_CODES.INVALID_STATE);
     }
 
     await ClubMembership.deleteOne({ _id: membership._id });
@@ -69,8 +80,11 @@ const findApprovedMember = async (clubId, userId) => {
 const changeMemberRole = async (actor, clubId, userId, role) => {
     const { club } = await assertClubPermission(actor, clubId, CLUB_PERMISSIONS.ASSIGN_ROLES, "Only the president can assign club roles");
 
-    if (!Object.values(CLUB_ROLES).includes(role) || role === CLUB_ROLES.PRESIDENT) {
-        throw new AppError("Invalid role. The president is appointed by the faculty mentor.", 400, ERROR_CODES.VALIDATION_ERROR);
+    if (role === SYSTEM.PRESIDENT) {
+        throw new AppError("The presidency is handed over by the president, not assigned", 400, ERROR_CODES.VALIDATION_ERROR);
+    }
+    if (!findRole(club, role)) {
+        throw new AppError("This club has no such role", 400, ERROR_CODES.VALIDATION_ERROR);
     }
 
     if (String(userId) === String(actor._id)) {
@@ -80,12 +94,27 @@ const changeMemberRole = async (actor, clubId, userId, role) => {
     const membership = await findApprovedMember(club._id, userId);
 
     if (membership.role === CLUB_ROLES.PRESIDENT) {
-        throw new AppError("The president's role can only change when the mentor appoints a new president", 409, ERROR_CODES.INVALID_STATE);
+        throw new AppError("The president's role changes only when the presidency is handed over", 409, ERROR_CODES.INVALID_STATE);
+    }
+
+    // One vice-president per club.
+    if (role === SYSTEM.VICE_PRESIDENT) {
+        const current = await ClubMembership.findOne({ club: club._id, role: SYSTEM.VICE_PRESIDENT, status: MEMBERSHIP_STATUS.APPROVED, user: { $ne: userId } }).populate("user", "name");
+        if (current) {
+            throw new AppError(`${current.user?.name || "Someone"} is already vice-president. Change their role first.`, 409, ERROR_CODES.CONFLICT);
+        }
     }
 
     const from = membership.role;
     membership.role = role;
-    await membership.save();
+    try {
+        await membership.save();
+    } catch (error) {
+        if (error.code === 11000) {
+            throw new AppError("The club already has a vice-president", 409, ERROR_CODES.CONFLICT);
+        }
+        throw error;
+    }
 
     await recordAudit({
         action: AUDIT_ACTIONS.MEMBER_ROLE_CHANGED,
@@ -100,11 +129,12 @@ const changeMemberRole = async (actor, clubId, userId, role) => {
     await notify(userId, {
         type: NOTIFICATION_TYPES.CLUB_ROLE_CHANGED,
         title: `Your role in ${club.name} changed`,
-        message: `You are now ${role.replace(/_/g, " ").toLowerCase()}.`,
+        message: `You are now ${roleName(club, role)}.`,
         link: clubLink(club)
     });
 
-    return membership.populate("user", "name email departmentCode batchCode");
+    await membership.populate("user", "name email departmentCode batchCode");
+    return { ...membership.toObject(), roleName: roleName(club, role) };
 };
 
 const removeMember = async (actor, clubId, userId) => {
@@ -122,7 +152,7 @@ const removeMember = async (actor, clubId, userId) => {
     }
 
     // Removing an office-holder is reserved for whoever can assign roles (the president).
-    if (membership.role !== CLUB_ROLES.MEMBER && !contextHas(context, CLUB_PERMISSIONS.ASSIGN_ROLES)) {
+    if (membership.role !== SYSTEM.MEMBER && !contextHas(context, CLUB_PERMISSIONS.ASSIGN_ROLES)) {
         throw new AppError("Only the president can remove club officers", 403, ERROR_CODES.FORBIDDEN);
     }
 
@@ -192,5 +222,6 @@ module.exports = {
     addMember,
     getUserClubs,
     clubUsersWithPermission,
+    clubIdsWithAnyPermission,
     approvedMemberIds
 };

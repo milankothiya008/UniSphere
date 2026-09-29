@@ -12,6 +12,7 @@ const {
     NOTIFICATION_TYPES
 } = require("../constants/Statuses");
 const { GLOBAL_ROLES, ACCOUNT_TYPES, CLUB_ROLES } = require("../constants/Roles");
+const { DEFAULT_ROLES } = require("../utils/ClubRoles");
 const { escapeRegex, parsePagination, paginationMeta } = require("../utils/Query");
 const {
     isAdmin,
@@ -496,7 +497,8 @@ const approveRequest = async (actor, id) => {
                     departmentCodes: request.departmentCodes,
                     mentor: request.verifiedBy,
                     status: CLUB_STATUS.APPROVED,
-                    creationRequest: request._id
+                    creationRequest: request._id,
+                    roles: DEFAULT_ROLES()
                 }
             ],
             maybeSession(session)

@@ -11,6 +11,7 @@ const {
     clubUpdateRules,
     clubStatusRules,
     roleRules,
+    clubRoleRules,
     subscriptionRules
 } = require("../validators/RequestValidators");
 
@@ -39,5 +40,12 @@ router.patch("/:id/members/:userId/role", ...auth, id, mongoIdParam("userId"), r
 router.delete("/:id/members/:userId", ...auth, id, mongoIdParam("userId"), validate, c.removeMember);
 
 router.post("/:id/leave", ...auth, id, validate, c.leaveClub);
+
+// The club's own roles and the presidency handover.
+router.get("/:id/roles", ...auth, id, validate, c.listRoles);
+router.post("/:id/roles", ...auth, id, clubRoleRules(true), validate, c.createRole);
+router.put("/:id/roles/:key", ...auth, id, clubRoleRules(false), validate, c.updateRole);
+router.delete("/:id/roles/:key", ...auth, id, validate, c.deleteRole);
+router.post("/:id/president/transfer", ...auth, id, mongoIdBody("userId"), validate, c.transferPresidency);
 
 module.exports = router;

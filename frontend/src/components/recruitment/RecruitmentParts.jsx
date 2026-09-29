@@ -3,8 +3,6 @@ import { Badge } from "../ui";
 import { APPLICATION_STATUSES, RECRUITMENT_PHASES } from "../../lib/constants";
 import { countdownParts, formatDateTime, humanize } from "../../lib/format";
 
-export const roleName = (role) => humanize(role);
-
 export const PhaseBadge = ({ phase }) => {
     const [label, tone] = RECRUITMENT_PHASES[phase] || [humanize(phase), "neutral"];
     return (

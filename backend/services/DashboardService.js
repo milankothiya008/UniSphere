@@ -17,7 +17,8 @@ const {
     GALLERY_STATUS
 } = require("../constants/Statuses");
 const { CLUB_ROLES } = require("../constants/Roles");
-const { CLUB_ROLE_PERMISSIONS, CLUB_PERMISSIONS } = require("../constants/Permissions");
+const { CLUB_PERMISSIONS } = require("../constants/Permissions");
+const { permissionsFor, roleName } = require("../utils/ClubRoles");
 const { isAdmin, isFaculty } = require("./AuthorizationService");
 const { unreadCount } = require("./NotificationService");
 const { getStats } = require("./AdminService");
@@ -87,25 +88,31 @@ const clubInsights = async (clubId, memberCount, now = new Date()) => {
     };
 };
 
-// The president's recruitment drive in progress, with what needs doing next.
+// The president's recruitment drive in progress, with what needs doing next for each role.
 const recruitmentSummary = async (clubId, now) => {
     const drive = await RecruitmentDrive.findOne({ club: clubId, status: { $in: ["DRAFT", "PENDING_APPROVAL", "NEEDS_CHANGES", "APPROVED", "PUBLISHED"] } }).sort({ createdAt: -1 });
     if (!drive) {
         return null;
     }
-    const round = drive.rounds[drive.rounds.length - 1] || null;
-    const [applications, undecided, nextSlot] = await Promise.all([
-        RecruitmentApplication.countDocuments({ drive: drive._id, status: { $in: ["APPLIED", "IN_ROUNDS"] } }),
-        round && round.status !== "RESULTS_PUBLISHED"
-            ? RecruitmentApplication.countDocuments({ drive: drive._id, status: { $in: ["APPLIED", "IN_ROUNDS"] }, $or: [{ "pendingOutcome.round": { $ne: round._id } }, { "pendingOutcome.outcome": null }] })
-            : 0,
-        round && round.status === "SCHEDULED"
-            ? RecruitmentApplication.findOne({ drive: drive._id, status: { $in: ["APPLIED", "IN_ROUNDS"] }, slots: { $elemMatch: { round: round._id, startAt: { $gt: now } } } })
-                  .sort({ "slots.startAt": 1 })
-                  .select("slots")
-            : null
-    ]);
-    const next = nextSlot?.slots.filter((slot) => String(slot.round) === String(round._id) && slot.startAt > now).sort((a, b) => a.startAt - b.startAt)[0];
+    const applications = await RecruitmentApplication.find({ drive: drive._id, status: { $in: ["APPLIED", "IN_ROUNDS", "OFFERED", "RESERVE"] } }).select("position status pendingOutcome slots");
+    const positions = drive.positions.map((position) => {
+        const mine = applications.filter((application) => String(application.position) === String(position._id));
+        const round = position.rounds[position.rounds.length - 1] || null;
+        const active = mine.filter((application) => ["APPLIED", "IN_ROUNDS"].includes(application.status));
+        const undecided = round && round.status !== "RESULTS_PUBLISHED" ? active.filter((application) => String(application.pendingOutcome?.round) !== String(round._id) || !application.pendingOutcome?.outcome).length : 0;
+        const next = active
+            .flatMap((application) => application.slots.filter((slot) => round && String(slot.round) === String(round._id) && slot.startAt > now))
+            .sort((a, b) => a.startAt - b.startAt)[0];
+        return {
+            _id: position._id,
+            title: position.title,
+            finalizedAt: position.finalizedAt,
+            applications: active.length,
+            pendingOffers: mine.filter((application) => application.status === "OFFERED").length,
+            round: round ? { _id: round._id, name: round.name, mode: round.mode, status: round.status, undecided } : null,
+            nextInterviewAt: next ? next.startAt : null
+        };
+    });
     return {
         _id: drive._id,
         title: drive.title,
@@ -113,15 +120,14 @@ const recruitmentSummary = async (clubId, now) => {
         phase: phaseOf(drive, now),
         reviewComment: drive.reviewComment,
         applicationEnd: drive.applicationEnd,
-        applications,
-        round: round ? { _id: round._id, name: round.name, mode: round.mode, status: round.status, undecided } : null,
-        nextInterviewAt: next ? next.startAt : null
+        applications: applications.filter((application) => ["APPLIED", "IN_ROUNDS"].includes(application.status)).length,
+        positions
     };
 };
 
 const clubWorkspace = async (membership) => {
     const clubId = membership.club._id;
-    const permissions = CLUB_ROLE_PERMISSIONS[membership.role] || [];
+    const permissions = permissionsFor(membership.club, membership.role);
     const has = (permission) => permissions.includes(permission);
     const now = new Date();
 
@@ -165,6 +171,7 @@ const clubWorkspace = async (membership) => {
     return {
         club: membership.club,
         role: membership.role,
+        roleName: roleName(membership.club, membership.role),
         permissions,
         memberCount,
         recruitment,
@@ -193,12 +200,13 @@ const studentDashboard = async (actor) => {
     const now = new Date();
     const memberships = await ClubMembership.find({ user: actor._id, status: MEMBERSHIP_STATUS.APPROVED }).populate(
         "club",
-        "name logo category status president mentor allDepartments departmentCodes"
+        "name logo category status president mentor allDepartments departmentCodes roles"
     );
 
     const valid = memberships.filter((m) => m.club);
     const approved = valid;
-    const officerships = approved.filter((m) => m.role !== CLUB_ROLES.MEMBER && m.club.status === CLUB_STATUS.ACTIVE);
+    // A workspace for every club where the student holds some authority.
+    const officerships = approved.filter((m) => permissionsFor(m.club, m.role).length > 0 && m.club.status === CLUB_STATUS.ACTIVE);
 
     const [upcomingAll, pastRegistrations, clubRequests, recentNotifications, workspaces, applications] = await Promise.all([
         getMyRegistrations(actor, { timeframe: "upcoming", includeWaitlist: "true" }),

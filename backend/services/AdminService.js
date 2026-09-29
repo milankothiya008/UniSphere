@@ -292,6 +292,49 @@ const migrateJoinRequests = async () => {
     );
 };
 
+// Clubs get their own editable roles, and duplicate presidents or vice-presidents (possible before) are
+// reduced to one — the earliest appointed keeps the seat — before the uniqueness index is built.
+const migrateClubRoles = async () => {
+    const { DEFAULT_ROLES } = require("../utils/ClubRoles");
+    await Club.collection.updateMany({ $or: [{ roles: { $exists: false } }, { roles: { $size: 0 } }] }, { $set: { roles: DEFAULT_ROLES() } });
+    for (const role of ["PRESIDENT", "VICE_PRESIDENT"]) {
+        const duplicates = await ClubMembership.aggregate([
+            { $match: { role, status: "APPROVED" } },
+            { $sort: { decidedAt: 1, joinedAt: 1, _id: 1 } },
+            { $group: { _id: "$club", ids: { $push: "$_id" }, count: { $sum: 1 } } },
+            { $match: { count: { $gt: 1 } } }
+        ]);
+        for (const row of duplicates) {
+            await ClubMembership.collection.updateMany({ _id: { $in: row.ids.slice(1) } }, { $set: { role: "MEMBER" } });
+        }
+    }
+    await ClubMembership.syncIndexes();
+};
+
+// Drives created before recruitment became role-wise (one shared form and rounds) can't be continued in
+// the new shape: they are cancelled, and their applications closed. Indexes are rebuilt for the new shape.
+const migrateRecruitmentShape = async () => {
+    const RecruitmentDrive = require("../models/RecruitmentDrive");
+    const RecruitmentApplication = require("../models/RecruitmentApplication");
+    const legacy = await RecruitmentDrive.collection.find({ $or: [{ questions: { $exists: true } }, { rounds: { $exists: true } }] }).project({ _id: 1, status: 1 }).toArray();
+    if (legacy.length) {
+        const ids = legacy.map((drive) => drive._id);
+        await RecruitmentDrive.collection.updateMany(
+            { _id: { $in: ids }, status: { $nin: ["COMPLETED", "CANCELLED", "REJECTED"] } },
+            { $set: { status: "CANCELLED", cancelledAt: new Date(), cancellationReason: "Recruitment was upgraded to role-wise forms and rounds" } }
+        );
+        await RecruitmentDrive.collection.updateMany({ _id: { $in: ids } }, { $unset: { questions: "", rounds: "" } });
+        await RecruitmentApplication.collection.updateMany(
+            { drive: { $in: ids }, status: { $nin: ["SELECTED", "ACCEPTED"] } },
+            { $set: { status: "WITHDRAWN", closedReason: "Recruitment was upgraded" } }
+        );
+        await RecruitmentApplication.collection.updateMany({ status: "SELECTED" }, { $set: { status: "ACCEPTED" } });
+    }
+    await RecruitmentApplication.collection.updateMany({ position: { $exists: false }, positions: { $exists: true } }, [{ $set: { position: { $arrayElemAt: ["$positions", 0] } } }, { $unset: "positions" }]);
+    await RecruitmentApplication.syncIndexes();
+    await RecruitmentDrive.syncIndexes();
+};
+
 const bootstrapAdminIfNeeded = async () => {
     const { env } = require("../config/env");
     const logger = require("../utils/Logger");
@@ -299,6 +342,8 @@ const bootstrapAdminIfNeeded = async () => {
     await migrateLegacyRoles();
     await migrateDepartmentScope();
     await migrateJoinRequests();
+    await migrateClubRoles();
+    await migrateRecruitmentShape();
 
     if (!env.bootstrapAdminEmail || !env.bootstrapAdminPassword) {
         return;
@@ -347,5 +392,7 @@ module.exports = {
     migrateLegacyRoles,
     migrateDepartmentScope,
     migrateJoinRequests,
+    migrateClubRoles,
+    migrateRecruitmentShape,
     bootstrapAdminIfNeeded
 };

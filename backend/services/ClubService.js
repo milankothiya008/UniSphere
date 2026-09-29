@@ -13,7 +13,8 @@ const {
     EVENT_STATUS
 } = require("../constants/Statuses");
 const { GLOBAL_ROLES, ACCOUNT_TYPES, CLUB_ROLES } = require("../constants/Roles");
-const { CLUB_PERMISSIONS, CLUB_ROLE_PERMISSIONS } = require("../constants/Permissions");
+const { CLUB_PERMISSIONS } = require("../constants/Permissions");
+const { permissionsFor, roleName, roleRank } = require("../utils/ClubRoles");
 const { escapeRegex, searchRegex, parsePagination, paginationMeta } = require("../utils/Query");
 const {
     isAdmin,
@@ -32,7 +33,6 @@ const { openDrivesByClub } = require("./RecruitmentService");
 
 const PHONE_PATTERN = /^\+?[0-9][0-9 ()-]{6,18}[0-9]$/;
 
-const ROLE_ORDER = Object.values(CLUB_ROLES);
 
 const populateClub = (query) =>
     query.populate("president", "name email departmentCode batchCode").populate("mentor", "name email departmentCode");
@@ -82,15 +82,16 @@ const listClubs = async (actor, query = {}) => {
     return { items: await withCounts(clubs), ...paginationMeta(pagination, total) };
 };
 
-const viewerSummary = (context, application) => ({
+const viewerSummary = (context, applications = []) => ({
     role: context.role,
+    roleName: context.roleName,
     permissions: context.permissions,
     isMember: context.isMember,
     isMentor: context.isMentor,
     isAdmin: context.isAdmin,
     membershipStatus: context.isMember ? MEMBERSHIP_STATUS.APPROVED : null,
-    // The viewer's application to the club's current recruitment drive, if any.
-    application: application ? { _id: application._id, status: application.status } : null
+    // The viewer's applications (one per role) to the club's current recruitment drive.
+    applications: applications.map((application) => ({ _id: application._id, status: application.status, position: application.position }))
 });
 
 const getClub = async (actor, clubId) => {
@@ -112,8 +113,8 @@ const getClub = async (actor, clubId) => {
     ]);
 
     const recruiting = openDrives.get(String(club._id)) || null;
-    const application =
-        actor && recruiting ? await RecruitmentApplication.findOne({ drive: recruiting._id, applicant: actor._id, status: { $ne: "WITHDRAWN" } }).select("status") : null;
+    const applications =
+        actor && recruiting ? await RecruitmentApplication.find({ drive: recruiting._id, applicant: actor._id, status: { $ne: "WITHDRAWN" } }).select("status position") : [];
 
     return {
         ...populated.toObject(),
@@ -121,7 +122,7 @@ const getClub = async (actor, clubId) => {
         followerCount: followers,
         upcomingEvents,
         recruiting,
-        viewer: actor ? { ...viewerSummary(context, application), subscribed } : null
+        viewer: actor ? { ...viewerSummary(context, applications), subscribed } : null
     };
 };
 
@@ -139,9 +140,10 @@ const getMyClubs = async (actor) => {
         memberships: valid.map((membership) => ({
             _id: membership._id,
             role: membership.role,
+            roleName: roleName(membership.club, membership.role),
             status: membership.status,
             joinedAt: membership.joinedAt,
-            permissions: membership.status === MEMBERSHIP_STATUS.APPROVED ? CLUB_ROLE_PERMISSIONS[membership.role] : [],
+            permissions: membership.status === MEMBERSHIP_STATUS.APPROVED ? permissionsFor(membership.club, membership.role) : [],
             club: membership.club
         })),
         mentored: await withCounts(mentored)
@@ -417,7 +419,8 @@ const listClubMembers = async (actor, clubId) => {
 
     return members
         .filter((member) => member.user)
-        .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
+        .sort((a, b) => roleRank(context.club, a.role) - roleRank(context.club, b.role))
+        .map((member) => ({ ...member.toObject(), roleName: roleName(context.club, member.role) }));
 };
 
 module.exports = {

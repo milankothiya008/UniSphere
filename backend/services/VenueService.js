@@ -52,13 +52,14 @@ const updateVenue = async (actor, id, data) => {
 const findConflictingInterviews = async ({ venueId, startAt, endAt, excludeRoundId = null }) => {
     const drives = await RecruitmentDrive.find({
         status: RECRUITMENT_STATUS.PUBLISHED,
-        rounds: { $elemMatch: { venue: venueId, mode: ROUND_MODES.OFFLINE, status: ROUND_STATUS.SCHEDULED, startAt: { $lt: endAt }, endAt: { $gt: startAt } } }
+        "positions.rounds": { $elemMatch: { venue: venueId, mode: ROUND_MODES.OFFLINE, status: ROUND_STATUS.SCHEDULED, startAt: { $lt: endAt }, endAt: { $gt: startAt } } }
     })
-        .select("title club rounds")
+        .select("title club positions")
         .populate("club", "name");
 
     return drives.flatMap((drive) =>
-        drive.rounds
+        drive.positions
+            .flatMap((position) => position.rounds.map((round) => Object.assign(round, { positionTitle: position.title })))
             .filter(
                 (round) =>
                     String(round.venue) === String(venueId) &&
@@ -68,7 +69,7 @@ const findConflictingInterviews = async ({ venueId, startAt, endAt, excludeRound
                     round.endAt > startAt &&
                     String(round._id) !== String(excludeRoundId)
             )
-            .map((round) => ({ _id: round._id, title: `${drive.title} — ${round.name}`, startAt: round.startAt, endAt: round.endAt, status: "INTERVIEW", club: drive.club }))
+            .map((round) => ({ _id: round._id, title: `${drive.title} — ${round.positionTitle}: ${round.name}`, startAt: round.startAt, endAt: round.endAt, status: "INTERVIEW", club: drive.club }))
     );
 };
 
@@ -187,12 +188,13 @@ const getAvailableVenues = async ({ eventDate, startTime, endTime, excludeEventI
     // Interview rounds booked in the same window, from any drive.
     const drives = await RecruitmentDrive.find({
         status: RECRUITMENT_STATUS.PUBLISHED,
-        rounds: { $elemMatch: { mode: ROUND_MODES.OFFLINE, status: ROUND_STATUS.SCHEDULED, startAt: { $lt: endAt }, endAt: { $gt: startAt } } }
+        "positions.rounds": { $elemMatch: { mode: ROUND_MODES.OFFLINE, status: ROUND_STATUS.SCHEDULED, startAt: { $lt: endAt }, endAt: { $gt: startAt } } }
     })
-        .select("title club rounds")
+        .select("title club positions")
         .populate("club", "name");
     drives.forEach((drive) =>
-        drive.rounds
+        drive.positions
+            .flatMap((position) => position.rounds)
             .filter((round) => round.venue && round.mode === ROUND_MODES.OFFLINE && round.status === ROUND_STATUS.SCHEDULED && round.startAt < endAt && round.endAt > startAt)
             .forEach((round) => busy.push({ title: `${drive.title} — ${round.name}`, venue: round.venue, startAt: round.startAt, endAt: round.endAt, status: "INTERVIEW", club: drive.club }))
     );

@@ -1,5 +1,6 @@
 const clubService = require("../services/ClubService");
 const membershipService = require("../services/MembershipService");
+const clubRoles = require("../services/ClubRoleService");
 const subscriptionService = require("../services/SubscriptionService");
 const asyncHandler = require("../utils/AsyncHandler");
 const { sendSuccess } = require("../utils/ApiResponse");
@@ -74,7 +75,33 @@ const setSubscription = asyncHandler(async (req, res) => {
     sendSuccess(res, 200, result.subscribed ? "Notifications turned on" : "Notifications turned off", result);
 });
 
+const listRoles = asyncHandler(async (req, res) => {
+    sendSuccess(res, 200, "Club roles fetched", await clubRoles.listRoles(req.user, req.params.id));
+});
+
+const createRole = asyncHandler(async (req, res) => {
+    sendSuccess(res, 201, "Role created", await clubRoles.createRole(req.user, req.params.id, req.body));
+});
+
+const updateRole = asyncHandler(async (req, res) => {
+    sendSuccess(res, 200, "Role updated", await clubRoles.updateRole(req.user, req.params.id, req.params.key, req.body));
+});
+
+const deleteRole = asyncHandler(async (req, res) => {
+    sendSuccess(res, 200, "Role deleted — its members are now members", await clubRoles.deleteRole(req.user, req.params.id, req.params.key));
+});
+
+const transferPresidency = asyncHandler(async (req, res) => {
+    const result = await clubRoles.transferPresidency(req.user, req.params.id, req.body.userId);
+    sendSuccess(res, 200, `${result.president.name} is now president`, result);
+});
+
 module.exports = {
+    listRoles,
+    createRole,
+    updateRole,
+    deleteRole,
+    transferPresidency,
     getSubscription,
     setSubscription,
     listClubs,

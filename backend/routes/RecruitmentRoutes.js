@@ -41,11 +41,15 @@ router.put("/:id/deadline", ...auth, id, body("applicationEnd").isISO8601().with
 router.post("/:id/close", ...auth, id, validate, c.close);
 router.post("/:id/cancel", ...auth, id, body("reason").optional().isString().isLength({ max: 500 }), validate, c.cancel);
 
-// Applying
-router.get("/:id/application", ...auth, id, validate, c.myApplication);
-router.post("/:id/application", ...auth, id, body("positions").isArray({ min: 1 }).withMessage("Choose at least one position"), body("answers").optional().isArray(), validate, c.apply);
-router.put("/:id/application", ...auth, id, body("positions").isArray({ min: 1 }).withMessage("Choose at least one position"), body("answers").optional().isArray(), validate, c.updateApplication);
-router.delete("/:id/application", ...auth, id, validate, c.withdraw);
+// Applying: one application per role
+const positionId = mongoIdParam("positionId");
+router.get("/:id/applications/mine", ...auth, id, validate, c.myApplications);
+router.get("/:id/positions/:positionId/application", ...auth, id, positionId, validate, c.myApplication);
+router.post("/:id/positions/:positionId/application", ...auth, id, positionId, body("answers").optional().isArray({ max: 200 }), validate, c.apply);
+router.put("/:id/positions/:positionId/application", ...auth, id, positionId, body("answers").optional().isArray({ max: 200 }), validate, c.updateApplication);
+router.delete("/:id/positions/:positionId/application", ...auth, id, positionId, validate, c.withdraw);
+router.post("/:id/applications/:applicationId/accept", ...auth, id, mongoIdParam("applicationId"), validate, c.accept);
+router.post("/:id/applications/:applicationId/decline", ...auth, id, mongoIdParam("applicationId"), validate, c.decline);
 router.post(
     "/:id/uploads",
     ...auth,
@@ -58,7 +62,7 @@ router.post(
 );
 router.post("/:id/media", ...auth, uploadLimiter, id, validate, singleRecruitmentFile("file"), c.uploadLocal);
 
-// Club side: applications, rounds, final selection
+// Club side: applications, then selection per role
 router.get(
     "/:id/applications",
     ...auth,
@@ -69,20 +73,22 @@ router.get(
     c.listApplications
 );
 router.get("/:id/applications/:applicationId", ...auth, id, mongoIdParam("applicationId"), validate, c.getApplication);
-router.get("/:id/rounds", ...auth, id, validate, c.rounds);
+router.get("/:id/positions/:positionId/rounds", ...auth, id, positionId, validate, c.rounds);
 router.post(
-    "/:id/rounds",
+    "/:id/positions/:positionId/rounds",
     ...auth,
     id,
+    positionId,
     body("name").isString().trim().isLength({ min: 1, max: 80 }).withMessage("Name the round"),
     body("mode").isIn(["SCREENING", "ONLINE", "OFFLINE"]).withMessage("Choose the round type"),
     validate,
     c.createRound
 );
 router.put(
-    "/:id/rounds/:roundId/schedule",
+    "/:id/positions/:positionId/rounds/:roundId/schedule",
     ...auth,
     id,
+    positionId,
     roundId,
     body("timing").isIn(["COMMON", "SLOTS"]).withMessage("Choose one common time or individual slots"),
     body("startAt").isISO8601().withMessage("Set the start time"),
@@ -94,9 +100,30 @@ router.put(
     validate,
     c.scheduleRound
 );
-router.patch("/:id/rounds/:roundId/slots/:applicationId", ...auth, id, roundId, mongoIdParam("applicationId"), body("startAt").isISO8601().withMessage("Choose the new time"), validate, c.updateSlot);
-router.put("/:id/rounds/:roundId/outcomes", ...auth, id, roundId, body("decisions").isArray({ max: 1000 }), validate, c.setOutcomes);
-router.post("/:id/rounds/:roundId/publish", ...auth, id, roundId, validate, c.publishRound);
-router.post("/:id/finalize", ...auth, id, body("decisions").isArray({ max: 1000 }), validate, c.finalize);
+router.patch(
+    "/:id/positions/:positionId/rounds/:roundId/slots/:applicationId",
+    ...auth,
+    id,
+    positionId,
+    roundId,
+    mongoIdParam("applicationId"),
+    body("startAt").isISO8601().withMessage("Choose the new time"),
+    validate,
+    c.updateSlot
+);
+router.put("/:id/positions/:positionId/rounds/:roundId/outcomes", ...auth, id, positionId, roundId, body("decisions").isArray({ max: 1000 }), validate, c.setOutcomes);
+router.post("/:id/positions/:positionId/rounds/:roundId/publish", ...auth, id, positionId, roundId, validate, c.publishRound);
+router.post(
+    "/:id/positions/:positionId/finalize",
+    ...auth,
+    id,
+    positionId,
+    body("decisions").isArray({ max: 1000 }),
+    body("offerDays").optional().isInt({ min: 1, max: 14 }).withMessage("Give 1 to 14 days to answer"),
+    validate,
+    c.finalize
+);
+router.post("/:id/positions/:positionId/offers/:applicationId", ...auth, id, positionId, mongoIdParam("applicationId"), validate, c.offerToReserve);
+router.post("/:id/complete", ...auth, id, validate, c.complete);
 
 module.exports = router;

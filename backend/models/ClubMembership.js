@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const { CLUB_ROLES } = require("../constants/Roles");
 const { MEMBERSHIP_STATUS } = require("../constants/Statuses");
 
 const clubMembershipSchema = new mongoose.Schema(
@@ -14,10 +13,11 @@ const clubMembershipSchema = new mongoose.Schema(
             ref: "User",
             required: true
         },
+        // Key of one of the club's roles (Club.roles); MEMBER when the student holds no role.
         role: {
             type: String,
-            enum: Object.values(CLUB_ROLES),
-            default: CLUB_ROLES.MEMBER
+            trim: true,
+            default: "MEMBER"
         },
         status: {
             type: String,
@@ -54,5 +54,10 @@ const clubMembershipSchema = new mongoose.Schema(
 clubMembershipSchema.index({ club: 1, user: 1 }, { unique: true });
 clubMembershipSchema.index({ user: 1, status: 1 });
 clubMembershipSchema.index({ club: 1, role: 1, status: 1 });
+// A club has one president and at most one vice-president.
+clubMembershipSchema.index(
+    { club: 1, role: 1 },
+    { name: "one_president_one_vice_president", unique: true, partialFilterExpression: { role: { $in: ["PRESIDENT", "VICE_PRESIDENT"] }, status: "APPROVED" } }
+);
 
 module.exports = mongoose.model("ClubMembership", clubMembershipSchema);

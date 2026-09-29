@@ -23,7 +23,7 @@ const ClubRecruitmentTab = () => {
                     <div className="recruit-cta-card">
                         <div>
                             <strong>Looking for new members?</strong>
-                            <span className="subtle">Build an application form, get it approved by your faculty mentor, and every eligible student is invited to apply.</span>
+                            <span className="subtle">Pick the roles you need, build a page-by-page form for each, get it approved by your faculty mentor — and every eligible student is invited to apply.</span>
                         </div>
                         <ButtonLink to={`/clubs/${club._id}/recruitment/new`} variant="accent">
                             <Plus size={16} /> New recruitment drive
@@ -67,7 +67,7 @@ const ClubRecruitmentTab = () => {
                                             <strong>{item.title}</strong>
                                             <span className="subtle small">
                                                 {item.positions.join(", ")} · {formatDate(item.completedAt || item.applicationEnd)}
-                                                {item.counts ? ` · ${plural(item.counts.selected, "selected")}` : ""}
+                                                {item.counts ? ` · ${plural(item.counts.accepted, "student")} joined` : ""}
                                             </span>
                                         </span>
                                         <PhaseBadge phase={item.phase} />

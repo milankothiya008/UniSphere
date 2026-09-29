@@ -24,7 +24,7 @@ const {
     PARTICIPATION_MODES,
     CHECK_IN_STATUS
 } = require("../constants/Statuses");
-const { CLUB_PERMISSIONS, CLUB_ROLE_PERMISSIONS } = require("../constants/Permissions");
+const { CLUB_PERMISSIONS } = require("../constants/Permissions");
 const { searchRegex, parsePagination, paginationMeta } = require("../utils/Query");
 const { combineDateAndTime, dateKeyToDate, toDateKey } = require("../utils/UniversityRules");
 const {
@@ -41,7 +41,7 @@ const { EMAIL_CATEGORIES } = require("../constants/EmailCategories");
 const { recordAudit } = require("./AuditService");
 const { notify, notifyAllUsers } = require("./NotificationService");
 const { createSystemPost } = require("./FeedService");
-const { clubUsersWithPermission } = require("./MembershipService");
+const { clubUsersWithPermission, clubIdsWithAnyPermission } = require("./MembershipService");
 const teams = require("./TeamService");
 
 const EVENT_LINK = (event) => `/events/${event._id}`;
@@ -1235,17 +1235,7 @@ const manageableClubIds = async (actor) => {
         return clubs.map((club) => club._id);
     }
 
-    const staffRoles = Object.keys(CLUB_ROLE_PERMISSIONS).filter((role) =>
-        [CLUB_PERMISSIONS.MANAGE_EVENTS, CLUB_PERMISSIONS.PUBLISH_EVENTS, CLUB_PERMISSIONS.VIEW_PARTICIPANTS].some((p) =>
-            CLUB_ROLE_PERMISSIONS[role].includes(p)
-        )
-    );
-    const memberships = await ClubMembership.find({
-        user: actor._id,
-        status: MEMBERSHIP_STATUS.APPROVED,
-        role: { $in: staffRoles }
-    }).select("club");
-    return memberships.map((membership) => membership.club);
+    return clubIdsWithAnyPermission(actor._id, [CLUB_PERMISSIONS.MANAGE_EVENTS, CLUB_PERMISSIONS.PUBLISH_EVENTS, CLUB_PERMISSIONS.VIEW_PARTICIPANTS]);
 };
 
 const listManagedEvents = async (actor, query = {}) => {

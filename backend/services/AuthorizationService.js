@@ -4,7 +4,7 @@ const AppError = require("../utils/AppError");
 const ERROR_CODES = require("../constants/ErrorCodes");
 const { GLOBAL_ROLES, ACCOUNT_TYPES } = require("../constants/Roles");
 const { MEMBERSHIP_STATUS } = require("../constants/Statuses");
-const { CLUB_ROLE_PERMISSIONS } = require("../constants/Permissions");
+const { permissionsFor, roleName } = require("../utils/ClubRoles");
 
 const isAdmin = (user) => user?.globalRole === GLOBAL_ROLES.ADMIN;
 
@@ -76,10 +76,11 @@ const getClubContext = async (user, clubOrId) => {
         club,
         membership,
         role,
+        roleName: role ? roleName(club, role) : null,
         isAdmin: isAdmin(user),
         isMentor: isClubMentor(user, club),
         isMember: Boolean(membership),
-        permissions: role ? [...CLUB_ROLE_PERMISSIONS[role]] : []
+        permissions: permissionsFor(club, role)
     };
 };
 

@@ -19,10 +19,11 @@ export const StatusBadge = ({ status, dot = true }) => {
     );
 };
 
-export const RoleBadge = ({ role }) => {
+// Clubs name their own roles, so pass the role's name as `label`; the key only picks the colour.
+export const RoleBadge = ({ role, label }) => {
     if (!role) {
         return null;
     }
-    const tone = role === "PRESIDENT" ? "gold" : role === "MEMBER" ? "neutral" : "ink";
-    return <Badge tone={tone}>{humanize(role)}</Badge>;
+    const tone = role === "PRESIDENT" ? "gold" : role === "MEMBER" ? "neutral" : role === "VICE_PRESIDENT" ? "violet" : "ink";
+    return <Badge tone={tone}>{label || humanize(role)}</Badge>;
 };

@@ -97,21 +97,33 @@ const actionItems = (workspace) => {
             PENDING_APPROVAL: ["Recruitment with your faculty mentor", Hourglass, "neutral", to],
             APPROVED: ["Recruitment approved — publish it", Megaphone, "success", to],
             UPCOMING: [`Recruitment opens soon`, Megaphone, "info", to],
-            OPEN: [`${plural(drive.applications, "application")} so far — applications open`, UserPlus, "gold", `${to}?tab=applications`],
-            CLOSED: [`Applications closed — ${drive.applications ? "start round 1" : "no applicants yet"}`, Flag, "warning", `${to}?tab=rounds`]
+            OPEN: [`${plural(drive.applications, "application")} so far — applications open`, UserPlus, "gold", `${to}?tab=applications`]
         }[drive.phase];
         if (step) {
             items.push({ key: `rc-${drive._id}`, icon: step[1], tone: step[2], title: drive.title, detail: step[0], to: step[3] });
-        } else if (drive.phase === "ROUNDS" && drive.round) {
-            const detail =
-                drive.round.status === "RESULTS_PUBLISHED"
-                    ? `${drive.round.name} done — add the next round or finalise`
-                    : drive.round.status === "DRAFT" && drive.round.mode !== "SCREENING"
-                      ? `Schedule ${drive.round.name}`
-                      : drive.round.undecided
-                        ? `${drive.round.name}: ${plural(drive.round.undecided, "candidate")} to decide`
-                        : `${drive.round.name}: publish the results`;
-            items.push({ key: `rc-${drive._id}`, icon: UserPlus, tone: "gold", title: drive.title, detail, to: `/recruitment/${drive._id}?tab=rounds` });
+        } else if (["CLOSED", "ROUNDS"].includes(drive.phase)) {
+            // Selection runs per role: the next step for each role still being decided.
+            (drive.positions || []).forEach((position) => {
+                const round = position.round;
+                const link = `${to}?tab=selection&role=${position._id}`;
+                let detail = null;
+                if (position.finalizedAt) {
+                    detail = position.pendingOffers ? `${plural(position.pendingOffers, "offer")} waiting for an answer` : null;
+                } else if (!round) {
+                    detail = position.applications ? `${plural(position.applications, "applicant")} — start the selection` : "No applicants — finish this role";
+                } else if (round.status === "RESULTS_PUBLISHED") {
+                    detail = `${round.name} done — add the next round or send offers`;
+                } else if (round.status === "DRAFT" && round.mode !== "SCREENING") {
+                    detail = `Schedule ${round.name}`;
+                } else if (round.undecided) {
+                    detail = `${round.name}: ${plural(round.undecided, "candidate")} to decide`;
+                } else {
+                    detail = `${round.name}: publish the results`;
+                }
+                if (detail) {
+                    items.push({ key: `rc-${drive._id}-${position._id}`, icon: position.finalizedAt ? Hourglass : Flag, tone: position.finalizedAt ? "info" : "gold", title: `${position.title} · ${drive.title}`, detail, to: link });
+                }
+            });
         }
     }
     workspace.needsChanges.forEach((event) =>
@@ -287,7 +299,7 @@ export const ClubHQ = ({ workspaces }) => {
                             <Link to={`/clubs/${club._id}`}>{club.name}</Link>
                         </h2>
                         <div className="row" style={{ gap: 8 }}>
-                            <RoleBadge role={workspace.role} />
+                            <RoleBadge role={workspace.role} label={workspace.roleName} />
                             <span className="subtle">
                                 {humanize(club.category)} · {plural(workspace.memberCount, "member")}
                             </span>

@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
-import { Award, CalendarClock, Check, ClipboardList, Flag, MapPin, MonitorPlay, Plus, Send, Users, Video, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Award, CalendarClock, Check, ClipboardList, Flag, Gift, Hourglass, ListOrdered, MapPin, MonitorPlay, Plus, Send, Users, Video, X } from "lucide-react";
 import { recruitmentApi, referenceApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useToast } from "../../context/ToastContext";
 import { Alert, AsyncContent, Avatar, Badge, Button, Card, ConfirmDialog, EmptyState, Input, Modal, Segmented, Select, Textarea } from "../ui";
-import { roleName } from "./RecruitmentParts";
+import { ApplicationBadge } from "./RecruitmentParts";
 import { ROUND_MODES } from "../../lib/constants";
 import { formatDate, formatDateTime, formatTime, formatTimeRange, fromDateTimeInput, plural, toDateTimeInput } from "../../lib/format";
 
@@ -15,7 +15,7 @@ const addMinutes = (input, minutes) => (input ? toDateTimeInput(new Date(new Dat
 
 // ---------------------------------------------------------------- Add a round
 
-const AddRound = ({ driveId, number, onDone }) => {
+const AddRound = ({ driveId, positionId, number, onDone }) => {
     const toast = useToast();
     const [name, setName] = useState("");
     const [mode, setMode] = useState("SCREENING");
@@ -26,7 +26,7 @@ const AddRound = ({ driveId, number, onDone }) => {
         event.preventDefault();
         setBusy(true);
         try {
-            await recruitmentApi.createRound(driveId, { name: name.trim() || suggestions[mode], mode });
+            await recruitmentApi.createRound(driveId, positionId, { name: name.trim() || suggestions[mode], mode });
             toast.success(`Round ${number} added`);
             setName("");
             onDone();
@@ -65,7 +65,7 @@ const AddRound = ({ driveId, number, onDone }) => {
 
 // ---------------------------------------------------------------- Schedule an interview round
 
-const ScheduleForm = ({ driveId, round, candidates, onDone, onCancel }) => {
+const ScheduleForm = ({ driveId, positionId, round, candidates, onDone, onCancel }) => {
     const toast = useToast();
     const [timing, setTiming] = useState(round.timing || "SLOTS");
     const [startAt, setStartAt] = useState(round.startAt ? toDateTimeInput(round.startAt) : "");
@@ -99,7 +99,7 @@ const ScheduleForm = ({ driveId, round, candidates, onDone, onCancel }) => {
         event.preventDefault();
         setBusy(true);
         try {
-            await recruitmentApi.scheduleRound(driveId, round._id, {
+            const response = await recruitmentApi.scheduleRound(driveId, positionId, round._id, {
                 timing,
                 startAt: fromDateTimeInput(startAt),
                 endAt: timing === "COMMON" ? fromDateTimeInput(endAt) : undefined,
@@ -109,6 +109,7 @@ const ScheduleForm = ({ driveId, round, candidates, onDone, onCancel }) => {
                 instructions
             });
             toast.success(round.status === "SCHEDULED" ? "Updated — candidates have been told the new details" : "Scheduled — invitations are on their way");
+            clashNotice(toast, response.data?.warnings);
             onDone();
         } catch (error) {
             toast.error(error);
@@ -188,15 +189,24 @@ const ScheduleForm = ({ driveId, round, candidates, onDone, onCancel }) => {
 
 // ---------------------------------------------------------------- One round
 
-const MoveSlot = ({ driveId, round, candidate, onClose, onDone }) => {
+// Candidates applying for several roles can't be in two interviews at once; the server shifts their slots
+// and lists anyone it couldn't place without a clash.
+const clashNotice = (toast, warnings) => {
+    if (warnings?.length) {
+        toast.info(`${plural(warnings.length, "candidate")} also ${warnings.length === 1 ? "has" : "have"} an interview for ${warnings[0].clashWith} at ${warnings[0].at}. Move ${warnings.length === 1 ? "that slot" : "those slots"} if needed.`);
+    }
+};
+
+const MoveSlot = ({ driveId, positionId, round, candidate, onClose, onDone }) => {
     const toast = useToast();
     const [value, setValue] = useState(toDateTimeInput(candidate.slot.startAt));
     const [busy, setBusy] = useState(false);
     const save = async () => {
         setBusy(true);
         try {
-            await recruitmentApi.moveSlot(driveId, round._id, candidate.applicationId, fromDateTimeInput(value));
+            const response = await recruitmentApi.moveSlot(driveId, positionId, round._id, candidate.applicationId, fromDateTimeInput(value));
             toast.success(`${candidate.applicant.name} has been told the new time`);
+            clashNotice(toast, response.data?.warnings);
             onDone();
             onClose();
         } catch (error) {
@@ -227,7 +237,7 @@ const MoveSlot = ({ driveId, round, candidate, onClose, onDone }) => {
     );
 };
 
-const RoundCard = ({ driveId, round, number, canManage, onChange }) => {
+const RoundCard = ({ driveId, positionId, round, number, canManage, onChange }) => {
     const toast = useToast();
     const [editing, setEditing] = useState(false);
     const [publishing, setPublishing] = useState(false);
@@ -245,7 +255,7 @@ const RoundCard = ({ driveId, round, number, canManage, onChange }) => {
         const ids = candidates.map((candidate) => candidate.applicationId);
         setPending((current) => new Set([...current, ...ids]));
         try {
-            await recruitmentApi.setOutcomes(driveId, round._id, ids.map((applicationId) => ({ applicationId, outcome })));
+            await recruitmentApi.setOutcomes(driveId, positionId, round._id, ids.map((applicationId) => ({ applicationId, outcome })));
             onChange();
         } catch (error) {
             toast.error(error);
@@ -255,7 +265,7 @@ const RoundCard = ({ driveId, round, number, canManage, onChange }) => {
     };
 
     const publish = async () => {
-        const response = await recruitmentApi.publishRound(driveId, round._id);
+        const response = await recruitmentApi.publishRound(driveId, positionId, round._id);
         toast.success(response.message);
         onChange();
     };
@@ -303,7 +313,7 @@ const RoundCard = ({ driveId, round, number, canManage, onChange }) => {
                 {needsSchedule && canManage && round.isCurrent && (round.status === "DRAFT" || editing) && (
                     <>
                         {round.status === "DRAFT" && <Alert type="info">Set the time and {round.mode === "OFFLINE" ? "venue" : "meeting link"}. Every candidate gets an invitation, and reminders 1 hour and 10 minutes before.</Alert>}
-                        <ScheduleForm driveId={driveId} round={round} candidates={round.candidates.length} onDone={() => { setEditing(false); onChange(); }} onCancel={editing ? () => setEditing(false) : null} />
+                        <ScheduleForm driveId={driveId} positionId={positionId} round={round} candidates={round.candidates.length} onDone={() => { setEditing(false); onChange(); }} onCancel={editing ? () => setEditing(false) : null} />
                     </>
                 )}
 
@@ -327,7 +337,7 @@ const RoundCard = ({ driveId, round, number, canManage, onChange }) => {
                             <Avatar name={candidate.applicant.name} size="sm" />
                             <span className="grow">
                                 <strong>{candidate.applicant.name}</strong>
-                                <span className="subtle small">{candidate.positionTitles.join(", ")}</span>
+                                <span className="subtle small">{candidate.applicant.email}</span>
                             </span>
                             {candidate.slot && round.timing === "SLOTS" && (
                                 <button
@@ -359,7 +369,7 @@ const RoundCard = ({ driveId, round, number, canManage, onChange }) => {
                 </ul>
             </div>
 
-            {moving && <MoveSlot driveId={driveId} round={round} candidate={moving} onClose={() => setMoving(null)} onDone={onChange} />}
+            {moving && <MoveSlot driveId={driveId} positionId={positionId} round={round} candidate={moving} onClose={() => setMoving(null)} onDone={onChange} />}
             <ConfirmDialog
                 open={publishing}
                 onClose={() => setPublishing(false)}
@@ -374,74 +384,118 @@ const RoundCard = ({ driveId, round, number, canManage, onChange }) => {
 
 // ---------------------------------------------------------------- Final selection
 
-const FinalSelection = ({ drive, finalists, onDone }) => {
+const DECISIONS = [
+    { value: "OFFER", label: "Offer", icon: Gift, tone: "is-yes" },
+    { value: "RESERVE", label: "Reserve", icon: ListOrdered, tone: "is-maybe" },
+    { value: "NOT_SELECTED", label: "Not selected", icon: X, tone: "is-no" }
+];
+
+const FinalSelection = ({ drive, data, onDone }) => {
     const toast = useToast();
-    const firstRole = (finalist) => drive.positions.find((position) => position._id === finalist.positions[0])?.role || drive.positions[0].role;
+    const { position, finalists } = data;
     const [decisions, setDecisions] = useState({});
+    const [offerDays, setOfferDays] = useState(position.offerDays || 3);
     const [confirming, setConfirming] = useState(false);
 
     useEffect(() => {
-        setDecisions(Object.fromEntries(finalists.map((finalist) => [finalist.applicationId, { selected: null, role: firstRole(finalist) }])));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        setDecisions(Object.fromEntries(finalists.map((finalist) => [finalist.applicationId, null])));
     }, [finalists]);
 
-    const set = (id, changes) => setDecisions((current) => ({ ...current, [id]: { ...current[id], ...changes } }));
-    const values = Object.values(decisions);
-    const selected = values.filter((decision) => decision.selected === true).length;
-    const ready = values.length === finalists.length && values.every((decision) => decision.selected !== null);
-    const roles = useMemo(() => [...new Map(drive.positions.map((position) => [position.role, position.title])).entries()], [drive.positions]);
+    const count = (value) => Object.values(decisions).filter((decision) => decision === value).length;
+    const offers = count("OFFER");
+    const ready = finalists.every((finalist) => decisions[finalist.applicationId]);
+    const overBooked = position.openings && offers > position.openings;
+    const days = Number(offerDays);
+    const daysValid = Number.isInteger(days) && days >= 1 && days <= 14;
 
     const finalize = async () => {
-        const response = await recruitmentApi.finalize(
-            drive._id,
-            finalists.map((finalist) => ({ applicationId: finalist.applicationId, selected: decisions[finalist.applicationId].selected, role: decisions[finalist.applicationId].role }))
-        );
+        const response = await recruitmentApi.finalize(drive._id, position._id, {
+            offerDays: days,
+            decisions: finalists.map((finalist) => ({ applicationId: finalist.applicationId, decision: decisions[finalist.applicationId] }))
+        });
         toast.success(response.message);
         onDone();
     };
 
     return (
-        <Card className="recruit-final" title={<h2 className="row"><Award size={18} /> Final selection</h2>} actions={<span className="subtle small">{plural(finalists.length, "finalist")}</span>}>
+        <Card
+            className="recruit-final"
+            title={
+                <h2 className="row">
+                    <Award size={18} /> Final selection · {position.title}
+                </h2>
+            }
+            actions={<span className="subtle small">{plural(finalists.length, "finalist")}</span>}
+        >
             <div className="stack">
                 <p className="subtle small" style={{ margin: 0 }}>
                     {finalists.length
-                        ? `Selected students join ${drive.club.name} with the role you choose. Everyone gets their result by email.`
-                        : "No candidates are left in this drive. Complete it to close recruitment."}
+                        ? `Offer the role to your picks${position.openings ? ` (${plural(position.openings, "opening")})` : ""}, keep a reserve list for seats that free up, and thank the rest. Students who applied for several roles accept only one offer.`
+                        : "No candidates are left for this role. Finish it to close its selection."}
                 </p>
+                {finalists.length > 0 && (
+                    <div className="recruit-final-tally">
+                        <span className={overBooked ? "is-over" : ""}>
+                            <Gift size={14} /> {offers}
+                            {position.openings ? ` / ${position.openings}` : ""} offers
+                        </span>
+                        <span>
+                            <ListOrdered size={14} /> {count("RESERVE")} reserve
+                        </span>
+                        <span>
+                            <X size={14} /> {count("NOT_SELECTED")} not selected
+                        </span>
+                    </div>
+                )}
                 <ul className="recruit-candidates">
                     {finalists.map((finalist, index) => {
-                        const decision = decisions[finalist.applicationId] || {};
+                        const decision = decisions[finalist.applicationId];
                         return (
-                            <li key={finalist.applicationId} className={`recruit-candidate ${decision.selected === true ? "is-qualified" : decision.selected === false ? "is-eliminated" : ""}`} style={{ "--i": index }}>
+                            <li
+                                key={finalist.applicationId}
+                                className={`recruit-candidate ${decision === "OFFER" ? "is-qualified" : decision === "NOT_SELECTED" ? "is-eliminated" : decision === "RESERVE" ? "is-reserve" : ""}`}
+                                style={{ "--i": Math.min(index, 12) }}
+                            >
                                 <Avatar name={finalist.applicant.name} size="sm" />
                                 <span className="grow">
                                     <strong>{finalist.applicant.name}</strong>
-                                    <span className="subtle small">Applied for {finalist.positionTitles.join(", ")}</span>
+                                    <span className="subtle small">{finalist.applicant.email}</span>
                                 </span>
-                                {decision.selected && (
-                                    <select className="select recruit-role-select" value={decision.role} onChange={(event) => set(finalist.applicationId, { role: event.target.value })} aria-label={`Role for ${finalist.applicant.name}`}>
-                                        {roles.map(([role, title]) => (
-                                            <option key={role} value={role}>
-                                                {title} ({roleName(role)})
-                                            </option>
-                                        ))}
-                                    </select>
-                                )}
                                 <span className="recruit-outcome" role="group" aria-label={`Decision for ${finalist.applicant.name}`}>
-                                    <button type="button" className={decision.selected === true ? "is-on is-yes" : ""} aria-pressed={decision.selected === true} onClick={() => set(finalist.applicationId, { selected: true })}>
-                                        <Check size={14} /> Select
-                                    </button>
-                                    <button type="button" className={decision.selected === false ? "is-on is-no" : ""} aria-pressed={decision.selected === false} onClick={() => set(finalist.applicationId, { selected: false })}>
-                                        <X size={14} /> Not selected
-                                    </button>
+                                    {DECISIONS.map((option) => {
+                                        const Icon = option.icon;
+                                        return (
+                                            <button
+                                                key={option.value}
+                                                type="button"
+                                                className={decision === option.value ? `is-on ${option.tone}` : ""}
+                                                aria-pressed={decision === option.value}
+                                                onClick={() => setDecisions((current) => ({ ...current, [finalist.applicationId]: option.value }))}
+                                            >
+                                                <Icon size={14} /> {option.label}
+                                            </button>
+                                        );
+                                    })}
                                 </span>
                             </li>
                         );
                     })}
                 </ul>
-                <div className="row" style={{ justifyContent: "flex-end" }}>
-                    <Button size="lg" onClick={() => setConfirming(true)} disabled={!ready}>
-                        <Flag size={16} /> Complete recruitment
+                {overBooked && <Alert type="warning">{position.title} has {plural(position.openings, "opening")}. Put the others on the reserve list — they get an offer if a seat frees up.</Alert>}
+                <div className="recruit-final-footer">
+                    {finalists.length > 0 && (
+                        <Input
+                            label="Days to answer an offer"
+                            type="number"
+                            min={1}
+                            max={14}
+                            value={offerDays}
+                            onChange={(event) => setOfferDays(event.target.value)}
+                            error={daysValid ? undefined : "1 to 14 days"}
+                        />
+                    )}
+                    <Button size="lg" onClick={() => setConfirming(true)} disabled={!ready || overBooked || !daysValid}>
+                        <Flag size={16} /> {finalists.length ? "Send offers" : `Finish ${position.title}`}
                     </Button>
                 </div>
             </div>
@@ -449,24 +503,119 @@ const FinalSelection = ({ drive, finalists, onDone }) => {
                 open={confirming}
                 onClose={() => setConfirming(false)}
                 onConfirm={finalize}
-                title="Complete recruitment?"
-                description={`${plural(selected, "student")} will join ${drive.club.name} and get a welcome email; ${plural(finalists.length - selected, "student")} will be thanked. The drive is then closed.`}
-                confirmLabel="Complete recruitment"
+                title={finalists.length ? `Send the ${position.title} results?` : `Finish ${position.title}?`}
+                description={
+                    finalists.length
+                        ? `${plural(offers, "student")} ${offers === 1 ? "gets an offer" : "get offers"} to answer within ${plural(days, "day")}, ${count("RESERVE")} ${count("RESERVE") === 1 ? "goes" : "go"} on the reserve list and ${count("NOT_SELECTED")} ${count("NOT_SELECTED") === 1 ? "is" : "are"} thanked. Everyone is emailed right away.`
+                        : "Nobody is waiting for this role, so its selection closes."
+                }
+                confirmLabel={finalists.length ? "Send results" : "Finish"}
             />
         </Card>
     );
 };
 
-/** Rounds tab for the president (and a read-only view for the mentor). */
-export const RoundsPanel = ({ drive, onDriveChange }) => {
+const OFFER_ORDER = { OFFERED: 0, ACCEPTED: 1, RESERVE: 2, DECLINED: 3, EXPIRED: 4 };
+
+/** After the final selection: who has an offer, who joined, and the reserve list for freed seats. */
+const OffersCard = ({ drive, data, canManage, onChange }) => {
+    const toast = useToast();
+    const [offering, setOffering] = useState(null);
+    const { position, seats } = data;
+    const offers = [...data.offers].sort((a, b) => OFFER_ORDER[a.status] - OFFER_ORDER[b.status]);
+
+    const offer = async () => {
+        const response = await recruitmentApi.offerToReserve(drive._id, position._id, offering.applicationId);
+        toast.success(response.message);
+        onChange();
+    };
+
+    return (
+        <Card
+            className="recruit-offers"
+            title={
+                <h2 className="row">
+                    <Gift size={18} /> Offers · {position.title}
+                </h2>
+            }
+        >
+            <div className="stack">
+                <div className="recruit-seats">
+                    <div>
+                        <strong>{seats.accepted}</strong>
+                        <span>joined</span>
+                    </div>
+                    <div>
+                        <strong>{seats.pending}</strong>
+                        <span>waiting for an answer</span>
+                    </div>
+                    <div>
+                        <strong>{seats.open === null ? "—" : seats.open}</strong>
+                        <span>{seats.openings ? `open of ${seats.openings}` : "no seat limit"}</span>
+                    </div>
+                </div>
+                {canManage && data.canOfferReserve && (
+                    <Alert type="info" title="A seat is free">
+                        Not every opening is taken or offered. Offer it to someone on the reserve list — they're emailed right away.
+                    </Alert>
+                )}
+                {offers.length ? (
+                    <ul className="recruit-candidates">
+                        {offers.map((item, index) => (
+                            <li key={item.applicationId} className="recruit-candidate" style={{ "--i": Math.min(index, 12) }}>
+                                <Avatar name={item.applicant.name} size="sm" />
+                                <span className="grow">
+                                    <strong>{item.applicant.name}</strong>
+                                    <span className="subtle small">
+                                        {item.status === "OFFERED" ? (
+                                            <>
+                                                <Hourglass size={12} /> Answer by {formatDateTime(item.offerExpiresAt)}
+                                            </>
+                                        ) : item.respondedAt ? (
+                                            `Answered ${formatDateTime(item.respondedAt)}`
+                                        ) : (
+                                            item.applicant.email
+                                        )}
+                                    </span>
+                                </span>
+                                <ApplicationBadge status={item.status} />
+                                {canManage && item.status === "RESERVE" && data.canOfferReserve && (
+                                    <Button size="sm" variant="secondary" onClick={() => setOffering(item)}>
+                                        <Gift size={14} /> Offer seat
+                                    </Button>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="subtle">No offers were made for this role.</p>
+                )}
+            </div>
+            <ConfirmDialog
+                open={Boolean(offering)}
+                onClose={() => setOffering(null)}
+                onConfirm={offer}
+                title={`Offer ${position.title} to ${offering?.applicant.name}?`}
+                description={`They're emailed right away and have ${plural(position.offerDays || 3, "day")} to answer.`}
+                confirmLabel="Send offer"
+            />
+        </Card>
+    );
+};
+
+/** Selection for one role: its rounds, the final selection and the offers. Read-only for the mentor. */
+export const RoundsPanel = ({ drive, position, onDriveChange }) => {
     const canManage = drive.viewer.canManage;
-    const { data, loading, error, reload } = useApi(() => recruitmentApi.rounds(drive._id), [drive._id]);
-    const refresh = () => reload({ silent: true });
+    const { data, loading, error, reload } = useApi(() => recruitmentApi.rounds(drive._id, position._id), [drive._id, position._id]);
+    const refresh = () => {
+        reload({ silent: true });
+        onDriveChange();
+    };
 
     if (["UPCOMING", "OPEN"].includes(drive.phase)) {
         return (
             <Card>
-                <EmptyState icon={Users} title="Rounds start after applications close" description="Close applications from the actions above, or wait for the deadline. Then add a screening or interview round." />
+                <EmptyState icon={Users} title="Selection starts after applications close" description="Close applications from the actions, or wait for the deadline. Then each role gets its own screening and interview rounds." />
             </Card>
         );
     }
@@ -475,26 +624,18 @@ export const RoundsPanel = ({ drive, onDriveChange }) => {
         <AsyncContent loading={loading && !data} error={error} onRetry={reload}>
             {data && (
                 <div className="stack-lg">
-                    {!data.rounds.length && data.activeCount > 0 && canManage && (
-                        <Alert type="info" title={`${plural(data.activeCount, "applicant")} waiting`}>
-                            Add your first round — a screening to shortlist, or go straight to interviews. You can also finalise directly below.
+                    {!data.rounds.length && data.activeCount > 0 && canManage && !data.position.finalizedAt && (
+                        <Alert type="info" title={`${plural(data.activeCount, "applicant")} for ${data.position.title}`}>
+                            Add the first round — a screening to shortlist, or go straight to interviews. You can also make offers directly below.
                         </Alert>
                     )}
                     {data.rounds.map((round, index) => (
-                        <RoundCard key={round._id} driveId={drive._id} round={round} number={index + 1} canManage={canManage} onChange={refresh} />
+                        <RoundCard key={round._id} driveId={drive._id} positionId={position._id} round={round} number={index + 1} canManage={canManage} onChange={refresh} />
                     ))}
-                    {canManage && data.canAddRound && <AddRound driveId={drive._id} number={data.rounds.length + 1} onDone={refresh} />}
-                    {canManage && data.canFinalize && (
-                        <FinalSelection
-                            drive={drive}
-                            finalists={data.finalists}
-                            onDone={() => {
-                                refresh();
-                                onDriveChange();
-                            }}
-                        />
-                    )}
-                    {!data.rounds.length && !canManage && <EmptyState icon={Users} title="No rounds yet" description="The president hasn't started the selection rounds." />}
+                    {canManage && data.canAddRound && <AddRound driveId={drive._id} positionId={position._id} number={data.rounds.length + 1} onDone={refresh} />}
+                    {canManage && data.canFinalize && <FinalSelection drive={drive} data={data} onDone={refresh} />}
+                    {data.position.finalizedAt && <OffersCard drive={drive} data={data} canManage={canManage && drive.status === "PUBLISHED"} onChange={refresh} />}
+                    {!data.rounds.length && !data.position.finalizedAt && !canManage && <EmptyState icon={Users} title="No rounds yet" description="The president hasn't started the selection for this role." />}
                 </div>
             )}
         </AsyncContent>

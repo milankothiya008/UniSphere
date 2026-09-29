@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarClock, ClipboardCheck, Lock, Megaphone, PencilLine, Send, Trash2, XCircle } from "lucide-react";
+import { CalendarClock, ClipboardCheck, Flag, Lock, Megaphone, PencilLine, Send, Trash2, XCircle } from "lucide-react";
 import { recruitmentApi } from "../../api/endpoints";
 import { useToast } from "../../context/ToastContext";
 import { Button, ButtonLink, Card, ConfirmDialog, Input, Modal } from "../ui";
@@ -75,6 +75,7 @@ export const DriveActions = ({ drive, onChange }) => {
     const live = drive.status === "PUBLISHED";
     const beforeRounds = live && ["UPCOMING", "OPEN", "CLOSED"].includes(drive.phase);
     const finished = ["COMPLETED", "CANCELLED", "REJECTED"].includes(drive.status);
+    const selecting = live && ["CLOSED", "ROUNDS"].includes(drive.phase);
 
     return (
         <>
@@ -82,7 +83,7 @@ export const DriveActions = ({ drive, onChange }) => {
                 <Card className="recruit-review" title={<h2 className="row"><ClipboardCheck size={18} /> Your review</h2>}>
                     <div className="stack">
                         <p className="subtle small" style={{ margin: 0 }}>
-                            Check the positions and the application form. Once you approve, the president can publish it to students.
+                            Check each role and its application form. Once you approve, the president can publish it to students.
                         </p>
                         <Button block onClick={() => setDialog("approve")}>
                             Approve
@@ -123,6 +124,11 @@ export const DriveActions = ({ drive, onChange }) => {
                         {beforeRounds && (
                             <Button block variant="secondary" onClick={() => setDialog("extend")}>
                                 <CalendarClock size={16} /> {drive.phase === "CLOSED" ? "Reopen applications" : "Extend deadline"}
+                            </Button>
+                        )}
+                        {selecting && (
+                            <Button block variant="secondary" onClick={() => setDialog("complete")}>
+                                <Flag size={16} /> Complete recruitment
                             </Button>
                         )}
                         {drive.status === "DRAFT" ? (
@@ -181,6 +187,14 @@ export const DriveActions = ({ drive, onChange }) => {
                 title="Close applications now?"
                 description="No one else can apply. You can reopen them until the first round starts."
                 confirmLabel="Close applications"
+            />
+            <ConfirmDialog
+                open={dialog === "complete"}
+                onClose={() => setDialog(null)}
+                onConfirm={dialogRun(() => recruitmentApi.complete(drive._id))}
+                title="Complete recruitment now?"
+                description="Recruitment usually completes by itself once every role has its members. Completing now closes every open application — anyone still in selection, on a reserve list or with an unanswered offer is thanked by email. Students who already accepted stay members."
+                confirmLabel="Complete recruitment"
             />
             <ConfirmDialog
                 open={dialog === "cancel"}

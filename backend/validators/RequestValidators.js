@@ -129,10 +129,12 @@ const clubStatusRules = [
     body("reason").optional().isString().trim().isLength({ max: 1000 })
 ];
 
-const roleRules = [
-    body("role")
-        .isIn(Object.values(CLUB_ROLES).filter((role) => role !== CLUB_ROLES.PRESIDENT))
-        .withMessage("Invalid club role")
+const roleRules = [body("role").isString().trim().isLength({ min: 1, max: 60 }).withMessage("Choose a role")];
+
+const clubRoleRules = (creating) => [
+    (creating ? body("name") : body("name").optional()).isString().trim().isLength({ min: 2, max: 40 }).withMessage("Role names are 2 to 40 characters"),
+    body("description").optional().isString().isLength({ max: 200 }),
+    (creating ? body("permissions") : body("permissions").optional()).isArray({ max: 20 }).withMessage("Choose the role's authorities")
 ];
 
 const eventFields = (optional = false) => {
@@ -279,6 +281,7 @@ module.exports = {
     emailPreferenceRules,
     unsubscribeRules,
     roleRules,
+    clubRoleRules,
     eventDraftRules,
     eventUpdateRules,
     availabilityRules,

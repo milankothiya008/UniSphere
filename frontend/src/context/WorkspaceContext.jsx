@@ -46,7 +46,8 @@ export const WorkspaceProvider = ({ children }) => {
         return {
             myClubs,
             approvedMemberships: approved,
-            officerClubs: approved.filter((m) => m.role !== "MEMBER"),
+            // Officers: any role that grants at least one authority (clubs name their own roles).
+            officerClubs: approved.filter((m) => m.permissions?.length),
             eventClubs: withPermission(PERMISSIONS.MANAGE_EVENTS),
             postingClubs: withPermission(PERMISSIONS.POST_UPDATES),
             mentoredClubs: myClubs.mentored,

@@ -123,6 +123,7 @@ const App = () => (
                 <Route path="/recruitment/:id" element={<DrivePage />} />
                 <Route path="/recruitment/:driveId/edit" element={<ProtectedRoute roles={[STUDENT]}><DriveFormPage /></ProtectedRoute>} />
                 <Route path="/recruitment/:id/apply" element={<ProtectedRoute roles={[STUDENT]}><ApplyPage /></ProtectedRoute>} />
+                <Route path="/recruitment/:id/apply/:positionId" element={<ProtectedRoute roles={[STUDENT]}><ApplyPage /></ProtectedRoute>} />
                 <Route path="/my-applications" element={<ProtectedRoute roles={[STUDENT]}><MyApplicationsPage /></ProtectedRoute>} />
 
                 <Route path="/club-requests" element={<ClubRequestsPage />} />

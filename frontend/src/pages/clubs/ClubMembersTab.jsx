@@ -6,9 +6,10 @@ import { useApi } from "../../hooks/useApi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { AsyncContent, Avatar, Button, Card, ConfirmDialog, EmptyState, ErrorState, RoleBadge, UserPicker } from "../../components/ui";
-import { ASSIGNABLE_CLUB_ROLES, CLUB_ROLE_DESCRIPTIONS, PERMISSIONS } from "../../lib/constants";
-import { departmentsLabel, batchLabel, formatDate, humanize } from "../../lib/format";
+import { PERMISSIONS } from "../../lib/constants";
+import { departmentsLabel, batchLabel, formatDate } from "../../lib/format";
 import { scopeDepartments } from "../../lib/eligibility";
+import { ClubRolesCard } from "../../components/clubs/ClubRolesCard";
 
 const ClubMembersTab = () => {
     const { club, reload: reloadClub } = useOutletContext();
@@ -19,23 +20,37 @@ const ClubMembersTab = () => {
     const canManage = can(PERMISSIONS.MANAGE_MEMBERS);
     const canAssign = can(PERMISSIONS.ASSIGN_ROLES);
 
-    const members = useApi(() => clubApi.members(club._id), [club._id]);
+    const canSee = viewer.isMember || viewer.isMentor;
+    const members = useApi(() => (canSee ? clubApi.members(club._id) : Promise.resolve({ data: [] })), [club._id, canSee]);
+    const roles = useApi(() => (canSee ? clubApi.roles(club._id) : Promise.resolve({ data: null })), [club._id, canSee]);
     const [removing, setRemoving] = useState(null);
 
     const refresh = () => {
         members.reload({ silent: true });
+        roles.reload({ silent: true });
         reloadClub();
     };
 
     const changeRole = async (membership, role) => {
         try {
-            await clubApi.changeRole(club._id, membership.user._id, role);
-            toast.success(`${membership.user.name} is now ${humanize(role).toLowerCase()}`);
+            const response = await clubApi.changeRole(club._id, membership.user._id, role);
+            const name = response.data?.roleName || roles.data?.roles.find((item) => item.key === role)?.name || "a member";
+            toast.success(`${membership.user.name} is now ${role === "MEMBER" ? "a member" : name}`);
             members.reload({ silent: true });
+            roles.reload({ silent: true });
         } catch (err) {
             toast.error(err);
         }
     };
+
+    // Everyone but the president can be given any role; the vice-president seat only while it's free.
+    const roleOptions = (membership) =>
+        (roles.data?.roles || [])
+            .filter((role) => role.key !== "PRESIDENT")
+            .map((role) => {
+                const taken = role.unique && role.holder && role.holder._id !== membership.user._id;
+                return { value: role.key, label: taken ? `${role.name} — held by ${role.holder.name}` : role.name, disabled: taken };
+            });
 
     const addMember = async (student) => {
         try {
@@ -53,7 +68,7 @@ const ClubMembersTab = () => {
         refresh();
     };
 
-    if (!viewer.isMember && !viewer.isMentor) {
+    if (!canSee) {
         return <ErrorState error={{ status: 403, message: "Only club members and the club's mentor can see the member list." }} />;
     }
 
@@ -115,7 +130,7 @@ const ClubMembersTab = () => {
                                             {membership.user.departmentCode} · {batchLabel(membership.user.batchCode)}
                                         </td>
                                         <td>
-                                            {canAssign && membership.role !== "PRESIDENT" && membership.user._id !== user._id ? (
+                                            {canAssign && roles.data && membership.role !== "PRESIDENT" && membership.user._id !== user._id ? (
                                                 <select
                                                     className="select"
                                                     style={{ minWidth: 200, height: 34, padding: "4px 30px 4px 10px" }}
@@ -123,14 +138,14 @@ const ClubMembersTab = () => {
                                                     onChange={(e) => changeRole(membership, e.target.value)}
                                                     aria-label={`Role for ${membership.user.name}`}
                                                 >
-                                                    {ASSIGNABLE_CLUB_ROLES.map((role) => (
-                                                        <option key={role} value={role}>
-                                                            {humanize(role)}
+                                                    {roleOptions(membership).map((option) => (
+                                                        <option key={option.value} value={option.value} disabled={option.disabled}>
+                                                            {option.label}
                                                         </option>
                                                     ))}
                                                 </select>
                                             ) : (
-                                                <RoleBadge role={membership.role} />
+                                                <RoleBadge role={membership.role} label={membership.roleName} />
                                             )}
                                         </td>
                                         <td className="nowrap subtle">{formatDate(membership.joinedAt)}</td>
@@ -151,18 +166,7 @@ const ClubMembersTab = () => {
                 </AsyncContent>
             </Card>
 
-            {canAssign && (
-                <Card title="What each role can do">
-                    <div className="grid-2">
-                        {Object.entries(CLUB_ROLE_DESCRIPTIONS).map(([role, description]) => (
-                            <div key={role} className="row" style={{ flexWrap: "nowrap", alignItems: "flex-start" }}>
-                                <RoleBadge role={role} />
-                                <span className="small muted">{description}</span>
-                            </div>
-                        ))}
-                    </div>
-                </Card>
-            )}
+            {roles.data && <ClubRolesCard club={club} roles={roles} onChanged={refresh} />}
 
             <ConfirmDialog
                 open={Boolean(removing)}
