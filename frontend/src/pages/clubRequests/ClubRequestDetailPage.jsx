@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { CheckCircle2, FilePenLine, FileText, MessageSquareWarning, ShieldCheck, XCircle } from "lucide-react";
+import { Check, CheckCircle2, FilePenLine, FileText, MessageSquareWarning, PencilLine, ShieldCheck, X, XCircle } from "lucide-react";
 import { clubRequestApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useAuth } from "../../context/AuthContext";
@@ -8,24 +8,38 @@ import { useToast } from "../../context/ToastContext";
 import { Alert, AsyncContent, Avatar, Badge, Button, ButtonLink, Card, ConfirmDialog, PageHeader, StatusBadge } from "../../components/ui";
 import { departmentsLabel, formatDateTime, humanize } from "../../lib/format";
 
-const STEPS = [
-    ["PENDING_FACULTY_REVIEW", "Faculty review"],
-    ["FACULTY_VERIFIED", "Admin approval"],
-    ["APPROVED", "Club created"]
-];
+const STEPS = ["Submitted", "Faculty review", "Admin approval", "Club created"];
 
-const Progress = ({ status }) => {
-    const current = status === "NEEDS_CHANGES" ? 0 : STEPS.findIndex(([key]) => key === status);
+// Where the request stands: 0 submitted, 1 with the faculty, 2 with the admin, 3 club created. A request
+// sent back for changes waits with its founders at the faculty step; a rejection is shown where it happened.
+const stepState = (request) => {
+    const { status } = request;
+    if (status === "APPROVED") return { current: STEPS.length, mark: null };
+    if (status === "FACULTY_VERIFIED") return { current: 2, mark: null };
+    if (status === "NEEDS_CHANGES") return { current: 1, mark: "attention" };
+    if (status === "REJECTED") return { current: request.verifiedAt ? 2 : 1, mark: "rejected" };
+    return { current: 1, mark: null };
+};
+
+const STEP_NOTE = { attention: "Changes requested", rejected: "Rejected" };
+
+const Progress = ({ request }) => {
+    const { current, mark } = stepState(request);
     return (
-        <div className="workflow">
-            <span className="step done">Submitted</span>
-            {STEPS.map(([key, label], index) => (
-                <span key={key} className={`step ${status === "REJECTED" ? "" : index < current || status === "APPROVED" ? "done" : index === current ? "current" : ""}`}>
-                    {label}
-                </span>
-            ))}
-            {status === "REJECTED" && <span className="step" style={{ background: "var(--danger-100)", color: "var(--danger-600)" }}>Rejected</span>}
-        </div>
+        <ol className="workflow request-workflow" aria-label="Request progress">
+            {STEPS.map((label, index) => {
+                const done = index < current;
+                const here = index === current;
+                const state = done ? "done" : here ? (mark ? `current is-${mark}` : "current") : "";
+                const Icon = here && mark === "rejected" ? X : here && mark === "attention" ? PencilLine : done ? Check : null;
+                return (
+                    <li key={label} className={`step ${state}`} aria-current={here ? "step" : undefined}>
+                        <span className="step-dot">{Icon ? <Icon size={13} strokeWidth={3} /> : index + 1}</span>
+                        <span className="step-label">{here && mark ? STEP_NOTE[mark] : label}</span>
+                    </li>
+                );
+            })}
+        </ol>
     );
 };
 
@@ -71,7 +85,7 @@ const ClubRequestDetailPage = () => {
 
                     <div className="detail-layout">
                         <div className="stack-lg">
-                            <Progress status={request.status} />
+                            <Progress request={request} />
 
                             {request.status === "NEEDS_CHANGES" && (
                                 <Alert type="warning" title="Changes requested">

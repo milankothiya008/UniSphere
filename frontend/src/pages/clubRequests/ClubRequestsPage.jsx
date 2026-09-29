@@ -9,7 +9,7 @@ import { departmentsLabel, humanize, timeAgo } from "../../lib/format";
 
 const TABS = {
     STUDENT: [
-        { value: "", label: "All my requests" },
+        { value: "ALL", label: "All my requests" },
         { value: "NEEDS_CHANGES", label: "Changes requested" },
         { value: "PENDING_FACULTY_REVIEW", label: "In faculty review" },
         { value: "FACULTY_VERIFIED", label: "Awaiting admin" },
@@ -19,7 +19,7 @@ const TABS = {
     FACULTY: [
         { value: "PENDING_FACULTY_REVIEW", label: "To review" },
         { value: "FACULTY_VERIFIED", label: "Verified by me" },
-        { value: "", label: "All" }
+        { value: "ALL", label: "All" }
     ],
     ADMIN: [
         { value: "FACULTY_VERIFIED", label: "Awaiting approval" },
@@ -27,7 +27,7 @@ const TABS = {
         { value: "NEEDS_CHANGES", label: "Changes requested" },
         { value: "APPROVED", label: "Approved" },
         { value: "REJECTED", label: "Rejected" },
-        { value: "", label: "All" }
+        { value: "ALL", label: "All" }
     ]
 };
 
@@ -37,7 +37,7 @@ const ClubRequestsPage = ({ adminView = false }) => {
     const [filters, setFilters] = useQueryState({ status: tabs[0].value, page: "1" });
 
     const { data, meta, loading, error, reload } = useApi(
-        () => clubRequestApi.list({ status: filters.status, page: filters.page, limit: 20 }),
+        () => clubRequestApi.list({ status: filters.status === "ALL" ? undefined : filters.status, page: filters.page, limit: 20 }),
         [filters.status, filters.page]
     );
 

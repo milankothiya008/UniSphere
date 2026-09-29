@@ -728,3 +728,42 @@ button.list-row-button:focus-visible .list-row-edit {
         opacity: 1;
     }
 }
+
+/* ---------------------------------------------------------------- Club request progress */
+.request-workflow {
+    padding: 18px 12px 14px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    animation: rise-in 0.4s var(--ease-out) both;
+}
+
+.workflow .step.current.is-attention .step-dot {
+    background: var(--warning-600);
+    border-color: var(--warning-600);
+    box-shadow: 0 0 0 5px var(--warning-100);
+}
+
+.workflow .step.current.is-attention .step-label {
+    color: var(--warning-600);
+}
+
+.workflow .step.current.is-rejected .step-dot {
+    background: var(--danger-600);
+    border-color: var(--danger-600);
+    box-shadow: 0 0 0 5px var(--danger-100);
+    animation: none;
+}
+
+.workflow .step.current.is-rejected .step-label {
+    color: var(--danger-600);
+}
+
+.workflow .step.done + .step.current.is-attention::before {
+    background: linear-gradient(90deg, var(--success-600), var(--warning-600));
+}
+
+.workflow .step.done + .step.current.is-rejected::before {
+    background: linear-gradient(90deg, var(--success-600), var(--danger-600));
+}

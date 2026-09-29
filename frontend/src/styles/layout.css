@@ -776,32 +776,6 @@ a.list-row:hover {
     white-space: nowrap;
 }
 
-.workflow {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--text-subtle);
-}
-
-.workflow .step {
-    padding: 4px 10px;
-    border-radius: 999px;
-    background: var(--neutral-100);
-}
-
-.workflow .step.done {
-    background: var(--success-100);
-    color: var(--success-600);
-}
-
-.workflow .step.current {
-    background: var(--ink-700);
-    color: #fff;
-}
-
 .poster-fallback {
     display: flex;
     flex-direction: column;

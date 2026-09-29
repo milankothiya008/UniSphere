@@ -215,7 +215,7 @@ const listRequests = async (actor, query = {}) => {
     const pagination = parsePagination(query, { defaultLimit: 20 });
     const conditions = [];
 
-    if (query.status) {
+    if (query.status && String(query.status).toUpperCase() !== "ALL") {
         conditions.push({ status: String(query.status).toUpperCase() });
     }
 
