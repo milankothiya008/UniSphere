@@ -5,7 +5,7 @@ import { clubApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import { AsyncContent, Avatar, Button, Card, ConfirmDialog, EmptyState, ErrorState, RoleBadge, UserPicker } from "../../components/ui";
+import { ActionMenu, AsyncContent, Avatar, Card, ConfirmDialog, EmptyState, ErrorState, RoleBadge, UserPicker } from "../../components/ui";
 import { PERMISSIONS } from "../../lib/constants";
 import { departmentsLabel, batchLabel, formatDate } from "../../lib/format";
 import { scopeDepartments } from "../../lib/eligibility";
@@ -151,11 +151,10 @@ const ClubMembersTab = () => {
                                         <td className="nowrap subtle">{formatDate(membership.joinedAt)}</td>
                                         {canManage && (
                                             <td className="actions">
-                                                {canRemove(membership) && (
-                                                    <Button size="sm" variant="ghost" onClick={() => setRemoving(membership)}>
-                                                        <UserMinus size={14} /> Remove
-                                                    </Button>
-                                                )}
+                                                <ActionMenu
+                                                    label={`Actions for ${membership.user.name}`}
+                                                    items={[{ label: "Remove from club", icon: UserMinus, onClick: () => setRemoving(membership), danger: true, hidden: !canRemove(membership) }]}
+                                                />
                                             </td>
                                         )}
                                     </tr>

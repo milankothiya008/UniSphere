@@ -1973,3 +1973,479 @@
         transition: none;
     }
 }
+
+/* ================================================================ Polish: fewer buttons, clickable surfaces */
+
+/* ---------------------------------------------------------------- Builder: compact questions */
+.recruit-q-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.recruit-q-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-right: 6px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    animation: rise-in 0.3s var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 30ms);
+    transition:
+        border-color 0.18s ease,
+        box-shadow 0.18s ease,
+        transform 0.18s var(--ease-out);
+}
+
+.recruit-q-row:hover {
+    border-color: var(--ink-500);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
+}
+
+.recruit-q-row.has-error {
+    border-color: var(--danger-600);
+    background: var(--danger-100);
+}
+
+.recruit-q-row.has-error .recruit-q-text .subtle {
+    color: var(--danger-600);
+}
+
+.recruit-q-row-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.recruit-q-icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--ink-50);
+    color: var(--ink-700);
+}
+
+.recruit-q-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.recruit-q-text strong {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 0.92rem;
+}
+
+.recruit-q-text .req {
+    color: var(--danger-600);
+}
+
+.recruit-question {
+    animation: recruit-q-open 0.28s var(--ease-out) both;
+}
+
+.recruit-add-q,
+.recruit-add-page {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 11px 14px;
+    border-radius: 12px;
+    border: 1.5px dashed var(--border-strong);
+    background: transparent;
+    color: var(--ink-700);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+        border-color 0.18s ease,
+        background 0.18s ease,
+        color 0.18s ease;
+}
+
+.recruit-add-q:hover,
+.recruit-add-page:hover,
+.recruit-add-q[aria-expanded="true"] {
+    border-color: var(--ink-600);
+    background: var(--ink-50);
+}
+
+.recruit-add-page {
+    padding: 14px;
+    border-radius: 16px;
+}
+
+.recruit-q-list > .action-menu {
+    display: flex;
+}
+
+.recruit-option-remove {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 30px;
+    height: 30px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--text-subtle);
+    cursor: pointer;
+}
+
+.recruit-option-remove:hover {
+    background: var(--danger-100);
+    color: var(--danger-600);
+}
+
+.recruit-option-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    align-self: flex-start;
+    padding: 6px 8px 6px 30px;
+    border: 0;
+    background: none;
+    color: var(--ink-600);
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.recruit-option-add:hover {
+    color: var(--ink-800);
+    text-decoration: underline;
+}
+
+.recruit-form-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.recruit-form-toolbar h3 {
+    flex: 1;
+}
+
+.recruit-view {
+    animation: fade-in 0.22s ease both;
+}
+
+.recruit-role-tab.is-add {
+    border-style: dashed;
+    border-color: var(--border-strong);
+    background: transparent;
+    color: var(--ink-700);
+}
+
+.recruit-role-tab.is-add > span:first-child {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.recruit-role-tab.is-add:hover,
+.recruit-role-tab.is-add[aria-expanded="true"] {
+    border-color: var(--ink-600);
+    background: var(--ink-50);
+}
+
+.recruit-role-tabs .action-menu {
+    flex: none;
+}
+
+/* ---------------------------------------------------------------- Drive page: role cards as actions */
+.recruit-role-card.is-action {
+    width: 100%;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    text-decoration: none !important;
+    cursor: pointer;
+}
+
+.recruit-role-card.is-action:hover {
+    border-color: var(--ink-500);
+}
+
+.recruit-role-card.is-action:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.recruit-role-card-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    align-self: flex-start;
+    margin-top: auto;
+    padding-top: 4px;
+    color: var(--ink-700);
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
+.recruit-role-card-cta svg {
+    transition: transform 0.2s var(--ease-out);
+}
+
+.recruit-role-card.is-action:hover .recruit-role-card-cta svg {
+    transform: translateX(4px);
+}
+
+.recruit-role-card-cta.is-accent {
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--gold-500);
+    color: var(--ink-900);
+    box-shadow: 0 6px 16px -8px rgba(234, 179, 8, 0.8);
+}
+
+/* ---------------------------------------------------------------- The student's applications */
+.recruit-my-apps {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.recruit-section-title {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.recruit-app-card {
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    animation: rise-in 0.35s var(--ease-out) both;
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.recruit-app-card.is-offered {
+    border-color: var(--gold-500);
+    box-shadow: 0 0 0 3px var(--gold-100), var(--shadow-sm);
+}
+
+.recruit-app-card.is-accepted {
+    border-color: var(--success-600);
+}
+
+.recruit-app-card.is-closed,
+.recruit-app-card.is-eliminated,
+.recruit-app-card.is-not_selected,
+.recruit-app-card.is-declined,
+.recruit-app-card.is-expired {
+    background: var(--surface-muted);
+}
+
+.recruit-app-card-head {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-right: 8px;
+}
+
+.recruit-app-card-toggle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+    padding: 14px 8px 14px 16px;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.recruit-app-card-icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: var(--info-100);
+    color: var(--info-600);
+}
+
+.recruit-app-card.is-in_rounds .recruit-app-card-icon {
+    background: var(--violet-100);
+    color: var(--violet-600);
+}
+
+.recruit-app-card.is-offered .recruit-app-card-icon {
+    background: var(--gold-500);
+    color: var(--ink-900);
+    animation: recruit-pop 0.5s var(--ease-spring) both;
+}
+
+.recruit-app-card.is-accepted .recruit-app-card-icon {
+    background: var(--success-100);
+    color: var(--success-600);
+}
+
+.recruit-app-card.is-reserve .recruit-app-card-icon {
+    background: var(--warning-100);
+    color: var(--warning-600);
+}
+
+.recruit-app-card.is-closed .recruit-app-card-icon,
+.recruit-app-card.is-eliminated .recruit-app-card-icon,
+.recruit-app-card.is-not_selected .recruit-app-card-icon,
+.recruit-app-card.is-declined .recruit-app-card-icon,
+.recruit-app-card.is-expired .recruit-app-card-icon {
+    background: var(--neutral-100);
+    color: var(--neutral-600);
+}
+
+.recruit-app-card-text {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.recruit-app-card-text strong {
+    font-size: 1rem;
+}
+
+.recruit-app-card-text .subtle {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.recruit-app-card-kicker {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+}
+
+.recruit-chevron {
+    flex: none;
+    color: var(--text-subtle);
+    transition: transform 0.25s var(--ease-out);
+}
+
+.recruit-app-card.is-open .recruit-chevron {
+    transform: rotate(180deg);
+}
+
+.recruit-collapse {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.32s var(--ease-out);
+}
+
+.recruit-app-card.is-open .recruit-collapse {
+    grid-template-rows: 1fr;
+}
+
+.recruit-collapse-inner {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.recruit-app-card-body {
+    padding: 2px 16px 16px;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+.recruit-app-card.is-open .recruit-app-card-body {
+    opacity: 1;
+}
+
+/* ---------------------------------------------------------------- Actions and rounds */
+.recruit-action-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.recruit-add-round-toggle {
+    padding: 16px;
+}
+
+.recruit-wizard-page.is-back {
+    animation-name: recruit-step-back;
+}
+
+@keyframes recruit-step-back {
+    from {
+        opacity: 0;
+        transform: translateX(-14px);
+    }
+}
+
+@keyframes recruit-q-open {
+    from {
+        opacity: 0;
+        transform: scale(0.985);
+    }
+}
+
+@media (max-width: 720px) {
+    .recruit-form-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .recruit-form-toolbar h3 {
+        flex-basis: 100%;
+    }
+
+    .recruit-app-card-toggle {
+        padding-left: 12px;
+        gap: 10px;
+    }
+
+    .recruit-app-card-toggle .badge {
+        display: none;
+    }
+
+    .recruit-app-card-body {
+        padding: 2px 12px 14px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .recruit-q-row,
+    .recruit-question,
+    .recruit-app-card,
+    .recruit-app-card-icon,
+    .recruit-view,
+    .recruit-collapse,
+    .recruit-app-card-body,
+    .recruit-chevron {
+        animation: none !important;
+        transition: none !important;
+    }
+}

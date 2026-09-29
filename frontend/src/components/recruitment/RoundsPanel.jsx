@@ -3,7 +3,7 @@ import { Award, CalendarClock, Check, ClipboardList, Flag, Gift, Hourglass, List
 import { recruitmentApi, referenceApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useToast } from "../../context/ToastContext";
-import { Alert, AsyncContent, Avatar, Badge, Button, Card, ConfirmDialog, EmptyState, Input, Modal, Segmented, Select, Textarea } from "../ui";
+import { ActionMenu, Alert, AsyncContent, Avatar, Badge, Button, Card, ConfirmDialog, EmptyState, Input, Modal, Segmented, Select, Textarea } from "../ui";
 import { ApplicationBadge } from "./RecruitmentParts";
 import { ROUND_MODES } from "../../lib/constants";
 import { formatDate, formatDateTime, formatTime, formatTimeRange, fromDateTimeInput, plural, toDateTimeInput } from "../../lib/format";
@@ -17,6 +17,7 @@ const addMinutes = (input, minutes) => (input ? toDateTimeInput(new Date(new Dat
 
 const AddRound = ({ driveId, positionId, number, onDone }) => {
     const toast = useToast();
+    const [open, setOpen] = useState(number === 1);
     const [name, setName] = useState("");
     const [mode, setMode] = useState("SCREENING");
     const [busy, setBusy] = useState(false);
@@ -29,6 +30,7 @@ const AddRound = ({ driveId, positionId, number, onDone }) => {
             await recruitmentApi.createRound(driveId, positionId, { name: name.trim() || suggestions[mode], mode });
             toast.success(`Round ${number} added`);
             setName("");
+            setOpen(false);
             onDone();
         } catch (error) {
             toast.error(error);
@@ -37,8 +39,26 @@ const AddRound = ({ driveId, positionId, number, onDone }) => {
         }
     };
 
+    if (!open) {
+        return (
+            <button type="button" className="recruit-add-page recruit-add-round-toggle" onClick={() => setOpen(true)}>
+                <Plus size={16} /> Add round {number}
+            </button>
+        );
+    }
+
     return (
-        <Card title={<h2 className="row"><Plus size={18} /> Add round {number}</h2>} className="recruit-add-round">
+        <Card
+            title={<h2 className="row"><Plus size={18} /> Add round {number}</h2>}
+            className="recruit-add-round"
+            actions={
+                number > 1 && (
+                    <button type="button" className="btn btn-ghost btn-sm btn-icon" onClick={() => setOpen(false)} aria-label="Close">
+                        <X size={16} />
+                    </button>
+                )
+            }
+        >
             <form className="stack" onSubmit={create}>
                 <div className="recruit-mode-picker" role="radiogroup" aria-label="Round type">
                     {Object.entries(ROUND_MODES).map(([value, info]) => {
@@ -284,7 +304,17 @@ const RoundCard = ({ driveId, positionId, round, number, canManage, onChange }) 
                     </span>
                 </h2>
             }
-            actions={<Badge tone={tone} dot>{statusLabel}</Badge>}
+            actions={
+                <>
+                    <Badge tone={tone} dot>
+                        {statusLabel}
+                    </Badge>
+                    <ActionMenu
+                        label={`${round.name} actions`}
+                        items={[{ label: "Reschedule", icon: CalendarClock, onClick: () => setEditing(true), hidden: !(canManage && round.isCurrent && needsSchedule && round.status === "SCHEDULED" && !editing) }]}
+                    />
+                </>
+            }
         >
             <div className="stack">
                 {needsSchedule && round.status === "SCHEDULED" && !editing && (
@@ -302,11 +332,6 @@ const RoundCard = ({ driveId, positionId, round, number, canManage, onChange }) 
                             <a className="row" style={{ gap: 6 }} href={round.meetingLink} target="_blank" rel="noreferrer">
                                 <Video size={15} /> {round.meetingLink}
                             </a>
-                        )}
-                        {canManage && round.isCurrent && (
-                            <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
-                                Reschedule
-                            </Button>
                         )}
                     </div>
                 )}

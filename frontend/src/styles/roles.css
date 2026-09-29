@@ -166,3 +166,79 @@
         animation: none;
     }
 }
+
+/* Rows are the edit action: click a role to open its editor. */
+.role-list > li + li {
+    border-top: 1px solid var(--border);
+}
+
+.role-item,
+.role-item:first-child {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    border-top: 0;
+}
+
+button.role-item {
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.18s ease;
+}
+
+button.role-item:hover {
+    background: var(--surface-muted);
+}
+
+button.role-item:focus-visible {
+    outline: none;
+    box-shadow: inset var(--focus-ring);
+}
+
+.role-item-description {
+    display: block;
+}
+
+.role-item-edit {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: auto;
+    padding: 4px 10px;
+    border-radius: 8px;
+    color: var(--ink-600);
+    font-size: 0.82rem;
+    font-weight: 600;
+    opacity: 0;
+    transform: translateX(-4px);
+    transition:
+        opacity 0.18s ease,
+        transform 0.18s var(--ease-out);
+}
+
+button.role-item:hover .role-item-edit,
+button.role-item:focus-visible .role-item-edit {
+    opacity: 1;
+    transform: none;
+}
+
+.modal-footer .role-delete {
+    margin-right: auto;
+    color: var(--danger-600);
+}
+
+.modal-footer .role-delete:hover:not(:disabled) {
+    background: var(--danger-100);
+    color: var(--danger-600);
+}
+
+@media (hover: none) {
+    .role-item-edit {
+        opacity: 1;
+        transform: none;
+    }
+}

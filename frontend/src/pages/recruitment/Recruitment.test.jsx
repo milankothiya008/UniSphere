@@ -106,6 +106,8 @@ describe("recruitment drive builder", () => {
 
         // Design lead: starts with two pages; add a third and leave its title empty → blocked.
         await userEvent.click(within(picker).getByRole("button", { name: /Design lead/ }));
+        // Questions show as compact rows; clicking one opens it for editing.
+        await userEvent.click(screen.getByRole("button", { name: /Edit question 1: Why do you want to be Design lead\?/ }));
         expect(screen.getByDisplayValue("Why do you want to be Design lead?")).toBeInTheDocument();
         expect(screen.getAllByLabelText(/^Page title/).map((input) => input.value)).toEqual(["About you", "Experience"]);
         await userEvent.click(screen.getByRole("button", { name: /Add page/ }));
@@ -116,14 +118,20 @@ describe("recruitment drive builder", () => {
         expect(within(screen.getByRole("tab", { name: /Design lead/ })).getByText("1")).toBeInTheDocument();
         await userEvent.type(screen.getAllByLabelText(/^Page title/)[2], "Portfolio");
         await userEvent.click(screen.getByRole("button", { name: /Add page/ }));
-        await userEvent.click(screen.getByRole("button", { name: "Delete page 4" }));
+        await userEvent.click(screen.getByRole("button", { name: "Page 4 actions" }));
+        await userEvent.click(screen.getByRole("menuitem", { name: /Delete page/ }));
 
         // Technical coordinator copies the Design lead form, then changes its own.
-        await userEvent.click(within(picker).getByRole("button", { name: /Technical coordinator/ }));
+        // More roles come from the "Add role" menu at the end of the role tabs; the taken VP seat stays disabled.
+        await userEvent.click(screen.getByRole("button", { name: /Add role/ }));
+        expect(screen.getByRole("menuitem", { name: /Vice-president — held by Meera/ })).toBeDisabled();
+        await userEvent.click(screen.getByRole("menuitem", { name: /Technical coordinator/ }));
         expect(screen.getByRole("tab", { name: /Technical coordinator/ })).toHaveAttribute("aria-selected", "true");
-        await userEvent.selectOptions(screen.getByLabelText("Copy the form from another role"), "Design lead");
+        await userEvent.click(screen.getByRole("button", { name: "Technical coordinator options" }));
+        await userEvent.click(screen.getByRole("menuitem", { name: "Copy form from Design lead" }));
         expect(screen.getAllByLabelText(/^Page title/).map((input) => input.value)).toEqual(["About you", "Experience", "Portfolio"]);
-        await userEvent.click(screen.getByRole("button", { name: "Delete page 3" }));
+        await userEvent.click(screen.getByRole("button", { name: "Page 3 actions" }));
+        await userEvent.click(screen.getByRole("menuitem", { name: /Delete page/ }));
         await userEvent.type(screen.getByLabelText("Openings"), "2");
 
         await userEvent.click(screen.getByLabelText("2025"));
@@ -227,6 +235,26 @@ describe("offers", () => {
         expect(within(dialog).getByText(/your other application \(Member\) will be closed/)).toBeInTheDocument();
         await userEvent.click(within(dialog).getByRole("button", { name: "Accept and join" }));
         await waitFor(() => expect(recruitmentApi.acceptOffer).toHaveBeenCalledWith("d1", "a1"));
+        expect(onChange).toHaveBeenCalled();
+    });
+
+    test("an application waiting for news starts folded; it opens on click and keeps Edit/Withdraw in its menu", async () => {
+        recruitmentApi.withdraw.mockResolvedValue({ data: null });
+        const onChange = vi.fn();
+        const application = { _id: "a2", position: "p2", positionTitle: "Member", status: "APPLIED", rounds: [], createdAt: inDays(-1), canEdit: true, canWithdraw: true };
+        renderWithRouter(<MyApplicationCard drive={drive()} application={application} onChange={onChange} />);
+
+        const toggle = screen.getByRole("button", { name: /Your application\s*Member/ });
+        expect(toggle).toHaveAttribute("aria-expanded", "false");
+        await userEvent.click(toggle);
+        expect(toggle).toHaveAttribute("aria-expanded", "true");
+        expect(screen.getByText("Final selection")).toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole("button", { name: "Member application actions" }));
+        expect(screen.getByRole("menuitem", { name: /Edit answers/ })).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("menuitem", { name: /Withdraw application/ }));
+        await userEvent.click(within(screen.getByRole("dialog", { name: "Withdraw your Member application?" })).getByRole("button", { name: "Withdraw" }));
+        await waitFor(() => expect(recruitmentApi.withdraw).toHaveBeenCalledWith("d1", "p2"));
         expect(onChange).toHaveBeenCalled();
     });
 

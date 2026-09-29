@@ -9,7 +9,7 @@ import { plural } from "../../lib/format";
 const emptyRole = { name: "", description: "", permissions: [] };
 
 /** Create or edit a role: its name, a short description and the authorities it grants. */
-const RoleEditor = ({ club, role, presidentOnly, onClose, onSaved }) => {
+const RoleEditor = ({ club, role, presidentOnly, onClose, onSaved, onDelete }) => {
     const formId = useId();
     const toast = useToast();
     const creating = role === "new";
@@ -63,6 +63,11 @@ const RoleEditor = ({ club, role, presidentOnly, onClose, onSaved }) => {
             description="Choose what members with this role can do in the club. Everyone keeps member access."
             footer={
                 <>
+                    {!creating && role?.deletable && (
+                        <Button variant="ghost" className="role-delete" onClick={() => onDelete(role)} disabled={pending}>
+                            <Trash2 size={15} /> Delete role
+                        </Button>
+                    )}
                     <Button variant="secondary" onClick={onClose} disabled={pending}>
                         Cancel
                     </Button>
@@ -134,6 +139,32 @@ const AuthorityChips = ({ role }) => {
     ));
 };
 
+const RoleSummary = ({ role, editable = false }) => (
+    <>
+        <span className="role-item-head">
+            <RoleBadge role={role.key} label={role.name} />
+            <span className="subtle small">
+                {role.unique ? (role.holder ? role.holder.name : "Vacant") : plural(role.memberCount, "member")}
+                {role.system && (
+                    <>
+                        {" "}
+                        · <Lock size={11} aria-label="Built-in" /> built-in
+                    </>
+                )}
+            </span>
+            {editable && (
+                <span className="role-item-edit" aria-hidden="true">
+                    <Pencil size={14} /> Edit
+                </span>
+            )}
+        </span>
+        {role.description && <span className="small muted role-item-description">{role.description}</span>}
+        <span className="authority-chips">
+            <AuthorityChips role={role} />
+        </span>
+    </>
+);
+
 /**
  * The club's roles and what each can do. The president creates, edits and deletes roles; members and the
  * mentor see them read-only.
@@ -167,45 +198,34 @@ export const ClubRolesCard = ({ club, roles, onChanged }) => {
             }
             padded={false}
         >
-            {canManage && <p className="subtle roles-intro">Create the roles your club needs and choose what each can do. There is one president and at most one vice-president.</p>}
+            {canManage && <p className="subtle roles-intro">Create the roles your club needs and choose what each can do — click a role to edit it. There is one president and at most one vice-president.</p>}
             <ul className="role-list">
                 {data?.roles.map((role) => (
-                    <li key={role.key} className="role-item">
-                        <div className="role-item-head">
-                            <RoleBadge role={role.key} label={role.name} />
-                            <span className="subtle small">
-                                {role.unique ? (role.holder ? role.holder.name : "Vacant") : plural(role.memberCount, "member")}
-                                {role.system && (
-                                    <>
-                                        {" "}
-                                        · <Lock size={11} aria-label="Built-in" /> built-in
-                                    </>
-                                )}
-                            </span>
-                            {canManage && (
-                                <span className="role-item-actions">
-                                    {role.editable && (
-                                        <Button size="sm" variant="ghost" onClick={() => setEditing(role)} aria-label={`Edit ${role.name}`}>
-                                            <Pencil size={14} /> Edit
-                                        </Button>
-                                    )}
-                                    {role.deletable && (
-                                        <Button size="sm" variant="ghost" onClick={() => setDeleting(role)} aria-label={`Delete ${role.name}`}>
-                                            <Trash2 size={14} />
-                                        </Button>
-                                    )}
-                                </span>
-                            )}
-                        </div>
-                        {role.description && <p className="small muted role-item-description">{role.description}</p>}
-                        <div className="authority-chips">
-                            <AuthorityChips role={role} />
-                        </div>
+                    <li key={role.key}>
+                        {canManage && role.editable ? (
+                            <button type="button" className="role-item is-editable" onClick={() => setEditing(role)} aria-label={`Edit ${role.name}`}>
+                                <RoleSummary role={role} editable />
+                            </button>
+                        ) : (
+                            <div className="role-item">
+                                <RoleSummary role={role} />
+                            </div>
+                        )}
                     </li>
                 ))}
             </ul>
 
-            <RoleEditor club={club} role={editing} presidentOnly={data?.presidentOnly || []} onClose={() => setEditing(null)} onSaved={onChanged} />
+            <RoleEditor
+                club={club}
+                role={editing}
+                presidentOnly={data?.presidentOnly || []}
+                onClose={() => setEditing(null)}
+                onSaved={onChanged}
+                onDelete={(role) => {
+                    setEditing(null);
+                    setDeleting(role);
+                }}
+            />
             <ConfirmDialog
                 open={Boolean(deleting)}
                 onClose={() => setDeleting(null)}

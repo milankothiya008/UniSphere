@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { CalendarClock, ClipboardCheck, Flag, Lock, Megaphone, PencilLine, Send, Trash2, XCircle } from "lucide-react";
 import { recruitmentApi } from "../../api/endpoints";
 import { useToast } from "../../context/ToastContext";
-import { Button, ButtonLink, Card, ConfirmDialog, Input, Modal } from "../ui";
+import { ActionMenu, Button, ButtonLink, Card, ConfirmDialog, Input, Modal } from "../ui";
 import { fromDateTimeInput, toDateTimeInput } from "../../lib/format";
 
 const ExtendDialog = ({ drive, onClose, onDone }) => {
@@ -77,68 +77,67 @@ export const DriveActions = ({ drive, onChange }) => {
     const finished = ["COMPLETED", "CANCELLED", "REJECTED"].includes(drive.status);
     const selecting = live && ["CLOSED", "ROUNDS"].includes(drive.phase);
 
+    // One clear next step per stage; everything else sits in the card's "⋯" menu.
+    const primary = editable
+        ? { label: drive.status === "NEEDS_CHANGES" ? "Resubmit for approval" : "Send for approval", icon: Send, onClick: () => run(() => recruitmentApi.submit(drive._id)) }
+        : drive.status === "APPROVED"
+          ? { label: "Publish recruitment", icon: Megaphone, onClick: () => setDialog("publish"), variant: "accent" }
+          : null;
+    const menu = [
+        { label: "Close applications now", icon: Lock, onClick: () => setDialog("close"), hidden: !(beforeRounds && drive.phase !== "CLOSED") },
+        { label: drive.phase === "CLOSED" ? "Reopen applications" : "Extend deadline", icon: CalendarClock, onClick: () => setDialog("extend"), hidden: !beforeRounds },
+        { label: "Complete recruitment", icon: Flag, onClick: () => setDialog("complete"), hidden: !selecting },
+        "divider",
+        drive.status === "DRAFT"
+            ? { label: "Delete draft", icon: Trash2, onClick: () => setDialog("delete"), danger: true }
+            : { label: "Cancel recruitment", icon: XCircle, onClick: () => setDialog("cancel"), danger: true }
+    ];
+    const hint = {
+        DRAFT: "Finish the roles and forms, then send it to your faculty mentor.",
+        NEEDS_CHANGES: "Make the changes your mentor asked for and resubmit.",
+        PENDING_APPROVAL: "With your faculty mentor for approval.",
+        APPROVED: "Approved — publishing notifies every eligible student.",
+        UPCOMING: "Published — applications open soon.",
+        OPEN: "Applications are open.",
+        CLOSED: "Applications closed — start the selection for each role.",
+        ROUNDS: "Selection is running role by role."
+    }[drive.phase];
+
     return (
         <>
             {viewer.canReview && (
-                <Card className="recruit-review" title={<h2 className="row"><ClipboardCheck size={18} /> Your review</h2>}>
+                <Card
+                    className="recruit-review"
+                    title={<h2 className="row"><ClipboardCheck size={18} /> Your review</h2>}
+                    actions={<ActionMenu label="More review actions" items={[{ label: "Reject drive", icon: XCircle, onClick: () => setDialog("reject"), danger: true }]} />}
+                >
                     <div className="stack">
                         <p className="subtle small" style={{ margin: 0 }}>
                             Check each role and its application form. Once you approve, the president can publish it to students.
                         </p>
-                        <Button block onClick={() => setDialog("approve")}>
-                            Approve
-                        </Button>
-                        <Button block variant="secondary" onClick={() => setDialog("changes")}>
-                            Request changes
-                        </Button>
-                        <Button block variant="ghost" onClick={() => setDialog("reject")}>
-                            Reject
-                        </Button>
+                        <div className="recruit-action-pair">
+                            <Button variant="secondary" onClick={() => setDialog("changes")}>
+                                Request changes
+                            </Button>
+                            <Button onClick={() => setDialog("approve")}>Approve</Button>
+                        </div>
                     </div>
                 </Card>
             )}
 
             {viewer.canManage && !finished && (
-                <Card title="Manage recruitment">
+                <Card title="Manage recruitment" actions={<ActionMenu label="Recruitment actions" items={menu} />}>
                     <div className="stack">
+                        {hint && <p className="subtle small" style={{ margin: 0 }}>{hint}</p>}
+                        {primary && (
+                            <Button block variant={primary.variant} onClick={primary.onClick}>
+                                <primary.icon size={16} /> {primary.label}
+                            </Button>
+                        )}
                         {editable && (
-                            <>
-                                <Button block onClick={() => run(() => recruitmentApi.submit(drive._id))}>
-                                    <Send size={16} /> {drive.status === "NEEDS_CHANGES" ? "Resubmit for approval" : "Send for approval"}
-                                </Button>
-                                <ButtonLink block variant="secondary" to={`/recruitment/${drive._id}/edit`}>
-                                    <PencilLine size={16} /> Edit drive
-                                </ButtonLink>
-                            </>
-                        )}
-                        {drive.status === "APPROVED" && (
-                            <Button block variant="accent" onClick={() => setDialog("publish")}>
-                                <Megaphone size={16} /> Publish recruitment
-                            </Button>
-                        )}
-                        {beforeRounds && drive.phase !== "CLOSED" && (
-                            <Button block variant="secondary" onClick={() => setDialog("close")}>
-                                <Lock size={16} /> Close applications now
-                            </Button>
-                        )}
-                        {beforeRounds && (
-                            <Button block variant="secondary" onClick={() => setDialog("extend")}>
-                                <CalendarClock size={16} /> {drive.phase === "CLOSED" ? "Reopen applications" : "Extend deadline"}
-                            </Button>
-                        )}
-                        {selecting && (
-                            <Button block variant="secondary" onClick={() => setDialog("complete")}>
-                                <Flag size={16} /> Complete recruitment
-                            </Button>
-                        )}
-                        {drive.status === "DRAFT" ? (
-                            <Button block variant="ghost" onClick={() => setDialog("delete")}>
-                                <Trash2 size={16} /> Delete draft
-                            </Button>
-                        ) : (
-                            <Button block variant="ghost" onClick={() => setDialog("cancel")}>
-                                <XCircle size={16} /> Cancel recruitment
-                            </Button>
+                            <ButtonLink block variant="ghost" to={`/recruitment/${drive._id}/edit`}>
+                                <PencilLine size={16} /> Edit drive
+                            </ButtonLink>
                         )}
                     </div>
                 </Card>

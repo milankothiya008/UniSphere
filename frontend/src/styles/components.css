@@ -1596,3 +1596,53 @@
     font-weight: 700;
     font-size: 1.1rem;
 }
+
+/* "⋯" action menus (drawn in a portal, positioned from their button) */
+.action-menu {
+    position: relative;
+    display: inline-flex;
+}
+
+.popover.action-menu-list {
+    position: fixed;
+    right: auto;
+    min-width: 200px;
+    max-width: min(320px, calc(100vw - 16px));
+    z-index: 1200;
+    visibility: hidden;
+    animation: none;
+}
+
+.popover.action-menu-list.is-placed {
+    visibility: visible;
+    animation: menu-in 0.16s var(--ease-out, ease-out) both;
+}
+
+.action-menu-list .menu-item {
+    white-space: nowrap;
+}
+
+.menu-item:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.menu-item:focus-visible {
+    outline: none;
+    background: var(--neutral-100);
+}
+
+.menu-item.is-danger {
+    color: var(--danger-600);
+}
+
+.menu-item.is-danger:hover {
+    background: var(--danger-100);
+}
+
+@keyframes menu-in {
+    from {
+        opacity: 0;
+        transform: scale(0.94) translateY(-4px);
+    }
+}

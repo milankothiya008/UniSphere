@@ -114,7 +114,7 @@ describe("club roles", () => {
 
         await screen.findByText("Roles & authorities");
         expect(screen.queryByRole("button", { name: "Edit President" })).not.toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: "Delete Vice-president" })).not.toBeInTheDocument();
+
 
         await userEvent.click(screen.getByRole("button", { name: "Edit Vice-president" }));
         const dialog = screen.getByRole("dialog", { name: "Edit Vice-president" });
@@ -123,7 +123,9 @@ describe("club roles", () => {
         await userEvent.click(within(dialog).getByRole("button", { name: /Save role/ }));
         await waitFor(() => expect(clubApi.updateRole).toHaveBeenCalledWith("c1", "VICE_PRESIDENT", { description: "", permissions: ["MANAGE_EVENTS", "MANAGE_MEMBERS"] }));
 
-        await userEvent.click(screen.getByRole("button", { name: "Delete Design lead" }));
+        // Deleting starts from the role's editor.
+        await userEvent.click(screen.getByRole("button", { name: "Edit Design lead" }));
+        await userEvent.click(within(screen.getByRole("dialog", { name: "Edit Design lead" })).getByRole("button", { name: /Delete role/ }));
         await userEvent.click(within(screen.getByRole("dialog", { name: 'Delete the "Design lead" role?' })).getByRole("button", { name: "Delete role" }));
         await waitFor(() => expect(clubApi.deleteRole).toHaveBeenCalledWith("c1", "R_design"));
     });

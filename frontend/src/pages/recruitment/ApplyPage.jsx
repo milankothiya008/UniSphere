@@ -172,6 +172,7 @@ const ApplyPage = () => {
     const mine = useApi(() => recruitmentApi.myApplication(id, positionId), [id, positionId], { enabled: editing });
     const [answers, setAnswers] = useState({});
     const [step, setStep] = useState(0);
+    const [direction, setDirection] = useState("forward");
     const [touched, setTouched] = useState({});
     const [saving, setSaving] = useState(false);
     const top = useRef(null);
@@ -193,6 +194,7 @@ const ApplyPage = () => {
     const answerOf = (questionId) => answers[questionId] || emptyAnswer();
 
     const go = (next) => {
+        setDirection(next < step ? "back" : "forward");
         setStep(next);
         top.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
     };
@@ -293,7 +295,7 @@ const ApplyPage = () => {
                                 Step {step + 1} of {steps.length}
                             </p>
 
-                            <div className="recruit-wizard-page" key={step}>
+                            <div className={`recruit-wizard-page is-${direction}`} key={step}>
                                 {step === 0 && (
                                     <div className="stack-lg">
                                         <Card title="Your details">

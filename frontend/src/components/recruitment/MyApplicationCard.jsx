@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { CalendarPlus, Check, Clock, Gift, Hourglass, Info, MapPin, PartyPopper, PencilLine, Undo2, Video, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { CalendarPlus, Check, ChevronDown, Clock, Gift, Hourglass, Info, MapPin, PartyPopper, PencilLine, Send, Undo2, Video, X } from "lucide-react";
 import { recruitmentApi } from "../../api/endpoints";
 import { useToast } from "../../context/ToastContext";
-import { Alert, Badge, ButtonLink, Button, Card, ConfirmDialog } from "../ui";
+import { ActionMenu, Alert, Badge, ButtonLink, Button, ConfirmDialog } from "../ui";
 import { ApplicationBadge } from "./RecruitmentParts";
 import { ROUND_MODES } from "../../lib/constants";
 import { countdownParts, dateParts, formatDate, formatDateTime, formatTimeRange, timeAgo } from "../../lib/format";
@@ -169,10 +170,37 @@ const OUTCOME_NOTES = {
     NOT_SELECTED: ["info", "Thank you for applying", "The club couldn't offer you this role this time. Keep building your skills — and apply again when the club recruits next."]
 };
 
-/** One of the student's applications on the drive page: its status, offer, interviews and round timeline. */
-export const MyApplicationCard = ({ drive, application, others = [], onChange }) => {
+const STATUS_ICON = { OFFERED: Gift, ACCEPTED: PartyPopper, APPLIED: Send, IN_ROUNDS: Clock, RESERVE: Hourglass };
+
+// One line under the role name: what's happening with this application right now.
+const summaryOf = (application, upcoming, closedForMe) => {
+    if (closedForMe) return application.closedReason;
+    if (application.status === "OFFERED") return `Offer — answer by ${formatDateTime(application.offerExpiresAt)}`;
+    if (application.status === "ACCEPTED") return "You're in the team";
+    if (upcoming[0]) return `${upcoming[0].name} · ${formatDateTime(upcoming[0].slot.startAt)}`;
+    const cleared = application.rounds.filter((round) => round.result === "QUALIFIED").length;
+    if (application.status === "IN_ROUNDS") return cleared ? `Cleared ${cleared} ${cleared === 1 ? "round" : "rounds"} — next step soon` : "In selection";
+    if (application.status === "APPLIED") return `Applied ${timeAgo(application.createdAt)}`;
+    return OUTCOME_NOTES[application.status]?.[1] || "";
+};
+
+/**
+ * One of the student's applications on the drive page. The header says where it stands; it opens to show
+ * the offer, interviews and round timeline. Applications that need the student open by themselves.
+ */
+export const MyApplicationCard = ({ drive, application, others = [], onChange, defaultOpen }) => {
     const toast = useToast();
+    const navigate = useNavigate();
     const [confirm, setConfirm] = useState(false);
+
+    const rounds = application.rounds.map((round) => ({ ...round, positionTitle: application.positionTitle }));
+    const upcoming = rounds.filter((round) => round.slot && !round.result && new Date(round.slot.endAt) > new Date());
+    const decided = !["APPLIED", "IN_ROUNDS"].includes(application.status);
+    const closedForMe = application.status === "WITHDRAWN" && application.closedReason;
+    const note = closedForMe ? ["info", "Application closed", `${application.closedReason} — a student holds one role in a club, so this application was closed.`] : OUTCOME_NOTES[application.status];
+    const needsYou = application.status === "OFFERED" || upcoming.length > 0;
+    const [open, setOpen] = useState(defaultOpen ?? needsYou);
+    const Icon = closedForMe ? X : STATUS_ICON[application.status] || Check;
 
     const withdraw = async () => {
         await recruitmentApi.withdraw(drive._id, application.position);
@@ -180,97 +208,92 @@ export const MyApplicationCard = ({ drive, application, others = [], onChange })
         onChange();
     };
 
-    const rounds = application.rounds.map((round) => ({ ...round, positionTitle: application.positionTitle }));
-    const upcoming = rounds.filter((round) => round.slot && !round.result && new Date(round.slot.endAt) > new Date());
-    const decided = !["APPLIED", "IN_ROUNDS"].includes(application.status);
-    const closedForMe = application.status === "WITHDRAWN" && application.closedReason;
-    const note = closedForMe ? ["info", "Application closed", `${application.closedReason} — a student holds one role in a club, so this application was closed.`] : OUTCOME_NOTES[application.status];
-
     return (
-        <Card
-            className={`recruit-mine is-${application.status.toLowerCase()}`}
-            title={
-                <h2 className="recruit-mine-title">
-                    <span className="subtle small">Your application</span>
-                    {application.positionTitle}
-                </h2>
-            }
-            actions={closedForMe ? <Badge dot>Closed</Badge> : <ApplicationBadge status={application.status} />}
-        >
-            <div className="stack">
-                {application.status === "OFFERED" && <OfferPanel drive={drive} application={application} others={others} onChange={onChange} />}
-                {application.status === "ACCEPTED" && (
-                    <div className="recruit-celebrate">
-                        <PartyPopper size={26} />
-                        <div>
-                            <strong>Welcome to {drive.club.name}!</strong>
-                            <span>You've joined as {application.positionTitle}.</span>
-                        </div>
-                        <ButtonLink to={`/clubs/${drive.club._id}`} size="sm" variant="secondary">
-                            Open club
-                        </ButtonLink>
-                    </div>
-                )}
-                {note && (
-                    <Alert type={note[0]} title={note[1]}>
-                        {note[2]}
-                    </Alert>
-                )}
-
-                {upcoming.map((round) => (
-                    <InterviewCard key={round._id} drive={drive} round={round} />
-                ))}
-
-                <ol className="recruit-timeline">
-                    <li className="is-done">
-                        <span className="recruit-timeline-dot">
-                            <Check size={12} strokeWidth={3} />
-                        </span>
-                        <div>
-                            <strong>Applied</strong>
-                            <span className="subtle small">{timeAgo(application.createdAt)}</span>
-                        </div>
-                    </li>
-                    {rounds.map((round) => {
-                        const Icon = RESULT_ICON[round.result];
-                        return (
-                            <li key={round._id} className={round.result === "QUALIFIED" ? "is-done" : round.result === "ELIMINATED" ? "is-out" : "is-current"}>
-                                <span className="recruit-timeline-dot">{Icon ? <Icon size={12} strokeWidth={3} /> : null}</span>
+        <section className={`recruit-app-card is-${application.status.toLowerCase()} ${closedForMe ? "is-closed" : ""} ${open ? "is-open" : ""}`}>
+            <div className="recruit-app-card-head">
+                <button type="button" className="recruit-app-card-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+                    <span className="recruit-app-card-icon">
+                        <Icon size={17} />
+                    </span>
+                    <span className="recruit-app-card-text">
+                        <span className="recruit-app-card-kicker">Your application</span>
+                        <strong>{application.positionTitle}</strong>
+                        <span className="subtle small">{summaryOf(application, upcoming, closedForMe)}</span>
+                    </span>
+                    {closedForMe ? <Badge dot>Closed</Badge> : <ApplicationBadge status={application.status} />}
+                    <ChevronDown size={18} className="recruit-chevron" aria-hidden="true" />
+                </button>
+                <ActionMenu
+                    label={`${application.positionTitle} application actions`}
+                    items={[
+                        { label: "Edit answers", icon: PencilLine, onClick: () => navigate(`/recruitment/${drive._id}/apply/${application.position}`), hidden: !application.canEdit },
+                        { label: "Withdraw application", icon: Undo2, onClick: () => setConfirm(true), hidden: !application.canWithdraw, danger: true }
+                    ]}
+                />
+            </div>
+            <div className="recruit-collapse" inert={!open}>
+                <div className="recruit-collapse-inner">
+                    <div className="stack recruit-app-card-body">
+                        {application.status === "OFFERED" && <OfferPanel drive={drive} application={application} others={others} onChange={onChange} />}
+                        {application.status === "ACCEPTED" && (
+                            <div className="recruit-celebrate">
+                                <PartyPopper size={26} />
                                 <div>
-                                    <strong>{round.name}</strong>
-                                    <span className="subtle small">
-                                        {ROUND_MODES[round.mode]?.label}
-                                        {round.result === "QUALIFIED" ? " · Cleared" : round.result === "ELIMINATED" ? " · Not shortlisted" : round.slot ? ` · ${formatDateTime(round.slot.startAt)}` : " · In review"}
-                                    </span>
+                                    <strong>Welcome to {drive.club.name}!</strong>
+                                    <span>You've joined as {application.positionTitle}.</span>
+                                </div>
+                                <ButtonLink to={`/clubs/${drive.club._id}`} size="sm" variant="secondary">
+                                    Open club
+                                </ButtonLink>
+                            </div>
+                        )}
+                        {note && application.status !== "DECLINED" && (
+                            <Alert type={note[0]} title={note[1]}>
+                                {note[2]}
+                            </Alert>
+                        )}
+
+                        {upcoming.map((round) => (
+                            <InterviewCard key={round._id} drive={drive} round={round} />
+                        ))}
+
+                        <ol className="recruit-timeline">
+                            <li className="is-done">
+                                <span className="recruit-timeline-dot">
+                                    <Check size={12} strokeWidth={3} />
+                                </span>
+                                <div>
+                                    <strong>Applied</strong>
+                                    <span className="subtle small">{timeAgo(application.createdAt)}</span>
                                 </div>
                             </li>
-                        );
-                    })}
-                    {!decided && (
-                        <li className="is-next">
-                            <span className="recruit-timeline-dot" />
-                            <div>
-                                <strong>Final selection</strong>
-                                <span className="subtle small">You'll get an email for every step.</span>
-                            </div>
-                        </li>
-                    )}
-                </ol>
-
-                {(application.canEdit || application.canWithdraw) && (
-                    <div className="row" style={{ gap: 8 }}>
-                        {application.canEdit && (
-                            <ButtonLink to={`/recruitment/${drive._id}/apply/${application.position}`} variant="secondary" size="sm">
-                                <PencilLine size={15} /> Edit answers
-                            </ButtonLink>
-                        )}
-                        {application.canWithdraw && (
-                            <Button variant="ghost" size="sm" onClick={() => setConfirm(true)}>
-                                <Undo2 size={15} /> Withdraw
-                            </Button>
-                        )}
+                            {rounds.map((round) => {
+                                const ResultIcon = RESULT_ICON[round.result];
+                                return (
+                                    <li key={round._id} className={round.result === "QUALIFIED" ? "is-done" : round.result === "ELIMINATED" ? "is-out" : "is-current"}>
+                                        <span className="recruit-timeline-dot">{ResultIcon ? <ResultIcon size={12} strokeWidth={3} /> : null}</span>
+                                        <div>
+                                            <strong>{round.name}</strong>
+                                            <span className="subtle small">
+                                                {ROUND_MODES[round.mode]?.label}
+                                                {round.result === "QUALIFIED" ? " · Cleared" : round.result === "ELIMINATED" ? " · Not shortlisted" : round.slot ? ` · ${formatDateTime(round.slot.startAt)}` : " · In review"}
+                                            </span>
+                                        </div>
+                                    </li>
+                                );
+                            })}
+                            {!decided && (
+                                <li className="is-next">
+                                    <span className="recruit-timeline-dot" />
+                                    <div>
+                                        <strong>Final selection</strong>
+                                        <span className="subtle small">You'll get an email for every step.</span>
+                                    </div>
+                                </li>
+                            )}
+                        </ol>
                     </div>
-                )}
+                </div>
             </div>
             <ConfirmDialog
                 open={confirm}
@@ -281,6 +304,6 @@ export const MyApplicationCard = ({ drive, application, others = [], onChange })
                 confirmLabel="Withdraw"
                 variant="danger"
             />
-        </Card>
+        </section>
     );
 };

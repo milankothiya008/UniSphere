@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowDown, ArrowUp, Copy, Eye, FileText, GripVertical, Layers, Megaphone, PenLine, Plus, Save, Send, Trash2, UserRoundPlus, X } from "lucide-react";
+import { AlignLeft, ArrowDown, ArrowUp, CircleDot, Copy, FileText, Layers, Link2, Megaphone, Paperclip, Plus, Save, Send, SquareCheck, Trash2, Type, UserRoundPlus, X } from "lucide-react";
 import { clubApi, recruitmentApi, referenceApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useToast } from "../../context/ToastContext";
-import { Alert, AsyncContent, Button, Card, Checkbox, Field, Input, PageHeader, Select, Switch, Textarea } from "../../components/ui";
+import { ActionMenu, Alert, AsyncContent, Button, Card, Checkbox, Field, Input, PageHeader, Segmented, Select, Switch, Textarea } from "../../components/ui";
 import { QUESTION_TYPES } from "../../lib/constants";
 import { batchLabel, fromDateTimeInput, plural, toDateTimeInput } from "../../lib/format";
 import { QuestionPreview } from "../../components/recruitment/QuestionPreview";
@@ -129,31 +129,57 @@ const toPayload = (form) => ({
 
 // ---------------------------------------------------------------- Questions
 
-const QuestionEditor = ({ question, index, count, onChange, onMove, onRemove, onDuplicate, error }) => {
+const TYPE_LABEL = Object.fromEntries(QUESTION_TYPES.map((type) => [type.value, type.label]));
+const TYPE_ICON = { SHORT: Type, PARAGRAPH: AlignLeft, SINGLE_CHOICE: CircleDot, MULTI_CHOICE: SquareCheck, LINK: Link2, FILE: Paperclip };
+
+// Move / duplicate / delete for a question, folded into one "⋯" menu.
+const questionMenu = ({ index, count, onMove, onDuplicate, onRemove }) => [
+    { label: "Move up", icon: ArrowUp, onClick: () => onMove(-1), disabled: index === 0 },
+    { label: "Move down", icon: ArrowDown, onClick: () => onMove(1), disabled: index === count - 1 },
+    { label: "Duplicate", icon: Copy, onClick: onDuplicate },
+    "divider",
+    { label: "Delete question", icon: Trash2, onClick: onRemove, danger: true }
+];
+
+/**
+ * One question. Only the question being worked on opens in full; the others show as a compact row,
+ * so a long form stays easy to scan. Click a row to edit it.
+ */
+const QuestionEditor = ({ question, index, count, active, onActivate, onChange, onMove, onRemove, onDuplicate, error }) => {
     const setOptions = (options) => onChange({ ...question, options });
+    const Icon = TYPE_ICON[question.type] || Type;
+    const menu = <ActionMenu label={`Question ${index + 1} actions`} items={questionMenu({ index, count, onMove, onDuplicate, onRemove })} />;
+
+    if (!active) {
+        return (
+            <div className={`recruit-q-row ${error ? "has-error" : ""}`} style={{ "--i": index }}>
+                <button type="button" className="recruit-q-row-main" onClick={onActivate} aria-label={`Edit question ${index + 1}: ${question.label || "untitled"}`}>
+                    <span className="recruit-q-icon">
+                        <Icon size={15} />
+                    </span>
+                    <span className="recruit-q-text">
+                        <strong>
+                            {question.label || <span className="subtle">Untitled question</span>}
+                            {question.required && <span className="req"> *</span>}
+                        </strong>
+                        <span className="subtle small">{error || TYPE_LABEL[question.type]}</span>
+                    </span>
+                </button>
+                {menu}
+            </div>
+        );
+    }
+
     return (
-        <div className={`recruit-question ${error ? "has-error" : ""}`} style={{ "--i": index }}>
+        <div className={`recruit-question ${error ? "has-error" : ""}`}>
             <div className="recruit-question-head">
                 <span className="recruit-question-num">
-                    <GripVertical size={14} /> Q{index + 1}
+                    <Icon size={14} /> Question {index + 1}
                 </span>
-                <div className="row" style={{ gap: 4 }}>
-                    <Button variant="ghost" size="sm" onClick={() => onMove(-1)} disabled={index === 0} aria-label="Move up">
-                        <ArrowUp size={15} />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => onMove(1)} disabled={index === count - 1} aria-label="Move down">
-                        <ArrowDown size={15} />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={onDuplicate} aria-label="Duplicate question">
-                        <Copy size={15} />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={onRemove} aria-label="Delete question">
-                        <Trash2 size={15} />
-                    </Button>
-                </div>
+                {menu}
             </div>
             <div className="recruit-question-grid">
-                <Input label="Question" value={question.label} onChange={(event) => onChange({ ...question, label: event.target.value })} placeholder="Ask something" maxLength={200} error={error} required />
+                <Input label="Question" value={question.label} onChange={(event) => onChange({ ...question, label: event.target.value })} placeholder="Ask something" maxLength={200} error={error} autoFocus={!question.label} required />
                 <Select
                     label="Answer type"
                     value={question.type}
@@ -175,29 +201,52 @@ const QuestionEditor = ({ question, index, count, onChange, onMove, onRemove, on
                                     className="input"
                                     value={option}
                                     onChange={(event) => setOptions(question.options.map((item, i) => (i === optionIndex ? event.target.value : item)))}
+                                    onKeyDown={(event) => {
+                                        // Enter on the last option adds the next one, like a list in a doc.
+                                        if (event.key === "Enter") {
+                                            event.preventDefault();
+                                            if (optionIndex === question.options.length - 1 && question.options.length < 12) setOptions([...question.options, ""]);
+                                        }
+                                    }}
                                     placeholder={`Option ${optionIndex + 1}`}
                                     maxLength={100}
                                     aria-label={`Option ${optionIndex + 1}`}
                                 />
-                                <Button variant="ghost" size="sm" onClick={() => setOptions(question.options.filter((_, i) => i !== optionIndex))} disabled={question.options.length <= 2} aria-label={`Remove option ${optionIndex + 1}`}>
-                                    <Trash2 size={14} />
-                                </Button>
+                                {question.options.length > 2 && (
+                                    <button type="button" className="recruit-option-remove" onClick={() => setOptions(question.options.filter((_, i) => i !== optionIndex))} aria-label={`Remove option ${optionIndex + 1}`}>
+                                        <X size={14} />
+                                    </button>
+                                )}
                             </div>
                         ))}
                         {question.options.length < 12 && (
-                            <Button variant="ghost" size="sm" onClick={() => setOptions([...question.options, ""])}>
+                            <button type="button" className="recruit-option-add" onClick={() => setOptions([...question.options, ""])}>
                                 <Plus size={14} /> Add option
-                            </Button>
+                            </button>
                         )}
                     </div>
                 </Field>
             )}
-            <Switch checked={question.required} onChange={(required) => onChange({ ...question, required })} label="Required" description="Students can't submit without answering" />
+            <Switch checked={question.required} onChange={(required) => onChange({ ...question, required })} label="Required" description="Students can't continue without answering" />
         </div>
     );
 };
 
-const QuestionList = ({ questions, onChange, errorFor }) => {
+// "Add question" opens a menu of answer types instead of six buttons.
+const AddQuestion = ({ onAdd }) => (
+    <ActionMenu
+        align="left"
+        label="Add a question"
+        items={QUESTION_TYPES.map((type) => ({ label: type.label, icon: TYPE_ICON[type.value], onClick: () => onAdd(type.value) }))}
+        trigger={({ open, toggle, menuId }) => (
+            <button type="button" className="recruit-add-q" aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} onClick={toggle}>
+                <Plus size={16} /> Add question
+            </button>
+        )}
+    />
+);
+
+const QuestionList = ({ questions, onChange, errorFor, activeKey, setActiveKey }) => {
     const update = (index, next) => onChange(questions.map((question, i) => (i === index ? next : question)));
     const move = (index, step) => {
         const next = [...questions];
@@ -206,28 +255,34 @@ const QuestionList = ({ questions, onChange, errorFor }) => {
         onChange(next);
     };
     return (
-        <div className="stack">
+        <div className="recruit-q-list">
             {questions.map((question, index) => (
                 <QuestionEditor
                     key={question.key}
                     question={question}
                     index={index}
                     count={questions.length}
+                    active={question.key === activeKey}
+                    onActivate={() => setActiveKey(question.key)}
                     error={errorFor(index)}
                     onChange={(next) => update(index, next)}
                     onMove={(step) => move(index, step)}
                     onRemove={() => onChange(questions.filter((_, i) => i !== index))}
-                    onDuplicate={() => onChange([...questions.slice(0, index + 1), { ...question, key: key(), _id: undefined, options: [...question.options] }, ...questions.slice(index + 1)])}
+                    onDuplicate={() => {
+                        const copy = { ...question, key: key(), _id: undefined, options: [...question.options] };
+                        onChange([...questions.slice(0, index + 1), copy, ...questions.slice(index + 1)]);
+                        setActiveKey(copy.key);
+                    }}
                 />
             ))}
             {questions.length < MAX_QUESTIONS_PER_PAGE && (
-                <div className="recruit-add-question">
-                    {QUESTION_TYPES.map((type) => (
-                        <Button key={type.value} variant="secondary" size="sm" onClick={() => onChange([...questions, blankQuestion(type.value)])}>
-                            <Plus size={14} /> {type.label}
-                        </Button>
-                    ))}
-                </div>
+                <AddQuestion
+                    onAdd={(type) => {
+                        const question = blankQuestion(type);
+                        onChange([...questions, question]);
+                        setActiveKey(question.key);
+                    }}
+                />
             )}
         </div>
     );
@@ -236,6 +291,7 @@ const QuestionList = ({ questions, onChange, errorFor }) => {
 // ---------------------------------------------------------------- Pages
 
 const PagesEditor = ({ pages, onChange, errors, prefix }) => {
+    const [activeKey, setActiveKey] = useState(null);
     const update = (index, changes) => onChange(pages.map((page, i) => (i === index ? { ...page, ...changes } : page)));
     const move = (index, step) => {
         const next = [...pages];
@@ -247,33 +303,39 @@ const PagesEditor = ({ pages, onChange, errors, prefix }) => {
         <div className="stack">
             {!pages.length && <p className="subtle">No form pages — students only confirm their details. Add a page to ask questions.</p>}
             {pages.map((page, index) => (
-                <section key={page.key} className="recruit-page-edit">
+                <section key={page.key} className="recruit-page-edit" style={{ "--i": index }}>
                     <header className="recruit-page-edit-head">
                         <span className="recruit-page-num">Page {index + 1}</span>
                         <span className="recruit-page-count subtle small">{plural(page.questions.length, "question")}</span>
-                        <div className="row" style={{ gap: 2, marginLeft: "auto" }}>
-                            <Button variant="ghost" size="sm" onClick={() => move(index, -1)} disabled={index === 0} aria-label={`Move page ${index + 1} up`}>
-                                <ArrowUp size={15} />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => move(index, 1)} disabled={index === pages.length - 1} aria-label={`Move page ${index + 1} down`}>
-                                <ArrowDown size={15} />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => onChange(pages.filter((_, i) => i !== index))} aria-label={`Delete page ${index + 1}`}>
-                                <Trash2 size={15} />
-                            </Button>
-                        </div>
+                        <span style={{ marginLeft: "auto" }}>
+                            <ActionMenu
+                                label={`Page ${index + 1} actions`}
+                                items={[
+                                    { label: "Move page up", icon: ArrowUp, onClick: () => move(index, -1), disabled: index === 0 },
+                                    { label: "Move page down", icon: ArrowDown, onClick: () => move(index, 1), disabled: index === pages.length - 1 },
+                                    "divider",
+                                    { label: "Delete page", icon: Trash2, onClick: () => onChange(pages.filter((_, i) => i !== index)), danger: true }
+                                ]}
+                            />
+                        </span>
                     </header>
                     <div className="form-grid">
                         <Input label="Page title" value={page.title} onChange={(event) => update(index, { title: event.target.value })} maxLength={80} placeholder="e.g. Your experience" error={errors[`${prefix}.${index}`]} required />
                         <Input label="Intro (optional)" value={page.description} onChange={(event) => update(index, { description: event.target.value })} maxLength={300} placeholder="Shown at the top of the page" />
                     </div>
-                    <QuestionList questions={page.questions} onChange={(questions) => update(index, { questions })} errorFor={(q) => errors[`${prefix}.${index}.${q}`]} />
+                    <QuestionList
+                        questions={page.questions}
+                        onChange={(questions) => update(index, { questions })}
+                        errorFor={(q) => errors[`${prefix}.${index}.${q}`]}
+                        activeKey={activeKey}
+                        setActiveKey={setActiveKey}
+                    />
                 </section>
             ))}
             {pages.length < MAX_PAGES && (
-                <Button variant="secondary" onClick={() => onChange([...pages, blankPage(pages.length + 1)])}>
-                    <Plus size={15} /> Add page
-                </Button>
+                <button type="button" className="recruit-add-page" onClick={() => onChange([...pages, blankPage(pages.length + 1)])}>
+                    <Plus size={16} /> Add page
+                </button>
             )}
         </div>
     );
@@ -306,23 +368,25 @@ const FormPreview = ({ pages }) =>
 
 const RolePicker = ({ roles, positions, onAdd }) => {
     const chosen = new Set(positions.map((position) => position.role));
-    const available = roles.filter((role) => role.key !== "PRESIDENT");
+    const available = roles.filter((role) => role.key !== "PRESIDENT" && !chosen.has(role.key));
+    if (!available.length) {
+        return null;
+    }
     return (
         <div className="recruit-role-picker" role="group" aria-label="Roles you can recruit for">
             {available.map((role) => {
                 const taken = role.key === "VICE_PRESIDENT" && role.holder;
-                const selected = chosen.has(role.key);
                 return (
                     <button
                         key={role.key}
                         type="button"
-                        className={`recruit-role-option ${selected ? "is-selected" : ""}`}
+                        className="recruit-role-option"
                         onClick={() => onAdd(role)}
-                        disabled={selected || Boolean(taken) || positions.length >= 10}
-                        title={taken ? `${role.holder.name} is vice-president` : undefined}
+                        disabled={Boolean(taken) || positions.length >= 10}
+                        title={taken ? `${role.holder.name} is vice-president` : `Recruit for ${role.name}`}
                     >
-                        {selected ? <UserRoundPlus size={14} /> : <Plus size={14} />} {role.name}
-                        {taken && <span className="subtle small"> · held</span>}
+                        <Plus size={14} /> {role.name}
+                        {taken && <span className="small"> · held</span>}
                     </button>
                 );
             })}
@@ -330,8 +394,35 @@ const RolePicker = ({ roles, positions, onAdd }) => {
     );
 };
 
+// Once a role is chosen, more roles are added from a menu at the end of the role tabs.
+const AddRole = ({ roles, positions, onAdd }) => {
+    const chosen = new Set(positions.map((position) => position.role));
+    const available = roles.filter((role) => role.key !== "PRESIDENT" && !chosen.has(role.key));
+    if (!available.length || positions.length >= 10) {
+        return null;
+    }
+    return (
+        <ActionMenu
+            align="left"
+            label="Add a role"
+            items={available.map((role) => {
+                const taken = role.key === "VICE_PRESIDENT" && role.holder;
+                return { label: taken ? `${role.name} — held by ${role.holder.name}` : role.name, icon: UserRoundPlus, onClick: () => onAdd(role), disabled: Boolean(taken) };
+            })}
+            trigger={({ open, toggle, menuId }) => (
+                <button type="button" className="recruit-role-tab is-add" aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} onClick={toggle}>
+                    <span>
+                        <Plus size={15} /> Add role
+                    </span>
+                    <span className="recruit-role-tab-meta">{plural(available.length, "more role")}</span>
+                </button>
+            )}
+        />
+    );
+};
+
 const PositionEditor = ({ position, index, positions, onChange, onRemove, errors }) => {
-    const [preview, setPreview] = useState(false);
+    const [view, setView] = useState("edit");
     const others = positions.filter((other) => other.key !== position.key && other.pages.length);
     const vice = position.role === "VICE_PRESIDENT";
     return (
@@ -346,7 +437,7 @@ const PositionEditor = ({ position, index, positions, onChange, onRemove, errors
                     onChange={(event) => onChange({ openings: event.target.value })}
                     placeholder="Any"
                     disabled={vice}
-                    hint={vice ? "One vice-president per club" : "Leave empty for no limit"}
+                    hint={vice ? "One vice-president per club" : "Empty = no limit"}
                 />
                 <Input
                     className="recruit-position-desc"
@@ -357,40 +448,30 @@ const PositionEditor = ({ position, index, positions, onChange, onRemove, errors
                     placeholder="Shown on the role's card"
                 />
             </div>
-            <div className="row-between recruit-form-toolbar">
+            <div className="recruit-form-toolbar">
                 <h3 className="row">
-                    <FileText size={16} /> {position.title} application form
+                    <FileText size={16} /> Application form
                 </h3>
-                <div className="row">
-                    {others.length > 0 && !preview && (
-                        <Select
-                            aria-label="Copy the form from another role"
-                            value=""
-                            onChange={(event) => {
-                                const source = others.find((other) => other.key === event.target.value);
-                                if (source) onChange({ pages: clonePages(source.pages) });
-                            }}
-                            options={[{ value: "", label: "Copy form from…" }, ...others.map((other) => ({ value: other.key, label: other.title }))]}
-                        />
-                    )}
-                    <Button variant="ghost" size="sm" onClick={() => setPreview((value) => !value)}>
-                        {preview ? (
-                            <>
-                                <PenLine size={14} /> Edit form
-                            </>
-                        ) : (
-                            <>
-                                <Eye size={14} /> Preview
-                            </>
-                        )}
-                    </Button>
-                </div>
+                <Segmented
+                    label="Form view"
+                    value={view}
+                    onChange={setView}
+                    options={[
+                        { value: "edit", label: "Edit" },
+                        { value: "preview", label: "Preview" }
+                    ]}
+                />
+                <ActionMenu
+                    label={`${position.title} options`}
+                    items={[
+                        ...others.map((other) => ({ label: `Copy form from ${other.title}`, icon: Copy, onClick: () => onChange({ pages: clonePages(other.pages) }) })),
+                        others.length ? "divider" : null,
+                        { label: `Stop recruiting for ${position.title}`, icon: X, onClick: onRemove, danger: true }
+                    ]}
+                />
             </div>
-            {preview ? <FormPreview pages={position.pages} /> : <PagesEditor pages={position.pages} onChange={(pages) => onChange({ pages })} errors={errors} prefix={index} />}
-            <div>
-                <Button variant="ghost" size="sm" onClick={onRemove}>
-                    <X size={14} /> Stop recruiting for {position.title}
-                </Button>
+            <div className="recruit-view" key={view}>
+                {view === "preview" ? <FormPreview pages={position.pages} /> : <PagesEditor pages={position.pages} onChange={(pages) => onChange({ pages })} errors={errors} prefix={index} />}
             </div>
         </div>
     );
@@ -527,7 +608,7 @@ const DriveFormPage = () => {
                                         Each role gets its own form, selection rounds and results. Students can apply for several roles but join in only one. Roles come from your club's{" "}
                                         <Link to={`/clubs/${clubId}/members`}>Roles & authorities</Link> list.
                                     </p>
-                                    <RolePicker roles={clubRoles.data?.roles || []} positions={form.positions} onAdd={addRole} />
+                                    {!form.positions.length && <RolePicker roles={clubRoles.data?.roles || []} positions={form.positions} onAdd={addRole} />}
                                     {shown.positions && <span className="field-error">{shown.positions}</span>}
                                 </div>
 
@@ -553,6 +634,7 @@ const DriveFormPage = () => {
                                                     </button>
                                                 );
                                             })}
+                                            <AddRole roles={clubRoles.data?.roles || []} positions={form.positions} onAdd={addRole} />
                                         </div>
                                         <p className="subtle small" style={{ margin: 0 }}>
                                             The student's name, email, department and batch are filled in automatically — only ask for what you need.
