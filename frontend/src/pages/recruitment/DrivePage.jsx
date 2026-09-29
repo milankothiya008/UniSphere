@@ -1,199 +1,19 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowRight, Briefcase, FileText, Inbox, Layers, Megaphone, Send, Users } from "lucide-react";
+import { Briefcase, FileText, Inbox, Layers, Megaphone, Send, Users } from "lucide-react";
 import { recruitmentApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useAuth } from "../../context/AuthContext";
-import { Alert, AsyncContent, Avatar, Badge, ButtonLink, Card, Modal, Tabs } from "../../components/ui";
-import { ApplicationBadge, Deadline, DriveStepper, PhaseBadge } from "../../components/recruitment/RecruitmentParts";
+import { Alert, AsyncContent, Avatar, ButtonLink, Card, Tabs } from "../../components/ui";
+import { Deadline, DriveStepper, PhaseBadge } from "../../components/recruitment/RecruitmentParts";
 import { DriveActions } from "../../components/recruitment/DriveActions";
 import { MyApplicationCard } from "../../components/recruitment/MyApplicationCard";
 import { ApplicationsPanel } from "../../components/recruitment/ApplicationsPanel";
 import { RoundsPanel } from "../../components/recruitment/RoundsPanel";
-import { QuestionPreview } from "../../components/recruitment/QuestionPreview";
-import { batchLabel, departmentsLabel, formatDateTime, plural } from "../../lib/format";
+import { DriveOverview, STAGES } from "../../components/recruitment/DriveOverview";
+import { batchLabel, departmentsLabel, formatDateTime } from "../../lib/format";
 
 const coverStyle = (src) => (src ? { "--cover": `url("${String(src).replace(/"/g, "%22")}")` } : undefined);
-
-// Where one role stands, for the club side.
-const STAGES = {
-    APPLICATIONS: ["Taking applications", "success"],
-    CLOSED: ["Ready for selection", "info"],
-    ROUNDS: ["Selection rounds", "violet"],
-    FINALIZED: ["Offers sent", "ink"]
-};
-
-const RoleForm = ({ position }) => (
-    <ol className="recruit-preview-pages is-compact">
-        {position.form.pages.map((page, index) => (
-            <li key={page._id}>
-                <div className="recruit-preview-page-head">
-                    <span className="recruit-step-dot">{index + 1}</span>
-                    <div>
-                        <strong>{page.title}</strong>
-                        {page.description && <p className="subtle small">{page.description}</p>}
-                    </div>
-                </div>
-                <div className="stack-sm">
-                    {page.questions.map((question) => (
-                        <QuestionPreview key={question._id} question={question} />
-                    ))}
-                </div>
-            </li>
-        ))}
-    </ol>
-);
-
-/**
- * One role in the drive. The whole card is the action: apply for it, jump to your application, open its
- * selection (club side), or preview its form before the drive is live.
- */
-const RoleCard = ({ drive, position, index, staff, mine, onPreview, onOpenApplication }) => {
-    const { viewer } = drive;
-    const [stageLabel, stageTone] = STAGES[position.stage] || [];
-    const live = ["PUBLISHED", "COMPLETED", "CANCELLED"].includes(drive.status);
-    const closed = mine?.status === "WITHDRAWN" && mine.closedReason;
-
-    const body = (
-        <>
-            <div className="recruit-role-card-head">
-                <div className="grow">
-                    <h3>{position.title}</h3>
-                    <div className="recruit-chips">
-                        {position.openings ? <span className="recruit-chip">{plural(position.openings, "opening")}</span> : null}
-                        <span className="recruit-chip">
-                            {plural(position.form.pages.length, "page")} · {plural(position.questionCount, "question")}
-                        </span>
-                    </div>
-                </div>
-                {staff && stageLabel && live && (
-                    <Badge tone={stageTone} dot>
-                        {stageLabel}
-                    </Badge>
-                )}
-                {!staff && mine && (closed ? <Badge dot>Closed</Badge> : <ApplicationBadge status={mine.status} />)}
-            </div>
-            {position.description && <p className="subtle small recruit-role-card-desc">{position.description}</p>}
-            {staff && position.counts && live && (
-                <dl className="recruit-role-stats">
-                    <div>
-                        <dt>Applied</dt>
-                        <dd>{position.counts.total}</dd>
-                    </div>
-                    <div>
-                        <dt>In selection</dt>
-                        <dd>{position.counts.active}</dd>
-                    </div>
-                    <div>
-                        <dt>Offers</dt>
-                        <dd>{position.counts.offered}</dd>
-                    </div>
-                    <div>
-                        <dt>Joined</dt>
-                        <dd>{position.counts.accepted}</dd>
-                    </div>
-                </dl>
-            )}
-        </>
-    );
-    const cta = (label, accent = false) => (
-        <span className={`recruit-role-card-cta ${accent ? "is-accent" : ""}`}>
-            {label} <ArrowRight size={15} />
-        </span>
-    );
-    const props = { className: `recruit-role-card is-action ${mine ? `is-${mine.status.toLowerCase()}` : ""}`, style: { "--i": index } };
-
-    if (staff && live) {
-        return (
-            <Link {...props} to={`/recruitment/${drive._id}?tab=selection&role=${position._id}`}>
-                {body}
-                {cta("Open selection")}
-            </Link>
-        );
-    }
-    if (staff) {
-        return (
-            <button type="button" {...props} onClick={() => onPreview(position)}>
-                {body}
-                {cta("Preview form")}
-            </button>
-        );
-    }
-    if (mine) {
-        return (
-            <button type="button" {...props} onClick={() => onOpenApplication(mine._id)}>
-                {body}
-                {cta("Your application")}
-            </button>
-        );
-    }
-    if (viewer.canApply) {
-        return (
-            <Link {...props} to={`/recruitment/${drive._id}/apply/${position._id}`}>
-                {body}
-                {cta(`Apply for ${position.title}`, true)}
-            </Link>
-        );
-    }
-    return (
-        <article className="recruit-role-card" style={{ "--i": index }}>
-            {body}
-        </article>
-    );
-};
-
-// The drive's story for everyone: the roles, who can apply, how it works.
-const Overview = ({ drive, staff, mine, onOpenApplication }) => {
-    const [preview, setPreview] = useState(null);
-    return (
-        <div className="stack-lg">
-            <Card title="About this recruitment">
-                <p className="prose">{drive.description}</p>
-            </Card>
-            <Card title={<h2 className="row" id="roles"><Briefcase size={18} /> Roles</h2>}>
-                <div className="stack">
-                    {!staff && drive.positions.length > 1 && (
-                        <p className="subtle small" style={{ margin: 0 }}>
-                            Each role has its own application and selection. You can apply for more than one, but you'll join in only one role.
-                        </p>
-                    )}
-                    <div className="recruit-role-cards">
-                        {drive.positions.map((position, index) => (
-                            <RoleCard
-                                key={position._id}
-                                drive={drive}
-                                position={position}
-                                index={index}
-                                staff={staff}
-                                mine={mine.find((application) => application.position === position._id)}
-                                onPreview={setPreview}
-                                onOpenApplication={onOpenApplication}
-                            />
-                        ))}
-                    </div>
-                </div>
-            </Card>
-            {!staff && (
-                <Card title="How selection works">
-                    <ol className="recruit-howto">
-                        <li>
-                            <strong>Apply</strong> for a role before the deadline — the form goes page by page and takes a few minutes.
-                        </li>
-                        <li>
-                            <strong>Selection rounds</strong> for each role — screening and interviews, online or on campus. You'll get an email with the time and place, and reminders.
-                        </li>
-                        <li>
-                            <strong>Offer</strong> — if you're selected you get an offer to accept within a few days. Applied for several roles? You accept one, and the others close.
-                        </li>
-                    </ol>
-                </Card>
-            )}
-            <Modal open={Boolean(preview)} onClose={() => setPreview(null)} size="lg" title={preview ? `${preview.title} · application form` : ""} description="What students see, one page at a time.">
-                {preview && (preview.form.pages.length ? <RoleForm position={preview} /> : <p className="subtle">No questions — students confirm their details and submit.</p>)}
-            </Modal>
-        </div>
-    );
-};
 
 // The role switcher on the Selection tab.
 const RoleSwitcher = ({ positions, value, onChange }) => (
@@ -343,7 +163,7 @@ const DrivePage = () => {
 
                     {staff && tabs.length > 1 && <Tabs tabs={tabs} value={tab} onChange={(value) => setParam("tab", value)} />}
 
-                    <div className="detail-layout aside-first-mobile">
+                    <div className={staff || !user ? "detail-layout aside-first-mobile" : "drive-single"}>
                         <div className="stack-lg">
                             {isStudent && !staff && myApplications.length > 0 && (
                                 <section className="recruit-my-apps" aria-label="Your applications">
@@ -363,7 +183,7 @@ const DrivePage = () => {
                                     ))}
                                 </section>
                             )}
-                            {tab === "overview" && <Overview drive={drive} staff={staff} mine={myApplications} onOpenApplication={openApplication} />}
+                            {tab === "overview" && <DriveOverview drive={drive} staff={staff} mine={myApplications} onOpenApplication={openApplication} />}
                             {tab === "applications" && staff && <ApplicationsPanel drive={drive} />}
                             {tab === "selection" && staff && selected && (
                                 <div className="stack-lg">
@@ -374,7 +194,7 @@ const DrivePage = () => {
                         </div>
                         <aside className="stack">
                             <DriveActions drive={drive} onChange={(updated) => setData(updated)} />
-                            {staff && drive.counts && (
+                            {staff && drive.counts && tab !== "overview" && (
                                 <Card title="At a glance">
                                     <dl className="recruit-glance">
                                         <div>
