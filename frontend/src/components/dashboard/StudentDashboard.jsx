@@ -22,7 +22,7 @@ import {
 import { eventApi, notificationApi } from "../../api/endpoints";
 import { useToast } from "../../context/ToastContext";
 import { EventRow } from "../events/EventCard";
-import { Avatar, Badge, Button, ButtonLink, Card, RoleBadge, StatusBadge } from "../ui";
+import { Avatar, Badge, Button, ButtonLink, Card, RoleBadge, StatusBadge, MediaFill } from "../ui";
 import { ClubHQ } from "./ClubHQ";
 import { ApplicationRow } from "../recruitment/ApplicationRow";
 import { NotificationIcon } from "../notifications/NotificationIcon";
@@ -238,7 +238,7 @@ const RecommendCard = ({ event, now, onRegistered }) => {
     return (
         <article className="card rec-card">
             <Link to={`/events/${event._id}`} className="rec-media" aria-label={`Open ${event.title}`}>
-                {event.poster ? <img src={event.poster} alt="" loading="lazy" /> : <span className="rec-fallback">{humanize(event.category)}</span>}
+                {event.poster ? <MediaFill src={event.poster} /> : <span className="rec-fallback">{humanize(event.category)}</span>}
                 <span className="rec-date">{formatDate(event.startAt).replace(/ \d{4}$/, "")}</span>
             </Link>
             <div className="rec-body">

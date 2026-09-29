@@ -26,7 +26,7 @@ const updateClub = asyncHandler(async (req, res) => {
 });
 
 const changeStatus = asyncHandler(async (req, res) => {
-    const club = await clubService.changeClubStatus(req.user, req.params.id, req.body.status, req.body.reason);
+    const club = await require("../services/ClubStatusService").changeClubStatus(req.user, req.params.id, req.body.status, req.body.reason);
     sendSuccess(res, 200, "Club status updated", club);
 });
 

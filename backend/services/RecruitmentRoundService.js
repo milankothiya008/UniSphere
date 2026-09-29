@@ -32,6 +32,9 @@ const loadRunning = async (actor, driveId, positionId) => {
     if (drive.status !== RECRUITMENT_STATUS.PUBLISHED) {
         throw conflict("Selection runs while the drive is published");
     }
+    if (context.club.status !== "ACTIVE") {
+        throw conflict(`${context.club.name} is ${String(context.club.status).toLowerCase()}, so selection is on hold`);
+    }
     if (["UPCOMING", "OPEN"].includes(drives.phaseOf(drive))) {
         throw conflict("Close applications before starting the selection rounds");
     }
@@ -231,6 +234,7 @@ const scheduleRound = async (actor, driveId, positionId, roundId, payload) => {
         if (!venue || venue.status !== VENUE_STATUS.ACTIVE) {
             throw invalid("Choose an available venue");
         }
+        require("./VenueService").assertVenueFitsAudience(venue, require("./VenueService").audienceOf(club));
     } else {
         meetingLink = String(payload.meetingLink || "").trim();
         if (!HTTPS_URL.test(meetingLink)) {

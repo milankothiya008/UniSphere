@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { Briefcase, FileText, Inbox, Layers, Megaphone, Send, Users } from "lucide-react";
+import { Briefcase, Inbox, Layers, Megaphone, Send, Users } from "lucide-react";
 import { recruitmentApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useAuth } from "../../context/AuthContext";
@@ -11,6 +11,7 @@ import { MyApplicationCard } from "../../components/recruitment/MyApplicationCar
 import { ApplicationsPanel } from "../../components/recruitment/ApplicationsPanel";
 import { RoundsPanel } from "../../components/recruitment/RoundsPanel";
 import { DriveOverview, STAGES } from "../../components/recruitment/DriveOverview";
+import { DriveSidebar } from "../../components/recruitment/DriveSidebar";
 import { batchLabel, departmentsLabel, formatDateTime } from "../../lib/format";
 
 const coverStyle = (src) => (src ? { "--cover": `url("${String(src).replace(/"/g, "%22")}")` } : undefined);
@@ -163,7 +164,7 @@ const DrivePage = () => {
 
                     {staff && tabs.length > 1 && <Tabs tabs={tabs} value={tab} onChange={(value) => setParam("tab", value)} />}
 
-                    <div className={staff || !user ? "detail-layout aside-first-mobile" : "drive-single"}>
+                    <div className={`detail-layout aside-first-mobile drive-layout ${staff ? "is-staff" : "is-student"}`}>
                         <div className="stack-lg">
                             {isStudent && !staff && myApplications.length > 0 && (
                                 <section className="recruit-my-apps" aria-label="Your applications">
@@ -192,38 +193,40 @@ const DrivePage = () => {
                                 </div>
                             )}
                         </div>
-                        <aside className="stack">
-                            <DriveActions drive={drive} onChange={(updated) => setData(updated)} />
-                            {staff && drive.counts && tab !== "overview" && (
-                                <Card title="At a glance">
-                                    <dl className="recruit-glance">
-                                        <div>
-                                            <dt>Applications</dt>
-                                            <dd>{drive.counts.total}</dd>
-                                        </div>
-                                        <div>
-                                            <dt>In selection</dt>
-                                            <dd>{drive.counts.active}</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Offers out</dt>
-                                            <dd>{drive.counts.offered}</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Joined</dt>
-                                            <dd>{drive.counts.accepted}</dd>
-                                        </div>
-                                    </dl>
-                                </Card>
-                            )}
-                            {!user && (
-                                <Card>
-                                    <p className="small" style={{ margin: 0 }}>
-                                        <FileText size={14} /> <Link to="/login">Sign in</Link> to apply.
-                                    </p>
-                                </Card>
-                            )}
-                        </aside>
+                        <DriveSidebar
+                            drive={drive}
+                            staff={staff}
+                            user={user}
+                            mine={myApplications}
+                            onOpenApplication={openApplication}
+                            actions={
+                                <>
+                                    <DriveActions drive={drive} onChange={(updated) => setData(updated)} />
+                                    {staff && drive.counts && tab !== "overview" && (
+                                        <Card title="At a glance">
+                                            <dl className="recruit-glance">
+                                                <div>
+                                                    <dt>Applications</dt>
+                                                    <dd>{drive.counts.total}</dd>
+                                                </div>
+                                                <div>
+                                                    <dt>In selection</dt>
+                                                    <dd>{drive.counts.active}</dd>
+                                                </div>
+                                                <div>
+                                                    <dt>Offers out</dt>
+                                                    <dd>{drive.counts.offered}</dd>
+                                                </div>
+                                                <div>
+                                                    <dt>Joined</dt>
+                                                    <dd>{drive.counts.accepted}</dd>
+                                                </div>
+                                            </dl>
+                                        </Card>
+                                    )}
+                                </>
+                            }
+                        />
                     </div>
                 </div>
             )}

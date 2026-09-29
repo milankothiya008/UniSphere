@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { BadgeCheck, CalendarDays, Clock, MapPin, Ticket, Users } from "lucide-react";
-import { Badge, StatusBadge } from "../ui";
+import { Badge, StatusBadge, MediaFill } from "../ui";
 import { dateParts, formatDate, formatTimeRange, humanize } from "../../lib/format";
 import { categoryStyle, categoryVars } from "../../lib/eventVisuals";
 
@@ -28,7 +28,7 @@ export const EventCover = ({ event, showDate = true }) => {
     return (
         <div className="event-cover" style={categoryVars(event.category)}>
             {event.poster ? (
-                <img src={event.poster} alt="" loading="lazy" />
+                <MediaFill src={event.poster} />
             ) : (
                 <div className="cover-fallback">
                     <CategoryArt category={event.category} size={130} />

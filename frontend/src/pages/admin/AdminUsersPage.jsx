@@ -6,7 +6,7 @@ import { useQueryState } from "../../hooks/useQueryState";
 import { useDebounce } from "../../hooks/useDebounce";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import { AsyncContent, Avatar, Badge, Button, Card, ConfirmDialog, EmptyState, PageHeader, Pagination, SearchInput } from "../../components/ui";
+import { ActionMenu, AsyncContent, Avatar, Badge, Card, ConfirmDialog, EmptyState, PageHeader, Pagination, SearchInput } from "../../components/ui";
 import { ROLE_LABELS } from "../../lib/constants";
 import { batchLabel, formatDate } from "../../lib/format";
 
@@ -101,10 +101,14 @@ const AdminUsersPage = () => {
                                             <td className="subtle nowrap">{formatDate(user.createdAt)}</td>
                                             <td className="actions">
                                                 {user._id !== me._id && (
-                                                    <Button size="sm" variant={user.isActive ? "ghost" : "secondary"} onClick={() => setTarget(user)}>
-                                                        {user.isActive ? <UserX size={14} /> : <UserCheck size={14} />}
-                                                        {user.isActive ? "Deactivate" : "Reactivate"}
-                                                    </Button>
+                                                    <ActionMenu
+                                                        label={`Actions for ${user.name}`}
+                                                        items={[
+                                                            user.isActive
+                                                                ? { label: "Deactivate account", icon: UserX, onClick: () => setTarget(user), danger: true }
+                                                                : { label: "Reactivate account", icon: UserCheck, onClick: () => setTarget(user) }
+                                                        ]}
+                                                    />
                                                 )}
                                             </td>
                                         </tr>

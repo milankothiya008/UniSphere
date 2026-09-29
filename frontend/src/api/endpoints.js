@@ -210,7 +210,6 @@ export const storyApi = {
 export const adminApi = {
     stats: () => api.get("/admin/stats"),
     faculty: (query) => api.get("/admin/faculty", query),
-    auditLogs: (query) => api.get("/admin/audit-logs", query),
     createDepartment: (body) => api.post("/admin/departments", body),
     updateDepartment: (id, body) => api.put(`/admin/departments/${id}`, body),
     createBatch: (body) => api.post("/admin/batches", body),

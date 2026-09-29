@@ -19,7 +19,7 @@ import { eventApi } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { useReveal } from "../../hooks/useReveal";
-import { Avatar, Badge, Button } from "../ui";
+import { Avatar, Badge, Button, MediaFill } from "../ui";
 import { Podium } from "../feed/FeedCard";
 import { dateParts, formatDate, formatDateTime, formatTimeRange, humanize, timeAgo } from "../../lib/format";
 import { eligibilityProblem, isLive, isPast } from "../../lib/eligibility";
@@ -246,7 +246,7 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
 
             <Link to={link} className="event-post-media" aria-label={`Open ${event.title}`}>
                 {event.poster ? (
-                    <img src={event.poster} alt={`${event.title} poster`} loading="lazy" />
+                    <MediaFill src={event.poster} alt={`${event.title} poster`} />
                 ) : (
                     <div className="event-post-fallback">
                         <CategoryIcon className="fallback-art" size={200} strokeWidth={1} aria-hidden="true" />

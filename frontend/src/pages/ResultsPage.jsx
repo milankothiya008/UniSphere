@@ -4,7 +4,7 @@ import { resultApi } from "../api/endpoints";
 import { useApi } from "../hooks/useApi";
 import { useQueryState } from "../hooks/useQueryState";
 import { useDebounce } from "../hooks/useDebounce";
-import { AsyncContent, Avatar, EmptyState, PageHeader, Pagination, SearchInput, Segmented, Skeleton } from "../components/ui";
+import { AsyncContent, Avatar, EmptyState, PageHeader, Pagination, SearchInput, Segmented, Skeleton, MediaFill } from "../components/ui";
 import { ResultStage } from "../components/results/ResultParts";
 import { formatDate, plural, timeAgo } from "../lib/format";
 import { CategoryArt } from "../components/events/EventCard";
@@ -19,7 +19,7 @@ const ResultCard = ({ card }) => {
         <Link to={`/results/${event._id}`} className="card card-link result-card">
             <div className="result-card-media" style={categoryVars(event.category)}>
                 {event.poster ? (
-                    <img src={event.poster} alt="" loading="lazy" />
+                    <MediaFill src={event.poster} />
                 ) : (
                     <div className="result-card-placeholder">
                         <CategoryArt category={event.category} size={150} />

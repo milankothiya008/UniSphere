@@ -1,43 +1,48 @@
 import { useEffect, useState } from "react";
-import { Bell, BellRing } from "lucide-react";
+import { UserCheck, UserPlus } from "lucide-react";
 import { clubApi } from "../../api/endpoints";
 import { useToast } from "../../context/ToastContext";
 import { plural } from "../../lib/format";
 
-// The club's bell, like YouTube's: with it on you're emailed the club's new events and announcements.
-export const NotifyBell = ({ club, className = "" }) => {
+/**
+ * Follow a club to be emailed about its new events and announcements. The button says what it does:
+ * "Follow" while you don't, "Unfollow" while you do.
+ */
+export const FollowButton = ({ club, className = "" }) => {
     const toast = useToast();
-    const [subscribed, setSubscribed] = useState(Boolean(club.viewer?.subscribed));
+    const [following, setFollowing] = useState(Boolean(club.viewer?.subscribed));
     const [followers, setFollowers] = useState(club.followerCount ?? 0);
     const [pending, setPending] = useState(false);
 
     useEffect(() => {
-        setSubscribed(Boolean(club.viewer?.subscribed));
+        setFollowing(Boolean(club.viewer?.subscribed));
         setFollowers(club.followerCount ?? 0);
     }, [club]);
 
-    // Inactive clubs can be muted but not followed.
-    if (club.status !== "ACTIVE" && !subscribed) {
+    // Inactive clubs can be unfollowed but not followed.
+    if (club.status !== "ACTIVE" && !following) {
         return null;
     }
 
     const toggle = async () => {
-        const next = !subscribed;
+        const next = !following;
         setPending(true);
-        setSubscribed(next);
+        setFollowing(next);
+        setFollowers((count) => Math.max(0, count + (next ? 1 : -1)));
         try {
             const { data } = await clubApi.setSubscription(club._id, next);
-            setSubscribed(data.subscribed);
-            setFollowers(data.followerCount);
+            setFollowing(data.subscribed);
+            if (typeof data.followerCount === "number") setFollowers(data.followerCount);
             if (!next) {
-                toast.info(`Notifications off for ${club.name}`);
+                toast.info(`You unfollowed ${club.name}`);
             } else if (data.emailsEnabled) {
-                toast.success(`You'll get emails about ${club.name}'s new events and announcements`);
+                toast.success(`You're following ${club.name} — you'll get emails about new events and announcements`);
             } else {
-                toast.info(`Bell on for ${club.name}, but "Clubs you follow" emails are off in your email settings`);
+                toast.info(`You're following ${club.name}, but "Clubs you follow" emails are off in your email settings`);
             }
         } catch (error) {
-            setSubscribed(!next);
+            setFollowing(!next);
+            setFollowers((count) => Math.max(0, count + (next ? -1 : 1)));
             toast.error(error);
         } finally {
             setPending(false);
@@ -45,19 +50,22 @@ export const NotifyBell = ({ club, className = "" }) => {
     };
 
     return (
-        <div className={`notify-bell ${className}`}>
+        <div className={`follow ${className}`}>
             <button
                 type="button"
-                className={`notify-bell-btn ${subscribed ? "on" : ""}`}
-                aria-pressed={subscribed}
+                className={`follow-btn ${following ? "is-following" : ""}`}
+                aria-pressed={following}
                 onClick={toggle}
                 disabled={pending}
-                title={subscribed ? "Turn off notifications from this club" : "Get emails about new events and announcements"}
+                title={following ? `Stop getting emails from ${club.name}` : `Get emails about ${club.name}'s new events and announcements`}
             >
-                {subscribed ? <BellRing size={16} /> : <Bell size={16} />}
-                {subscribed ? "Notifications on" : "Get notified"}
+                {following ? <UserCheck size={16} /> : <UserPlus size={16} />}
+                {following ? "Unfollow" : "Follow"}
             </button>
-            <span className="notify-bell-count">{plural(followers, "follower")}</span>
+            <span className="follow-count">{plural(followers, "follower")}</span>
         </div>
     );
 };
+
+// Older name, kept for existing imports.
+export const NotifyBell = FollowButton;

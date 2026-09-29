@@ -79,7 +79,12 @@ const listClubs = async (actor, query = {}) => {
         Club.countDocuments(filter)
     ]);
 
-    return { items: await withCounts(clubs), ...paginationMeta(pagination, total) };
+    const items = await withCounts(clubs);
+    // The admin's status notes are for the admin, the club's leaders and its mentor only.
+    if (!isAdmin(actor)) {
+        items.forEach((item) => delete item.statusNote);
+    }
+    return { items, ...paginationMeta(pagination, total) };
 };
 
 const viewerSummary = (context, applications = []) => ({
@@ -116,8 +121,13 @@ const getClub = async (actor, clubId) => {
     const applications =
         actor && recruiting ? await RecruitmentApplication.find({ drive: recruiting._id, applicant: actor._id, status: { $ne: "WITHDRAWN" } }).select("status position") : [];
 
+    const insider = context.isMember || context.isMentor || context.isAdmin;
+    const clubView = populated.toObject();
+    if (!insider) {
+        delete clubView.statusNote;
+    }
     return {
-        ...populated.toObject(),
+        ...clubView,
         memberCount: counts.get(String(club._id)) || 0,
         followerCount: followers,
         upcomingEvents,
@@ -218,47 +228,6 @@ const updateClub = async (actor, clubId, data) => {
         targetType: "Club",
         targetId: club._id,
         metadata: { fields: changed }
-    });
-
-    return getClub(actor, club._id);
-};
-
-const changeClubStatus = async (actor, clubId, status, reason = null) => {
-    assertAdmin(actor);
-
-    if (!Object.values(CLUB_STATUS).includes(status)) {
-        throw new AppError("Invalid club status", 400, ERROR_CODES.VALIDATION_ERROR);
-    }
-
-    const club = await Club.findById(clubId);
-
-    if (!club) {
-        throw new AppError("Club not found", 404, ERROR_CODES.NOT_FOUND);
-    }
-
-    if (status === CLUB_STATUS.ACTIVE && !club.president) {
-        throw new AppError("A president must be assigned before the club can become active", 409, ERROR_CODES.INVALID_STATE);
-    }
-
-    const from = club.status;
-    club.status = status;
-    await club.save();
-
-    await recordAudit({
-        action: AUDIT_ACTIONS.CLUB_STATUS_CHANGED,
-        actor: actor._id,
-        targetType: "Club",
-        targetId: club._id,
-        fromState: from,
-        toState: status,
-        reason
-    });
-
-    await notify([club.president, club.mentor], {
-        type: NOTIFICATION_TYPES.CLUB_UPDATE,
-        title: `${club.name} is now ${status.toLowerCase()}`,
-        message: reason || "",
-        link: `/clubs/${club._id}`
     });
 
     return getClub(actor, club._id);
@@ -428,7 +397,6 @@ module.exports = {
     getClub,
     getMyClubs,
     updateClub,
-    changeClubStatus,
     setMentor,
     assignPresident,
     listClubMembers

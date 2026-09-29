@@ -58,7 +58,6 @@ const AdminClubsPage = lazy(() => import("./pages/admin/AdminClubsPage"));
 const AdminFacultyPage = lazy(() => import("./pages/admin/AdminFacultyPage"));
 const AdminAcademicsPage = lazy(() => import("./pages/admin/AdminAcademicsPage"));
 const AdminVenuesPage = lazy(() => import("./pages/admin/AdminVenuesPage"));
-const AdminAuditPage = lazy(() => import("./pages/admin/AdminAuditPage"));
 
 const { STUDENT, FACULTY, ADMIN } = ROLES;
 
@@ -146,7 +145,6 @@ const App = () => (
                     <Route path="/admin/faculty" element={<AdminFacultyPage />} />
                     <Route path="/admin/academics" element={<AdminAcademicsPage />} />
                     <Route path="/admin/venues" element={<AdminVenuesPage />} />
-                    <Route path="/admin/audit" element={<AdminAuditPage />} />
                 </Route>
 
                 <Route path="*" element={<NotFoundPage />} />

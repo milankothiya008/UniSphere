@@ -4,7 +4,7 @@ import { ArrowRight, CheckCircle2, FilePenLine, GitCompareArrows, MessageSquareW
 import { eventApi } from "../../api/endpoints";
 import { useToast } from "../../context/ToastContext";
 import { batchLabel, formatDateLong, formatDateTime, humanize, timeAgo } from "../../lib/format";
-import { Badge, Button, Card, ConfirmDialog } from "../ui";
+import { Badge, Button, Card, ConfirmDialog, MediaFill } from "../ui";
 
 const STATUS = {
     PENDING_APPROVAL: { tone: "warning", label: "Waiting for mentor approval" },
@@ -40,7 +40,11 @@ const show = (field, value) => {
         case "contact":
             return [value.name, value.email, value.phone].filter(Boolean).join(" · ") || "—";
         case "poster":
-            return <img src={value} alt="" className="change-poster" />;
+            return (
+                <span className="change-poster">
+                    <MediaFill src={value} />
+                </span>
+            );
         default:
             return String(value);
     }

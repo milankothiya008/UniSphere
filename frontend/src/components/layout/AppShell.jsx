@@ -17,7 +17,6 @@ import {
     MapPin,
     Menu,
     Newspaper,
-    ScrollText,
     Settings2,
     ShieldCheck,
     Sparkles,
@@ -104,7 +103,6 @@ const Sidebar = () => {
                         <NavItem to="/admin/faculty" icon={GraduationCap} label="Faculty & mentors" />
                         <NavItem to="/admin/academics" icon={Settings2} label="Departments & batches" />
                         <NavItem to="/admin/venues" icon={MapPin} label="Venues" />
-                        <NavItem to="/admin/audit" icon={ScrollText} label="Audit log" />
                     </NavSection>
                 )}
             </nav>

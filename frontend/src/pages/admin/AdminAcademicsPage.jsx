@@ -62,14 +62,12 @@ const ReferenceEditor = ({ title, description, kind, load, create, update, label
             <AsyncContent loading={loading} error={error} onRetry={reload} isEmpty={!data?.length} empty={<EmptyState title={`No ${kind.toLowerCase()}s yet`} />}>
                 <div className="list-rows">
                     {data?.map((item) => (
-                        <div key={item._id} className="list-row">
+                        <button key={item._id} type="button" className="list-row list-row-button" onClick={() => open(item)} aria-label={`Edit ${item[labelField]}`}>
                             <Badge tone="ink">{item.code}</Badge>
                             <span className="grow title">{item[labelField]}</span>
                             {!item.isActive && <Badge>Inactive</Badge>}
-                            <Button size="sm" variant="ghost" onClick={() => open(item)} aria-label={`Edit ${item[labelField]}`}>
-                                <Pencil size={14} />
-                            </Button>
-                        </div>
+                            <Pencil size={14} className="list-row-edit" aria-hidden="true" />
+                        </button>
                     ))}
                 </div>
             </AsyncContent>

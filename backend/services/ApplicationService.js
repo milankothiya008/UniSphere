@@ -325,6 +325,9 @@ const respondToOffer = async (actor, driveId, applicationId, accept) => {
         return getMyApplications(actor, drive._id);
     }
 
+    if (club.status !== "ACTIVE") {
+        throw conflict(`${club.name} is ${String(club.status).toLowerCase()}, so offers are on hold. Your offer is kept and its deadline moves on if the club is reactivated.`);
+    }
     if (await ClubMembership.exists({ club: club._id, user: actor._id, status: MEMBERSHIP_STATUS.APPROVED })) {
         throw conflict(`You're already a member of ${club.name}`);
     }

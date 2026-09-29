@@ -2,7 +2,7 @@ import { useParams, Link } from "react-router-dom";
 import { Check, AlertTriangle, CalendarDays, ChevronRight, Clock, Hourglass, Images, Mail, MapPin, Megaphone, Phone, ShieldCheck, Trophy, User, Users } from "lucide-react";
 import { eventApi, feedApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
-import { Alert, AsyncContent, Avatar, Badge, ButtonLink, Card, PageHeader, StatusBadge } from "../../components/ui";
+import { Alert, AsyncContent, Avatar, Badge, ButtonLink, Card, PageHeader, StatusBadge, ZoomableMedia } from "../../components/ui";
 import { EventActions } from "../../components/events/EventActions";
 import { EventChanges } from "../../components/events/EventChanges";
 import { RegistrationPanel } from "../../components/events/RegistrationPanel";
@@ -151,9 +151,7 @@ const EventDetailPage = () => {
                     <div className="detail-layout aside-first-mobile">
                         <div className="stack-lg">
                             {event.poster ? (
-                                <div className="poster">
-                                    <img src={event.poster} alt={`${event.title} poster`} />
-                                </div>
+                                <ZoomableMedia src={event.poster} alt={`${event.title} poster`} caption={event.title} className="poster" />
                             ) : (
                                 <div className="poster poster-fallback" aria-hidden="true" style={categoryVars(event.category)}>
                                     <CategoryArt category={event.category} />
@@ -183,6 +181,11 @@ const EventDetailPage = () => {
                             {event.status === "PENDING_APPROVAL" && !event.viewer?.canReview && (
                                 <Alert type="info" title="Waiting for mentor approval">
                                     Submitted {formatDateTime(event.submittedAt)}. You'll be notified when it's reviewed.
+                                </Alert>
+                            )}
+                            {event.onHold && event.status === "PUBLISHED" && (
+                                <Alert type="warning" title="This event is on hold">
+                                    {event.club.name} has been {String(event.club.status).toLowerCase()} by the university. Registrations are kept but closed; if the club is reactivated before the event, it goes ahead and registered students are emailed.
                                 </Alert>
                             )}
                             {event.status === "CANCELLED" && (

@@ -1,5 +1,5 @@
-import { Plus, Wrench } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Plus, Wrench, ChevronRight } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { eventApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useQueryState } from "../../hooks/useQueryState";
@@ -22,6 +22,7 @@ const GROUPS = [
 ];
 
 const ManageEventsPage = () => {
+    const navigate = useNavigate();
     const { isFaculty } = useAuth();
     const { eventClubs, officerClubs, mentoredClubs } = useWorkspace();
     const [filters, setFilters] = useQueryState({ group: isFaculty ? "review" : "attention", club: "", page: "1" });
@@ -94,7 +95,7 @@ const ManageEventsPage = () => {
                                 </thead>
                                 <tbody>
                                     {data?.map((event) => (
-                                        <tr key={event._id}>
+                                        <tr key={event._id} className="row-link" onClick={(click) => !click.target.closest("a") && navigate(`/events/${event._id}`)}>
                                             <td>
                                                 <Link to={`/events/${event._id}`} style={{ fontWeight: 600 }}>
                                                     {event.title}
@@ -117,9 +118,11 @@ const ManageEventsPage = () => {
                                                 </div>
                                             </td>
                                             <td className="actions">
-                                                <Link to={`/events/${event._id}`} className="btn btn-secondary btn-sm">
-                                                    {(event.status === "PENDING_APPROVAL" || event.revisionStatus === "PENDING_APPROVAL") && isFaculty ? "Review" : "Open"}
-                                                </Link>
+                                                {(event.status === "PENDING_APPROVAL" || event.revisionStatus === "PENDING_APPROVAL") && isFaculty ? (
+                                                    <span className="row-link-cta">Review</span>
+                                                ) : (
+                                                    <ChevronRight size={18} className="row-link-chevron" aria-hidden="true" />
+                                                )}
                                             </td>
                                         </tr>
                                     ))}

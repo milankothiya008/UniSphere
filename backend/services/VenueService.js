@@ -4,10 +4,80 @@ const Event = require("../models/Event");
 const RecruitmentDrive = require("../models/RecruitmentDrive");
 const AppError = require("../utils/AppError");
 const ERROR_CODES = require("../constants/ErrorCodes");
-const { VENUE_STATUS, EVENT_STATUS, EVENT_STATUSES_HOLDING_VENUE, RECRUITMENT_STATUS, ROUND_STATUS, ROUND_MODES } = require("../constants/Statuses");
+const Club = require("../models/Club");
+const Department = require("../models/Department");
+const { VENUE_STATUS, VENUE_TYPES, EVENT_STATUS, EVENT_STATUSES_HOLDING_VENUE, RECRUITMENT_STATUS, ROUND_STATUS, ROUND_MODES } = require("../constants/Statuses");
 const { assertAdmin } = require("./AuthorizationService");
 const { combineDateAndTime, intervalsOverlap } = require("../utils/UniversityRules");
 const { formatTime } = require("../utils/CampusTime");
+
+// ---------------------------------------------------------------- Labs and audiences
+//
+// Labs belong to departments. An event's audience is its own department list if it has one, otherwise its
+// club's departments; an all-department club with an event open to everyone may use any lab.
+
+const ALL = "ALL";
+
+/** The departments an event (or a club's recruitment) is for: a list of codes, or "ALL". */
+const audienceOf = (club, eligibilityDepartments = []) => {
+    const listed = (eligibilityDepartments || []).map((code) => String(code).toUpperCase()).filter(Boolean);
+    if (listed.length) return listed;
+    if (!club || club.allDepartments) return ALL;
+    return (club.departmentCodes || []).map((code) => String(code).toUpperCase());
+};
+
+const venueFits = (venue, audience) => {
+    if (venue.type !== VENUE_TYPES.LAB || audience === ALL) return true;
+    return (venue.departmentCodes || []).some((code) => audience.includes(code));
+};
+
+const audienceLabel = (audience) => (audience === ALL ? "every department" : audience.join(", "));
+
+/** Refuses a lab that doesn't belong to one of the audience's departments. */
+const assertVenueFitsAudience = (venue, audience) => {
+    if (!venueFits(venue, audience)) {
+        throw new AppError(
+            `${venue.name} is a ${venue.departmentCodes.join(", ")} lab, and this is for ${audienceLabel(audience)} students. Choose a lab of those departments or a common venue.`,
+            400,
+            ERROR_CODES.VALIDATION_ERROR
+        );
+    }
+};
+
+// For listings: ?club=<id>&departments=CE,IT narrows labs to that audience.
+const audienceFromQuery = async (query = {}) => {
+    const departments = String(query.departments || "")
+        .split(",")
+        .map((code) => code.trim().toUpperCase())
+        .filter(Boolean);
+    if (!query.club && !departments.length) return null;
+    const club = query.club && mongoose.isValidObjectId(query.club) ? await Club.findById(query.club).select("allDepartments departmentCodes") : null;
+    return audienceOf(club, departments);
+};
+
+const normalizeVenue = async (payload, existing = null) => {
+    const type = payload.type !== undefined ? String(payload.type).toUpperCase() : existing?.type || VENUE_TYPES.HALL;
+    if (!Object.values(VENUE_TYPES).includes(type)) {
+        throw new AppError("Choose the kind of venue", 400, ERROR_CODES.VALIDATION_ERROR);
+    }
+    let departmentCodes = payload.departmentCodes !== undefined ? payload.departmentCodes : existing?.departmentCodes || [];
+    departmentCodes = [...new Set((Array.isArray(departmentCodes) ? departmentCodes : []).map((code) => String(code).trim().toUpperCase()).filter(Boolean))];
+    if (type === VENUE_TYPES.LAB) {
+        if (!departmentCodes.length) {
+            throw new AppError("Choose the department(s) this lab belongs to", 400, ERROR_CODES.VALIDATION_ERROR);
+        }
+        const known = await Department.find({ code: { $in: departmentCodes } }).select("code");
+        const unknown = departmentCodes.filter((code) => !known.some((department) => department.code === code));
+        if (unknown.length) {
+            throw new AppError(`Unknown department: ${unknown.join(", ")}`, 400, ERROR_CODES.VALIDATION_ERROR);
+        }
+    } else {
+        departmentCodes = [];
+    }
+    return { type, departmentCodes };
+};
+
+// ---------------------------------------------------------------- Venues
 
 const createVenue = async (actor, payload) => {
     assertAdmin(actor);
@@ -18,7 +88,7 @@ const createVenue = async (actor, payload) => {
         throw new AppError("name, location and capacity are required", 400, ERROR_CODES.VALIDATION_ERROR);
     }
 
-    return Venue.create({ name, location, capacity: Number(capacity) });
+    return Venue.create({ name, location, capacity: Number(capacity), ...(await normalizeVenue(payload)) });
 };
 
 const listVenues = async (query = {}) => {
@@ -26,26 +96,32 @@ const listVenues = async (query = {}) => {
     if (query.status) {
         filter.status = String(query.status).toUpperCase();
     }
-    return Venue.find(filter).sort({ name: 1 });
+    if (query.type) {
+        filter.type = String(query.type).toUpperCase();
+    }
+    const venues = await Venue.find(filter).sort({ type: 1, name: 1 });
+    const audience = await audienceFromQuery(query);
+    return audience ? venues.filter((venue) => venueFits(venue, audience)) : venues;
 };
 
 const updateVenue = async (actor, id, data) => {
     assertAdmin(actor);
 
+    const existing = await Venue.findById(id);
+    if (!existing) {
+        throw new AppError("Venue not found", 404, ERROR_CODES.NOT_FOUND);
+    }
     const update = {};
     ["name", "location", "capacity", "status"].forEach((field) => {
         if (data[field] !== undefined) {
             update[field] = data[field];
         }
     });
-
-    const venue = await Venue.findByIdAndUpdate(id, update, { returnDocument: "after", runValidators: true });
-
-    if (!venue) {
-        throw new AppError("Venue not found", 404, ERROR_CODES.NOT_FOUND);
+    if (data.type !== undefined || data.departmentCodes !== undefined) {
+        Object.assign(update, await normalizeVenue(data, existing));
     }
 
-    return venue;
+    return Venue.findByIdAndUpdate(id, update, { returnDocument: "after", runValidators: true });
 };
 
 // Offline interview rounds of live recruitment drives hold their venue for the whole round.
@@ -162,7 +238,7 @@ const withVenueLock = async (venueId, task) => {
     }
 };
 
-const getAvailableVenues = async ({ eventDate, startTime, endTime, excludeEventId }) => {
+const getAvailableVenues = async ({ eventDate, startTime, endTime, excludeEventId, club, departments }) => {
     if (!eventDate || !startTime || !endTime) {
         throw new AppError("eventDate, startTime and endTime are required", 400, ERROR_CODES.VALIDATION_ERROR);
     }
@@ -174,7 +250,8 @@ const getAvailableVenues = async ({ eventDate, startTime, endTime, excludeEventI
         throw new AppError("endTime must be after startTime", 400, ERROR_CODES.VALIDATION_ERROR);
     }
 
-    const venues = await Venue.find({ status: VENUE_STATUS.ACTIVE }).sort({ name: 1 });
+    const audience = await audienceFromQuery({ club, departments });
+    const venues = (await Venue.find({ status: VENUE_STATUS.ACTIVE }).sort({ type: 1, name: 1 })).filter((venue) => !audience || venueFits(venue, audience));
     const busy = await Event.find({
         status: { $in: EVENT_STATUSES_HOLDING_VENUE },
         startAt: { $lt: endAt },
@@ -223,6 +300,9 @@ const getAvailableVenues = async ({ eventDate, startTime, endTime, excludeEventI
 };
 
 module.exports = {
+    audienceOf,
+    venueFits,
+    assertVenueFitsAudience,
     createVenue,
     listVenues,
     updateVenue,

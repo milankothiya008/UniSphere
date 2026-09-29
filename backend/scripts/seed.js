@@ -34,9 +34,14 @@ const buildBatches = () => {
 };
 
 const DEFAULT_VENUES = [
-    { name: "Auditorium", location: "Main Campus", capacity: 400 },
-    { name: "Seminar Hall A", location: "Academic Block", capacity: 120 },
-    { name: "Seminar Hall B", location: "Academic Block", capacity: 80 }
+    { name: "Auditorium", location: "Main Campus", capacity: 400, type: "AUDITORIUM" },
+    { name: "Seminar Hall A", location: "Academic Block", capacity: 120, type: "HALL" },
+    { name: "Seminar Hall B", location: "Academic Block", capacity: 80, type: "HALL" },
+    // Labs belong to departments: only their departments' events can book them.
+    { name: "CE Software Lab", location: "CE Block, 2nd floor", capacity: 60, type: "LAB", departmentCodes: ["CE"] },
+    { name: "IT Networks Lab", location: "IT Block, 1st floor", capacity: 50, type: "LAB", departmentCodes: ["IT"] },
+    { name: "Innovation Lab", location: "CE Block, ground floor", capacity: 40, type: "LAB", departmentCodes: ["CE", "IT"] },
+    { name: "EC Electronics Lab", location: "EC Block, 1st floor", capacity: 45, type: "LAB", departmentCodes: ["EC"] }
 ];
 
 const seedReferenceData = async () => {

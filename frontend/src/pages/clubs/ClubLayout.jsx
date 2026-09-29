@@ -11,7 +11,7 @@ import { departmentsLabel, formatDate, humanize, plural } from "../../lib/format
 import { APPLICATION_STATUSES, PERMISSIONS } from "../../lib/constants";
 import { belongsToScope } from "../../lib/eligibility";
 import { ClubSocialRow } from "../../components/clubs/ClubConnect";
-import { NotifyBell } from "../../components/clubs/NotifyBell";
+import { FollowButton } from "../../components/clubs/NotifyBell";
 import { ClubStoryAvatar } from "../../components/stories/ClubStoryAvatar";
 
 // The cover sits under a dark overlay (see .hero-cover) so the header text stays readable on any image.
@@ -83,7 +83,7 @@ const ClubLayout = () => {
                                 <ClubSocialRow club={club} className="on-dark" />
                             </div>
                             <div className="row hero-actions">
-                                {user && <NotifyBell club={club} />}
+                                {user && <FollowButton club={club} />}
                                 {/* Students join through recruitment drives. */}
                                 {isStudent && club.status === "ACTIVE" && !viewer.isMember &&
                                     (!belongsToScope(user, club) ? (
@@ -109,11 +109,7 @@ const ClubLayout = () => {
                                         <ButtonLink to={`/recruitment/${club.recruiting._id}`} variant="secondary">
                                             <Megaphone size={16} /> Recruitment opens {formatDate(club.recruiting.applicationStart)}
                                         </ButtonLink>
-                                    ) : (
-                                        <span className="hero-note">
-                                            <Megaphone size={14} /> Not recruiting right now — turn on the bell to hear when they do
-                                        </span>
-                                    ))}
+                                    ) : null)}
                                 {viewer.isMember && viewer.role !== "PRESIDENT" && (
                                     <Button variant="secondary" onClick={() => setLeaving(true)}>
                                         <LogOut size={16} /> Leave club
@@ -138,7 +134,17 @@ const ClubLayout = () => {
                             Your faculty mentor will appoint the president to activate the club.
                         </Alert>
                     )}
-                    {club.status === "SUSPENDED" && <Alert type="error" title="This club is suspended">Events and membership changes are paused.</Alert>}
+                    {["SUSPENDED", "ARCHIVED"].includes(club.status) && (
+                        <Alert type="error" title={club.status === "SUSPENDED" ? "This club is suspended" : "This club is archived"}>
+                            Its upcoming events and recruitment are on hold — students can't see them, register or apply until the university reactivates the club.
+                            {club.statusNote && (
+                                <>
+                                    {" "}
+                                    Reason: &ldquo;{club.statusNote}&rdquo;
+                                </>
+                            )}
+                        </Alert>
+                    )}
 
                     <Tabs tabs={tabs} />
                     <Outlet context={{ club, reload: refresh }} />

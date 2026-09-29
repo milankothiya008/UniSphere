@@ -125,7 +125,7 @@ const unsubscribeRules = [
 ];
 
 const clubStatusRules = [
-    body("status").isIn(Object.values(CLUB_STATUS)).withMessage("Invalid club status"),
+    body("status").isIn([CLUB_STATUS.ACTIVE, CLUB_STATUS.SUSPENDED, CLUB_STATUS.ARCHIVED]).withMessage("Choose active, suspended or archived"),
     body("reason").optional().isString().trim().isLength({ max: 1000 })
 ];
 
@@ -179,7 +179,9 @@ const availabilityRules = [
     query("eventDate").matches(DATE_PATTERN).withMessage("eventDate must be YYYY-MM-DD"),
     query("startTime").matches(TIME_PATTERN).withMessage("startTime must be HH:mm"),
     query("endTime").matches(TIME_PATTERN).withMessage("endTime must be HH:mm"),
-    query("excludeEventId").optional().isMongoId()
+    query("excludeEventId").optional().isMongoId(),
+    query("club").optional().isMongoId(),
+    query("departments").optional().isString().isLength({ max: 200 })
 ];
 
 const venueRules = (optional = false) => {
@@ -188,7 +190,9 @@ const venueRules = (optional = false) => {
         f("name").isString().trim().isLength({ min: 2, max: 120 }).withMessage("Venue name is required"),
         f("location").isString().trim().isLength({ min: 2, max: 200 }).withMessage("Location is required"),
         f("capacity").isInt({ min: 1, max: 100000 }).withMessage("Capacity must be a positive number"),
-        body("status").optional().isIn(["ACTIVE", "INACTIVE"])
+        body("status").optional().isIn(["ACTIVE", "INACTIVE"]),
+        body("type").optional().isIn(["AUDITORIUM", "HALL", "CLASSROOM", "LAB", "OUTDOOR", "OTHER"]).withMessage("Choose the kind of venue"),
+        body("departmentCodes").optional().isArray({ max: 30 }).withMessage("Choose the lab's departments")
     ];
 };
 

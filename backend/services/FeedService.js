@@ -165,6 +165,11 @@ const listFeed = async (actor, query = {}) => {
         { visibility: FEED_VISIBILITY.PUBLIC },
         { visibility: FEED_VISIBILITY.MEMBERS, club: { $in: insideClubs } }
     ];
+    // Suspended or archived clubs' posts stay visible to their own members and mentor only.
+    const paused = await require("./ClubStatusService").pausedClubIds();
+    if (paused.length) {
+        filter.$and = [{ $or: [{ club: { $nin: paused } }, { club: { $in: insideClubs } }] }];
+    }
 
     const [items, total] = await Promise.all([
         populatePost(FeedPost.find(filter).sort({ createdAt: -1 }).skip(pagination.skip).limit(pagination.limit)),

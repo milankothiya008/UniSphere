@@ -1,0 +1,730 @@
+/* ================================================================ Shared system pieces: venues, media, status */
+
+/* ---------------------------------------------------------------- Venues & labs (admin) */
+.venue-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+}
+
+.venue-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    animation: rise-in 0.4s var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 40ms);
+    transition:
+        transform 0.2s var(--ease-out),
+        box-shadow 0.2s ease,
+        border-color 0.2s ease;
+}
+
+.venue-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--ink-500);
+    box-shadow: var(--shadow);
+}
+
+.venue-card:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.venue-card.is-inactive {
+    opacity: 0.65;
+}
+
+.venue-card-icon {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: var(--ink-50);
+    color: var(--ink-700);
+}
+
+.venue-card.is-lab .venue-card-icon {
+    background: var(--violet-100);
+    color: var(--violet-600);
+}
+
+.venue-card.is-auditorium .venue-card-icon {
+    background: var(--gold-100);
+    color: var(--gold-600);
+}
+
+.venue-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.venue-card-body strong {
+    font-size: 1rem;
+}
+
+.venue-card-body .subtle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.venue-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: auto;
+}
+
+.venue-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--surface-muted);
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    font-weight: 600;
+}
+
+.venue-chip.is-dept {
+    background: var(--violet-100);
+    color: var(--violet-600);
+}
+
+.venue-chip.is-off {
+    background: var(--danger-100);
+    color: var(--danger-600);
+}
+
+.venue-type-picker {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.venue-type {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+        border-color 0.18s ease,
+        background 0.18s ease,
+        color 0.18s ease;
+}
+
+.venue-type:hover {
+    border-color: var(--ink-500);
+    color: var(--text);
+}
+
+.venue-type.is-on {
+    border-color: var(--ink-700);
+    background: var(--ink-50);
+    color: var(--ink-800);
+}
+
+.venue-departments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.venue-department {
+    min-width: 56px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+        background 0.18s ease,
+        border-color 0.18s ease,
+        color 0.18s ease,
+        transform 0.18s var(--ease-spring);
+}
+
+.venue-department:hover {
+    border-color: var(--violet-600);
+}
+
+.venue-department.is-on {
+    border-color: var(--violet-600);
+    background: var(--violet-600);
+    color: #fff;
+}
+
+@media (max-width: 640px) {
+    .venue-type-picker {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .venue-card {
+        animation: none;
+        transition: none;
+    }
+}
+
+/* ---------------------------------------------------------------- Media: the whole picture, never cropped */
+.media-fill {
+    position: absolute;
+    inset: -28px;
+    background: var(--media) center / cover no-repeat;
+    filter: blur(24px) saturate(1.2) brightness(0.8);
+    transform: scale(1.1);
+    pointer-events: none;
+}
+
+img.media-img {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain !important;
+    opacity: 0;
+    transition:
+        opacity 0.45s ease,
+        transform 0.8s var(--ease-out);
+}
+
+img.media-img.is-loaded {
+    opacity: 1;
+}
+
+/* Boxes that hold a MediaFill clip the blur and keep their overlays on top. */
+:is(.event-cover, .poster, .feed-image, .event-post-media, .rec-media, .result-card-media, .gallery-tile-open, .gallery-card-media, .upload-preview, .change-poster) {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.change-poster {
+    display: block;
+    width: 90px;
+    height: 56px;
+    border-radius: 6px;
+}
+
+.poster {
+    aspect-ratio: 16 / 10;
+    max-height: 72vh;
+    width: 100%;
+}
+
+.feed-image {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    max-height: 460px;
+    border-radius: var(--radius);
+    background: var(--ink-900);
+}
+
+/* Clickable media: a hint appears on hover, click opens the viewer. */
+.zoomable {
+    display: block;
+    padding: 0;
+    border: 0;
+    cursor: zoom-in;
+    font: inherit;
+    color: inherit;
+}
+
+.zoomable:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.zoomable-hint {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(9, 13, 34, 0.62);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    backdrop-filter: blur(6px);
+    opacity: 0;
+    transform: translateY(6px);
+    transition:
+        opacity 0.2s ease,
+        transform 0.2s var(--ease-out);
+}
+
+.zoomable:hover .zoomable-hint,
+.zoomable:focus-visible .zoomable-hint {
+    opacity: 1;
+    transform: none;
+}
+
+.zoomable:hover img.media-img {
+    transform: scale(1.02);
+}
+
+@media (hover: none) {
+    .zoomable-hint {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* ---------------------------------------------------------------- Full-screen viewer */
+.lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 1500;
+    display: flex;
+    flex-direction: column;
+    background: rgba(6, 9, 24, 0.94);
+    animation: lightbox-in 0.22s ease both;
+}
+
+.lightbox-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    color: #fff;
+}
+
+.lightbox-caption {
+    overflow: hidden;
+    font-weight: 600;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.lightbox-tools {
+    display: inline-flex;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.lightbox-tools :is(button, a) {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.lightbox-tools :is(button, a):hover {
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.lightbox-stage {
+    flex: 1;
+    display: grid;
+    place-items: center;
+    min-height: 0;
+    padding: 0 16px 24px;
+    overflow: hidden;
+}
+
+.lightbox-media {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 8px;
+    object-fit: contain;
+    box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.8);
+    cursor: zoom-in;
+    animation: lightbox-media-in 0.3s var(--ease-out) both;
+    transition: transform 0.3s var(--ease-out);
+}
+
+.lightbox-media.is-zoomed {
+    transform: scale(2.2);
+    cursor: zoom-out;
+}
+
+video.lightbox-media {
+    cursor: default;
+    background: #000;
+}
+
+@keyframes lightbox-in {
+    from {
+        opacity: 0;
+    }
+}
+
+@keyframes lightbox-media-in {
+    from {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    img.media-img,
+    .lightbox,
+    .lightbox-media,
+    .zoomable-hint {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+/* ---------------------------------------------------------------- Drive page side column */
+.drive-side {
+    position: sticky;
+    top: calc(var(--topbar-height, 64px) + 16px);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.drive-side > * {
+    animation: rise-in 0.4s var(--ease-out) both;
+}
+
+.drive-side > *:nth-child(2) {
+    animation-delay: 60ms;
+}
+
+.drive-side > *:nth-child(3) {
+    animation-delay: 120ms;
+}
+
+.drive-side > *:nth-child(4) {
+    animation-delay: 180ms;
+}
+
+.side-dates {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    position: relative;
+}
+
+.side-dates::before {
+    content: "";
+    position: absolute;
+    top: 14px;
+    bottom: 14px;
+    left: 13px;
+    width: 2px;
+    background: var(--border);
+}
+
+.side-dates li {
+    position: relative;
+    display: flex;
+    gap: 12px;
+    padding: 8px 0;
+}
+
+.side-dates-dot {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--surface);
+    color: var(--text-subtle);
+    z-index: 1;
+}
+
+.side-dates li.is-past .side-dates-dot {
+    border-color: var(--success-600);
+    background: var(--success-600);
+    color: #fff;
+}
+
+.side-dates li.is-next .side-dates-dot {
+    border-color: var(--ink-700);
+    background: var(--ink-700);
+    color: #fff;
+    box-shadow: 0 0 0 5px var(--ink-50);
+}
+
+.side-dates-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.side-dates-text strong {
+    font-size: 0.88rem;
+}
+
+.side-dates-text span {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.side-dates li.is-past .side-dates-text strong {
+    color: var(--text-muted);
+}
+
+.side-club {
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.side-club-cover {
+    height: 78px;
+    background: var(--cover, linear-gradient(135deg, var(--ink-800), var(--ink-500))) center / cover;
+}
+
+.side-club-cover[style] {
+    background-image: linear-gradient(rgba(12, 18, 48, 0.35), rgba(12, 18, 48, 0.35)), var(--cover);
+}
+
+.side-club-body {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: -30px;
+    padding: 0 16px 16px;
+}
+
+.side-club-body .avatar {
+    border: 3px solid var(--surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.side-club-name {
+    color: var(--text);
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.side-club-body p {
+    margin: 0;
+}
+
+.side-club-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.side-club-facts span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--surface-muted);
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    font-weight: 600;
+}
+
+.side-club-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    margin-top: 4px;
+}
+
+.side-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--ink-700);
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.side-link svg {
+    transition: transform 0.2s var(--ease-out);
+}
+
+.side-link:hover svg {
+    transform: translateX(3px);
+}
+
+/* The follow button on light surfaces. */
+.follow.is-light .follow-btn {
+    height: 36px;
+    min-width: 104px;
+    border-color: var(--ink-700);
+    background: var(--ink-700);
+    color: #fff;
+}
+
+.follow.is-light .follow-btn.is-following {
+    border-color: var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+}
+
+.follow.is-light .follow-btn.is-following:hover:not(:disabled) {
+    border-color: var(--danger-600);
+    background: var(--danger-100);
+    color: var(--danger-600);
+}
+
+.follow.is-light .follow-count {
+    display: none;
+}
+
+.side-standing-list {
+    list-style: none;
+    margin: 0 0 12px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.side-standing-list button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: inherit;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition:
+        border-color 0.18s ease,
+        background 0.18s ease;
+}
+
+.side-standing-list button:hover {
+    border-color: var(--ink-500);
+    background: var(--surface-muted);
+}
+
+.side-standing.is-offer {
+    border-color: var(--gold-500);
+    box-shadow: 0 0 0 3px var(--gold-100);
+}
+
+.side-standing.is-joined {
+    border-color: var(--success-600);
+}
+
+@media (max-width: 1024px) {
+    .drive-side {
+        position: static;
+    }
+
+    /* On phones the main content comes first and the side column follows it. */
+    .drive-layout.is-student.aside-first-mobile > .drive-side {
+        order: 2;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .drive-side > * {
+        animation: none;
+    }
+}
+
+/* ---------------------------------------------------------------- Rows that open something */
+tr.row-link {
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+tr.row-link:hover {
+    background: var(--surface-muted);
+}
+
+.row-link-chevron {
+    color: var(--text-subtle);
+    transition: transform 0.2s var(--ease-out), color 0.2s ease;
+}
+
+tr.row-link:hover .row-link-chevron {
+    color: var(--ink-700);
+    transform: translateX(3px);
+}
+
+.row-link-cta {
+    display: inline-flex;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--warning-100);
+    color: var(--warning-600);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+button.list-row-button {
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+button.list-row-button:hover {
+    background: var(--surface-muted);
+}
+
+.list-row-edit {
+    color: var(--text-subtle);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+button.list-row-button:hover .list-row-edit,
+button.list-row-button:focus-visible .list-row-edit {
+    opacity: 1;
+}
+
+@media (hover: none) {
+    .list-row-edit {
+        opacity: 1;
+    }
+}

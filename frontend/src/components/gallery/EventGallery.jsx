@@ -7,7 +7,7 @@ import { useGalleryUploader } from "../../hooks/useGalleryUploader";
 import { useToast } from "../../context/ToastContext";
 import { ACCEPT_MEDIA } from "../../lib/mediaUpload";
 import { plural } from "../../lib/format";
-import { Button, Card, ConfirmDialog, EmptyState, Skeleton, Tabs } from "../ui";
+import { Button, Card, ConfirmDialog, EmptyState, Skeleton, Tabs, MediaFill } from "../ui";
 import { GalleryViewer } from "./GalleryViewer";
 
 // From this many photos the newest is shown large, mosaic-style.
@@ -32,7 +32,7 @@ const Tile = ({ item, index = 0, onOpen, selectable = false, selected = false, o
     <div className={`gallery-tile ${selected ? "is-selected" : ""} ${leaving ? "is-leaving" : ""}`} style={{ "--i": Math.min(index, 12) }}>
         <button type="button" className="gallery-tile-open" onClick={onOpen} aria-label={`Open ${item.kind === "VIDEO" ? "video" : "photo"} by ${item.uploader.name}`}>
             {item.thumb ? (
-                <img src={item.thumb} alt="" loading="lazy" decoding="async" onLoad={(event) => event.currentTarget.classList.add("is-loaded")} />
+                <MediaFill src={item.thumb} />
             ) : (
                 <span className="gallery-tile-fallback">
                     <Film size={26} />

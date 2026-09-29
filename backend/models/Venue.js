@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { VENUE_STATUS } = require("../constants/Statuses");
+const { VENUE_STATUS, VENUE_TYPES } = require("../constants/Statuses");
 
 const venueSchema = new mongoose.Schema(
     {
@@ -19,6 +19,16 @@ const venueSchema = new mongoose.Schema(
             type: Number,
             required: true,
             min: 1
+        },
+        type: {
+            type: String,
+            enum: Object.values(VENUE_TYPES),
+            default: VENUE_TYPES.HALL
+        },
+        // Labs only: the departments whose events may book it.
+        departmentCodes: {
+            type: [String],
+            default: []
         },
         status: {
             type: String,

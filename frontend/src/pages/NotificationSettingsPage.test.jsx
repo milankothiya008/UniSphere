@@ -45,55 +45,55 @@ describe("notification settings", () => {
         expect(screen.getByText(/Account emails .* are always sent/)).toBeInTheDocument();
     });
 
-    test("lists followed clubs and turns one off", async () => {
+    test("lists followed clubs and unfollows one", async () => {
         clubApi.setSubscription.mockResolvedValue({ data: { subscribed: false } });
         renderWithRouter(<NotificationSettingsPage />);
 
         const row = (await screen.findByRole("link", { name: "Coding Club" })).closest(".list-row");
         expect(within(row).getByText(/Member \(on by default\)/)).toBeInTheDocument();
-        await userEvent.click(within(row).getByRole("button", { name: /turn off/i }));
+        await userEvent.click(within(row).getByRole("button", { name: "Unfollow" }));
 
         expect(clubApi.setSubscription).toHaveBeenCalledWith("c1", false);
         expect(await screen.findByText("No clubs yet")).toBeInTheDocument();
     });
 });
 
-describe("club bell", () => {
+describe("follow button", () => {
     const club = { _id: "c1", name: "Coding Club", status: "ACTIVE", followerCount: 12, viewer: { subscribed: false } };
 
-    test("turns notifications on and updates the follower count", async () => {
+    test("Follow turns into Unfollow and updates the follower count", async () => {
         clubApi.setSubscription.mockResolvedValue({ data: { subscribed: true, emailsEnabled: true, followerCount: 13 } });
         renderWithRouter(<NotifyBell club={club} />);
 
-        const bell = screen.getByRole("button", { name: /get notified/i });
+        const bell = screen.getByRole("button", { name: "Follow" });
         expect(bell).toHaveAttribute("aria-pressed", "false");
         expect(screen.getByText("12 followers")).toBeInTheDocument();
 
         await userEvent.click(bell);
         expect(clubApi.setSubscription).toHaveBeenCalledWith("c1", true);
-        expect(await screen.findByRole("button", { name: /notifications on/i })).toHaveAttribute("aria-pressed", "true");
+        expect(await screen.findByRole("button", { name: "Unfollow" })).toHaveAttribute("aria-pressed", "true");
         expect(screen.getByText("13 followers")).toBeInTheDocument();
-        expect(screen.getByText(/You'll get emails about Coding Club's new events/)).toBeInTheDocument();
+        expect(screen.getByText(/You're following Coding Club/)).toBeInTheDocument();
     });
 
     test("warns when club emails are switched off in settings", async () => {
         clubApi.setSubscription.mockResolvedValue({ data: { subscribed: true, emailsEnabled: false, followerCount: 13 } });
         renderWithRouter(<NotifyBell club={club} />);
-        await userEvent.click(screen.getByRole("button", { name: /get notified/i }));
+        await userEvent.click(screen.getByRole("button", { name: "Follow" }));
         expect(await screen.findByText(/emails are off in your email settings/)).toBeInTheDocument();
     });
 
     test("reverts if the server refuses", async () => {
         clubApi.setSubscription.mockRejectedValue(new Error("You can only turn on notifications for active clubs"));
         renderWithRouter(<NotifyBell club={club} />);
-        await userEvent.click(screen.getByRole("button", { name: /get notified/i }));
+        await userEvent.click(screen.getByRole("button", { name: "Follow" }));
         expect(await screen.findByText("You can only turn on notifications for active clubs")).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: /get notified/i })).toHaveAttribute("aria-pressed", "false");
+        expect(screen.getByRole("button", { name: "Follow" })).toHaveAttribute("aria-pressed", "false");
     });
 
     test("is hidden for inactive clubs you don't follow", () => {
         renderWithRouter(<NotifyBell club={{ ...club, status: "SUSPENDED" }} />);
-        expect(screen.queryByRole("button", { name: /get notified/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Follow" })).not.toBeInTheDocument();
     });
 });
 

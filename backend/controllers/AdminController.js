@@ -42,11 +42,6 @@ const stats = asyncHandler(async (req, res) => {
     sendSuccess(res, 200, "Platform statistics fetched", data);
 });
 
-const auditLogs = asyncHandler(async (req, res) => {
-    const { items, ...meta } = await adminService.listAuditLogs(req.user, req.query);
-    sendSuccess(res, 200, "Audit log fetched", items, { meta });
-});
-
 module.exports = {
     createDepartment,
     listDepartments,
@@ -55,6 +50,5 @@ module.exports = {
     listBatches,
     updateBatch,
     listFaculty,
-    stats,
-    auditLogs
+    stats
 };

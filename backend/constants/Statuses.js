@@ -144,6 +144,16 @@ const VENUE_STATUS = Object.freeze({
     INACTIVE: "INACTIVE"
 });
 
+// Labs belong to departments; every other kind of venue is shared by the whole campus.
+const VENUE_TYPES = Object.freeze({
+    AUDITORIUM: "AUDITORIUM",
+    HALL: "HALL",
+    CLASSROOM: "CLASSROOM",
+    LAB: "LAB",
+    OUTDOOR: "OUTDOOR",
+    OTHER: "OTHER"
+});
+
 const FEED_POST_TYPES = Object.freeze({
     EVENT: "EVENT",
     ANNOUNCEMENT: "ANNOUNCEMENT",
@@ -324,6 +334,7 @@ module.exports = {
     ROUND_OUTCOMES,
     QUESTION_TYPES,
     VENUE_STATUS,
+    VENUE_TYPES,
     FEED_POST_TYPES,
     FEED_VISIBILITY,
     NOTIFICATION_TYPES,

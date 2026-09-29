@@ -12,7 +12,7 @@ const venues = [
 
 vi.mock("../../api/endpoints", () => ({
     eventApi: { get: vi.fn(), create: vi.fn(), update: vi.fn(), submit: vi.fn() },
-    referenceApi: { availableVenues: vi.fn() }
+    referenceApi: { availableVenues: vi.fn(), venues: vi.fn(() => Promise.resolve({ data: [] })) }
 }));
 
 vi.mock("../../context/WorkspaceContext", () => ({
@@ -74,7 +74,7 @@ describe("EventFormPage schedule rules", () => {
         expect(booked).toBeDisabled();
         expect(screen.getByRole("option", { name: /Seminar Hall A/ })).not.toBeDisabled();
         await waitFor(() =>
-            expect(referenceApi.availableVenues).toHaveBeenCalledWith({ eventDate: dayOffset(5), startTime: "10:00", endTime: "12:00", excludeEventId: undefined })
+            expect(referenceApi.availableVenues).toHaveBeenCalledWith(expect.objectContaining({ eventDate: dayOffset(5), startTime: "10:00", endTime: "12:00", excludeEventId: undefined }))
         );
     });
 });

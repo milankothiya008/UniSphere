@@ -4,7 +4,7 @@ import { galleryApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useQueryState } from "../../hooks/useQueryState";
 import { useDebounce } from "../../hooks/useDebounce";
-import { AsyncContent, Avatar, EmptyState, PageHeader, Pagination, SearchInput, Segmented, Skeleton } from "../../components/ui";
+import { AsyncContent, Avatar, EmptyState, PageHeader, Pagination, SearchInput, Segmented, Skeleton, MediaFill } from "../../components/ui";
 import { CategoryArt } from "../../components/events/EventCard";
 import { categoryVars } from "../../lib/eventVisuals";
 import { formatDate, plural, timeAgo } from "../../lib/format";
@@ -25,7 +25,7 @@ const Cover = ({ card }) => {
     }
     const src = card.cover || event.poster;
     return src ? (
-        <img src={src} alt="" loading="lazy" />
+        <MediaFill src={src} />
     ) : (
         <div className="result-card-placeholder">
             <CategoryArt category={event.category} size={150} />

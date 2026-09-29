@@ -75,6 +75,14 @@ const assertCanRegister = (actor, event, now = new Date()) => {
     }
 };
 
+// Events of a suspended or archived club are on hold: no new registrations until it's reactivated.
+const assertClubRunning = async (event) => {
+    const club = await require("../models/Club").findById(event.club).select("name status");
+    if (club && club.status !== "ACTIVE") {
+        throw new AppError(`${club.name} is ${club.status.toLowerCase()}, so this event is on hold. Registration reopens if the club is reactivated.`, 409, ERROR_CODES.INVALID_STATE);
+    }
+};
+
 const eventDateLabel = (event) => `${formatDateKey(event.eventDate)} at ${event.startTime}`;
 
 // Puts the student in the queue for a full event (re-using a cancelled registration if there is one).
@@ -151,6 +159,7 @@ const registerForEvent = async (actor, eventId, body = {}) => {
 
     const event = await findEvent(eventId);
     assertCanRegister(actor, event);
+    await assertClubRunning(event);
 
     const existing = await EventRegistration.findOne({ event: event._id, user: actor._id });
 

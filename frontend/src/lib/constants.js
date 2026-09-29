@@ -125,6 +125,7 @@ export const STATUS_STYLES = {
     NOT_OPEN: ["Opens soon", "info"],
     CLOSED: ["Registration closed", "neutral"],
     FULL: ["Full", "danger"],
+    ON_HOLD: ["On hold", "warning"],
     INACTIVE: ["Inactive", "neutral"]
 };
 

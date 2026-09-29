@@ -7,3 +7,4 @@ export { PageHeader, Card, Avatar, StatTile, Pagination, Tabs, Segmented, Capaci
 export { ImageUpload } from "./ImageUpload";
 export { UserPicker } from "./UserPicker";
 export { ActionMenu } from "./ActionMenu";
+export { MediaFill, LightboxProvider, useLightbox, ZoomableMedia } from "./Media";

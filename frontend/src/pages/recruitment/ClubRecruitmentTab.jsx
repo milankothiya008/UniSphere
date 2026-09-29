@@ -52,7 +52,7 @@ const ClubRecruitmentTab = () => {
                 ) : (
                     !data?.canCreate && (
                         <Card>
-                            <EmptyState icon={Megaphone} title="Not recruiting right now" description={`Turn on ${club.name}'s bell to hear as soon as they open applications.`} />
+                            <EmptyState icon={Megaphone} title="Not recruiting right now" description={`Follow ${club.name} to hear as soon as they open applications.`} />
                         </Card>
                     )
                 )}

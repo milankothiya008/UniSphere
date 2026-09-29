@@ -39,7 +39,8 @@ const sweepInterviewReminders = async ({ now = new Date() } = {}) => {
         return 0;
     }
 
-    const drives = await RecruitmentDrive.find({ _id: { $in: [...new Set(applications.map((item) => String(item.drive)))] }, status: RECRUITMENT_STATUS.PUBLISHED });
+    const paused = await require("./ClubStatusService").pausedClubIds();
+    const drives = await RecruitmentDrive.find({ _id: { $in: [...new Set(applications.map((item) => String(item.drive)))] }, status: RECRUITMENT_STATUS.PUBLISHED, club: { $nin: paused } });
     const clubs = await Club.find({ _id: { $in: drives.map((drive) => drive.club) } }).select("name");
     const venues = new Map();
     let sent = 0;
@@ -80,7 +81,8 @@ const sweepInterviewReminders = async ({ now = new Date() } = {}) => {
 
 /** Offers not answered by their deadline expire; the president can then offer the seat to a reserve. */
 const expireOffers = async ({ now = new Date() } = {}) => {
-    const expired = await RecruitmentApplication.find({ status: APPLICATION_STATUS.OFFERED, offerExpiresAt: { $lte: now } }).populate("applicant", "name email");
+    const paused = await require("./ClubStatusService").pausedClubIds();
+    const expired = await RecruitmentApplication.find({ status: APPLICATION_STATUS.OFFERED, offerExpiresAt: { $lte: now }, club: { $nin: paused } }).populate("applicant", "name email");
     for (const application of expired) {
         const claimed = await RecruitmentApplication.updateOne({ _id: application._id, status: APPLICATION_STATUS.OFFERED }, { $set: { status: APPLICATION_STATUS.EXPIRED, decidedAt: now } });
         if (!claimed.modifiedCount) {

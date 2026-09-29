@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Award, CalendarDays, Lock, MapPin, Megaphone, RefreshCw, Sparkles, Trash2 } from "lucide-react";
-import { Avatar, Badge, ConfirmDialog, StatusBadge } from "../ui";
+import { Avatar, Badge, ConfirmDialog, StatusBadge, ZoomableMedia } from "../ui";
 import { FEED_TYPE_LABELS } from "../../lib/constants";
 import { formatDate, formatTimeRange, timeAgo } from "../../lib/format";
 
@@ -77,9 +77,7 @@ export const FeedCard = ({ post, canDelete = false, onDelete }) => {
                 )}
 
                 {post.image && (
-                    <div className="feed-image">
-                        <img src={post.image} alt="" loading="lazy" />
-                    </div>
+                    <ZoomableMedia src={post.image} alt={post.title || "Post image"} caption={post.title} className="feed-image" />
                 )}
 
                 {event && (

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { Building2 } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Archive, Building2, ExternalLink, PauseCircle, PlayCircle } from "lucide-react";
 import { clubApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useQueryState } from "../../hooks/useQueryState";
 import { useDebounce } from "../../hooks/useDebounce";
-import { AsyncContent, Avatar, Card, EmptyState, PageHeader, Pagination, SearchInput, StatusBadge, Tabs } from "../../components/ui";
+import { ActionMenu, AsyncContent, Avatar, Card, EmptyState, PageHeader, Pagination, SearchInput, StatusBadge, Tabs } from "../../components/ui";
+import { ClubStatusDialog, clubStatusActions } from "../../components/clubs/ClubStatusDialog";
 import { departmentsLabel, formatDate, humanize } from "../../lib/format";
 
 const STATUSES = [
@@ -19,6 +20,8 @@ const STATUSES = [
 const AdminClubsPage = () => {
     const [filters, setFilters] = useQueryState({ status: "ALL", search: "", page: "1" });
     const [search, setSearch] = useState(filters.search);
+    const [changing, setChanging] = useState(null);
+    const navigate = useNavigate();
     const debounced = useDebounce(search, 350);
 
     useEffect(() => {
@@ -53,6 +56,7 @@ const AdminClubsPage = () => {
                                         <th>Members</th>
                                         <th>Status</th>
                                         <th>Created</th>
+                                        <th />
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -74,8 +78,23 @@ const AdminClubsPage = () => {
                                             <td>{club.memberCount}</td>
                                             <td>
                                                 <StatusBadge status={club.status} />
+                                                {club.statusNote && club.status !== "ACTIVE" && (
+                                                    <div className="subtle small club-status-note" title={club.statusNote}>
+                                                        {club.statusNote}
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="subtle nowrap">{formatDate(club.createdAt)}</td>
+                                            <td className="actions">
+                                                <ActionMenu
+                                                    label={`Actions for ${club.name}`}
+                                                    items={[
+                                                        { label: "Open club", icon: ExternalLink, onClick: () => navigate(`/clubs/${club._id}`) },
+                                                        "divider",
+                                                        ...clubStatusActions(club, (status) => setChanging({ club, status }), { suspend: PauseCircle, reactivate: PlayCircle, archive: Archive })
+                                                    ]}
+                                                />
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -84,6 +103,7 @@ const AdminClubsPage = () => {
                     </AsyncContent>
                 </Card>
                 <Pagination meta={meta} onPage={(page) => setFilters({ page })} />
+                {changing && <ClubStatusDialog club={changing.club} status={changing.status} onClose={() => setChanging(null)} onDone={() => reload({ silent: true })} />}
             </div>
         </>
     );

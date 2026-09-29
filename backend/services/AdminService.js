@@ -7,7 +7,6 @@ const ClubMembership = require("../models/ClubMembership");
 const Event = require("../models/Event");
 const EventRegistration = require("../models/EventRegistration");
 const Venue = require("../models/Venue");
-const AuditLog = require("../models/AuditLog");
 const AppError = require("../utils/AppError");
 const ERROR_CODES = require("../constants/ErrorCodes");
 const { GLOBAL_ROLES, ACCOUNT_TYPES, USER_PUBLIC_FIELDS } = require("../constants/Roles");
@@ -237,26 +236,6 @@ const getStats = async (actor) => {
     };
 };
 
-const listAuditLogs = async (actor, query = {}) => {
-    assertAdmin(actor);
-
-    const pagination = parsePagination(query, { defaultLimit: 25, maxLimit: 100 });
-    const filter = {};
-
-    if (query.targetType) {
-        filter.targetType = String(query.targetType);
-    }
-    if (query.action) {
-        filter.action = String(query.action).toUpperCase();
-    }
-
-    const [items, total] = await Promise.all([
-        AuditLog.find(filter).populate("actor", "name email").sort({ createdAt: -1 }).skip(pagination.skip).limit(pagination.limit),
-        AuditLog.countDocuments(filter)
-    ]);
-
-    return { items, ...paginationMeta(pagination, total) };
-};
 
 // Maps role values from the earlier COORDINATOR/UNIVERSITY_ADMIN model onto STUDENT/FACULTY/ADMIN.
 const migrateLegacyRoles = async () => {
@@ -313,6 +292,13 @@ const migrateClubRoles = async () => {
 
 // Drives created before recruitment became role-wise (one shared form and rounds) can't be continued in
 // the new shape: they are cancelled, and their applications closed. Indexes are rebuilt for the new shape.
+// Venues stored before venue types existed: the auditorium is an auditorium, the rest are halls.
+const migrateVenueTypes = async () => {
+    const Venue = require("../models/Venue");
+    await Venue.updateMany({ type: { $exists: false }, name: /auditorium/i }, { $set: { type: "AUDITORIUM", departmentCodes: [] } });
+    await Venue.updateMany({ type: { $exists: false } }, { $set: { type: "HALL", departmentCodes: [] } });
+};
+
 const migrateRecruitmentShape = async () => {
     const RecruitmentDrive = require("../models/RecruitmentDrive");
     const RecruitmentApplication = require("../models/RecruitmentApplication");
@@ -344,6 +330,7 @@ const bootstrapAdminIfNeeded = async () => {
     await migrateJoinRequests();
     await migrateClubRoles();
     await migrateRecruitmentShape();
+    await migrateVenueTypes();
 
     if (!env.bootstrapAdminEmail || !env.bootstrapAdminPassword) {
         return;
@@ -388,11 +375,11 @@ module.exports = {
     setUserActive,
     listFaculty,
     getStats,
-    listAuditLogs,
     migrateLegacyRoles,
     migrateDepartmentScope,
     migrateJoinRequests,
     migrateClubRoles,
     migrateRecruitmentShape,
+    migrateVenueTypes,
     bootstrapAdminIfNeeded
 };

@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { ImagePlus, Trash2, Upload } from "lucide-react";
 import { uploadApi } from "../../api/endpoints";
 import { Field } from "./Form";
+import { MediaFill } from "./Media";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ACCEPT = ["image/jpeg", "image/png", "image/webp"];
@@ -42,7 +43,7 @@ export const ImageUpload = ({ label, value, onChange, folder, wide = false, hint
     return (
         <Field label={label} hint={hint} error={error}>
             <div className="upload">
-                <div className={`upload-preview ${wide ? "wide" : ""}`}>{value ? <img src={value} alt="" /> : <ImagePlus size={24} />}</div>
+                <div className={`upload-preview ${wide ? "wide" : ""}`}>{value ? <MediaFill src={value} /> : <ImagePlus size={24} />}</div>
                 <div className="row">
                     <input ref={inputRef} type="file" accept={ACCEPT.join(",")} hidden onChange={pick} />
                     <button type="button" className="btn btn-secondary btn-sm" onClick={() => inputRef.current?.click()} disabled={pending}>

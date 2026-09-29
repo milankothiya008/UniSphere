@@ -177,21 +177,21 @@ const EventFormPage = () => {
         }
     }, [clubOptions, form.club]);
 
-    // Live venue availability for the chosen slot (approved/published events hold a venue).
+    // Live venue availability for the chosen slot (approved/published events hold a venue). Labs are
+    // listed only for the event's audience: its departments, or else its club's.
+    const audienceKey = form.departments.slice().sort().join(",");
     useEffect(() => {
-        if (!form.eventDate || form.startTime >= form.endTime) {
-            setVenues(reference.venues.map((venue) => ({ ...venue, available: undefined })));
-            return undefined;
-        }
         let active = true;
-        referenceApi
-            .availableVenues({ eventDate: form.eventDate, startTime: form.startTime, endTime: form.endTime, excludeEventId: id })
-            .then((response) => active && setVenues(response.data))
-            .catch(() => active && setVenues(reference.venues));
+        const audience = { club: form.club || undefined, departments: audienceKey || undefined };
+        const request =
+            !form.eventDate || form.startTime >= form.endTime
+                ? referenceApi.venues({ status: "ACTIVE", ...audience }).then((response) => response.data.map((venue) => ({ ...venue, available: undefined })))
+                : referenceApi.availableVenues({ eventDate: form.eventDate, startTime: form.startTime, endTime: form.endTime, excludeEventId: id, ...audience }).then((response) => response.data);
+        request.then((list) => active && setVenues(list)).catch(() => active && setVenues(reference.venues));
         return () => {
             active = false;
         };
-    }, [form.eventDate, form.startTime, form.endTime, id, reference.venues]);
+    }, [form.eventDate, form.startTime, form.endTime, form.club, audienceKey, id, reference.venues]);
 
     const errors = validate(form, { nowInput, isEdit, original });
     const eventStartInput = form.eventDate ? `${form.eventDate}T${form.startTime}` : undefined;
@@ -427,7 +427,7 @@ const EventFormPage = () => {
                             }
                             options={venues.map((venue) => ({
                                 value: venue._id,
-                                label: `${venue.name} · ${venue.location} · ${venue.capacity} seats${venue.available === false ? ` — unavailable (${bookingSummary(venue)})` : ""}`,
+                                label: `${venue.type === "LAB" ? `${venue.departmentCodes.join("/")} lab · ` : ""}${venue.name} · ${venue.location} · ${venue.capacity} seats${venue.available === false ? ` — unavailable (${bookingSummary(venue)})` : ""}`,
                                 disabled: venue.available === false && venue._id !== form.venue
                             }))}
                             required

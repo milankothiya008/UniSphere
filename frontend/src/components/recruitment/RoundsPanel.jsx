@@ -85,7 +85,7 @@ const AddRound = ({ driveId, positionId, number, onDone }) => {
 
 // ---------------------------------------------------------------- Schedule an interview round
 
-const ScheduleForm = ({ driveId, positionId, round, candidates, onDone, onCancel }) => {
+const ScheduleForm = ({ driveId, positionId, clubId, round, candidates, onDone, onCancel }) => {
     const toast = useToast();
     const [timing, setTiming] = useState(round.timing || "SLOTS");
     const [startAt, setStartAt] = useState(round.startAt ? toDateTimeInput(round.startAt) : "");
@@ -107,13 +107,13 @@ const ScheduleForm = ({ driveId, positionId, round, candidates, onDone, onCancel
         let active = true;
         const ready = startAt && computedEnd && computedEnd > startAt && computedEnd.slice(0, 10) === startAt.slice(0, 10);
         const request = ready
-            ? referenceApi.availableVenues({ eventDate: startAt.slice(0, 10), startTime: startAt.slice(11, 16), endTime: computedEnd.slice(11, 16) })
-            : referenceApi.venues({ status: "ACTIVE" });
+            ? referenceApi.availableVenues({ eventDate: startAt.slice(0, 10), startTime: startAt.slice(11, 16), endTime: computedEnd.slice(11, 16), club: clubId })
+            : referenceApi.venues({ status: "ACTIVE", club: clubId });
         request.then((response) => active && setVenues(response.data)).catch(() => {});
         return () => {
             active = false;
         };
-    }, [round.mode, startAt, computedEnd]);
+    }, [round.mode, startAt, computedEnd, clubId]);
 
     const submit = async (event) => {
         event.preventDefault();
@@ -174,7 +174,7 @@ const ScheduleForm = ({ driveId, positionId, round, candidates, onDone, onCancel
                         placeholder="Choose a venue"
                         options={venues.map((item) => ({
                             value: item._id,
-                            label: `${item.name} · ${item.location}${item.available === false && item._id !== (round.venue?._id || round.venue) ? ` — booked (${item.bookedBy?.[0]?.title || "busy"})` : ""}`,
+                            label: `${item.type === "LAB" ? `${item.departmentCodes.join("/")} lab · ` : ""}${item.name} · ${item.location}${item.available === false && item._id !== (round.venue?._id || round.venue) ? ` — booked (${item.bookedBy?.[0]?.title || "busy"})` : ""}`,
                             disabled: item.available === false && item._id !== (round.venue?._id || round.venue)
                         }))}
                         required
@@ -257,7 +257,7 @@ const MoveSlot = ({ driveId, positionId, round, candidate, onClose, onDone }) =>
     );
 };
 
-const RoundCard = ({ driveId, positionId, round, number, canManage, onChange }) => {
+const RoundCard = ({ driveId, positionId, clubId, round, number, canManage, onChange }) => {
     const toast = useToast();
     const [editing, setEditing] = useState(false);
     const [publishing, setPublishing] = useState(false);
@@ -338,7 +338,7 @@ const RoundCard = ({ driveId, positionId, round, number, canManage, onChange }) 
                 {needsSchedule && canManage && round.isCurrent && (round.status === "DRAFT" || editing) && (
                     <>
                         {round.status === "DRAFT" && <Alert type="info">Set the time and {round.mode === "OFFLINE" ? "venue" : "meeting link"}. Every candidate gets an invitation, and reminders 1 hour and 10 minutes before.</Alert>}
-                        <ScheduleForm driveId={driveId} positionId={positionId} round={round} candidates={round.candidates.length} onDone={() => { setEditing(false); onChange(); }} onCancel={editing ? () => setEditing(false) : null} />
+                        <ScheduleForm driveId={driveId} positionId={positionId} clubId={clubId} round={round} candidates={round.candidates.length} onDone={() => { setEditing(false); onChange(); }} onCancel={editing ? () => setEditing(false) : null} />
                     </>
                 )}
 
@@ -655,7 +655,7 @@ export const RoundsPanel = ({ drive, position, onDriveChange }) => {
                         </Alert>
                     )}
                     {data.rounds.map((round, index) => (
-                        <RoundCard key={round._id} driveId={drive._id} positionId={position._id} round={round} number={index + 1} canManage={canManage} onChange={refresh} />
+                        <RoundCard key={round._id} driveId={drive._id} positionId={position._id} clubId={drive.club._id} round={round} number={index + 1} canManage={canManage} onChange={refresh} />
                     ))}
                     {canManage && data.canAddRound && <AddRound driveId={drive._id} positionId={position._id} number={data.rounds.length + 1} onDone={refresh} />}
                     {canManage && data.canFinalize && <FinalSelection drive={drive} data={data} onDone={refresh} />}

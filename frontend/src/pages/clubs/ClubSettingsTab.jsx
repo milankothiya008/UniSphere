@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { ArrowRightLeft, Crown, GraduationCap, Save, ShieldAlert } from "lucide-react";
+import { Archive, ArrowRightLeft, Crown, GraduationCap, PauseCircle, PlayCircle, Save, ShieldAlert } from "lucide-react";
 import { clubApi } from "../../api/endpoints";
 import { useToast } from "../../context/ToastContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { useAuth } from "../../context/AuthContext";
 import { useApi } from "../../hooks/useApi";
-import { Alert, ApiErrorAlert, Avatar, Button, Card, ConfirmDialog, ErrorState, ImageUpload, Input, Select, StatusBadge, Textarea, UserPicker } from "../../components/ui";
+import { ActionMenu, Alert, ApiErrorAlert, Avatar, Button, Card, ConfirmDialog, ErrorState, ImageUpload, Input, Select, StatusBadge, Textarea, UserPicker } from "../../components/ui";
 import { CLUB_CATEGORIES, PERMISSIONS } from "../../lib/constants";
-import { departmentsLabel, humanize } from "../../lib/format";
+import { departmentsLabel, formatDate, humanize } from "../../lib/format";
+import { ClubStatusDialog, clubStatusActions } from "../../components/clubs/ClubStatusDialog";
 import { scopeDepartments } from "../../lib/eligibility";
 import { linkProblem, PHONE_PATTERN, SOCIAL_PLATFORMS } from "../../lib/clubLinks";
 import { SocialIcon } from "../../components/clubs/SocialIcon";
@@ -275,34 +276,27 @@ const AdminCard = ({ club, onSaved }) => {
     const [status, setStatus] = useState(null);
     const [mentor, setMentor] = useState(null);
 
-    const changeStatus = async (reason) => {
-        await clubApi.setStatus(club._id, status, reason || undefined);
-        toast.success(`Club is now ${humanize(status).toLowerCase()}`);
-        onSaved();
-    };
-
     const changeMentor = async () => {
         await clubApi.setMentor(club._id, mentor._id);
         toast.success(`${mentor.name} is now the faculty mentor`);
         onSaved();
     };
 
-    const options = ["ACTIVE", "SUSPENDED", "ARCHIVED"].filter((value) => value !== club.status);
-
     return (
-        <Card title={<h2 className="row"><ShieldAlert size={17} /> University administration</h2>}>
+        <Card
+            title={<h2 className="row"><ShieldAlert size={17} /> University administration</h2>}
+            actions={<ActionMenu label="Club status actions" items={clubStatusActions(club, setStatus, { suspend: PauseCircle, reactivate: PlayCircle, archive: Archive })} />}
+        >
             <div className="stack">
-                <div className="row-between">
-                    <span>
-                        Status: <StatusBadge status={club.status} />
-                    </span>
-                    <div className="row">
-                        {options.map((value) => (
-                            <Button key={value} size="sm" variant={value === "ACTIVE" ? "success" : "secondary"} onClick={() => setStatus(value)} disabled={value === "ACTIVE" && !club.president}>
-                                {value === "ACTIVE" ? "Reactivate" : humanize(value)}
-                            </Button>
-                        ))}
+                <div className={`club-status-panel is-${club.status.toLowerCase()}`}>
+                    <div className="row-between">
+                        <span className="row">
+                            Status <StatusBadge status={club.status} />
+                        </span>
+                        {club.statusChangedAt && <span className="subtle small">since {formatDate(club.statusChangedAt)}</span>}
                     </div>
+                    {club.statusNote && <p className="small">&ldquo;{club.statusNote}&rdquo;</p>}
+                    {club.status === "ACTIVE" && <p className="subtle small">Suspend or archive the club from the menu; the president and mentor are emailed with your reason.</p>}
                 </div>
                 <div className="stack-sm">
                     <span className="row small">
@@ -318,16 +312,7 @@ const AdminCard = ({ club, onSaved }) => {
                     />
                 </div>
             </div>
-            <ConfirmDialog
-                open={Boolean(status)}
-                onClose={() => setStatus(null)}
-                onConfirm={changeStatus}
-                title={`Change status to ${humanize(status || "")}?`}
-                description={status === "SUSPENDED" ? "Suspended clubs cannot create or publish events or accept members." : undefined}
-                confirmLabel="Change status"
-                variant={status === "ACTIVE" ? "success" : "danger"}
-                reasonLabel="Reason"
-            />
+            {status && <ClubStatusDialog club={club} status={status} onClose={() => setStatus(null)} onDone={onSaved} />}
             <ConfirmDialog
                 open={Boolean(mentor)}
                 onClose={() => setMentor(null)}

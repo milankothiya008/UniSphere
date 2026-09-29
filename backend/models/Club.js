@@ -124,6 +124,11 @@ const clubSchema = new mongoose.Schema(
             enum: Object.values(CLUB_STATUS),
             default: CLUB_STATUS.APPROVED
         },
+        // The admin's reason (suspend/archive) or note (reactivate) for the latest status change.
+        statusNote: { type: String, default: null, maxlength: 1000 },
+        statusChangedAt: { type: Date, default: null },
+        // When the club was suspended or archived; deadlines move on by the paused time on reactivation.
+        pausedAt: { type: Date, default: null },
         creationRequest: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "ClubCreationRequest",

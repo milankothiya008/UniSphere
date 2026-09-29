@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AuthProvider } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
+import { LightboxProvider } from "./components/ui/Media";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/components.css";
@@ -18,14 +19,17 @@ import "./styles/tickets.css";
 import "./styles/gallery.css";
 import "./styles/recruitment.css";
 import "./styles/roles.css";
+import "./styles/system.css";
 
 createRoot(document.getElementById("root")).render(
     <StrictMode>
         <BrowserRouter>
             <ToastProvider>
+                <LightboxProvider>
                 <AuthProvider>
                     <App />
                 </AuthProvider>
+                </LightboxProvider>
             </ToastProvider>
         </BrowserRouter>
     </StrictMode>

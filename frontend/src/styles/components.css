@@ -1510,54 +1510,65 @@
     transform: translateX(18px);
 }
 
-/* Club bell (header) */
-.notify-bell {
+/* Follow / Unfollow a club (header) */
+.follow {
     display: inline-flex;
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
 }
 
-.notify-bell-btn {
+.follow-btn {
     display: inline-flex;
     align-items: center;
     gap: 7px;
     height: 40px;
-    padding: 0 16px;
+    min-width: 116px;
+    justify-content: center;
+    padding: 0 18px;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    background: rgba(255, 255, 255, 0.12);
-    color: #fff;
-    font-weight: 600;
+    border: 1px solid #fff;
+    background: #fff;
+    color: var(--ink-800);
+    font-weight: 700;
     font-size: 0.9rem;
     cursor: pointer;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    transition:
+        background 0.18s ease,
+        color 0.18s ease,
+        border-color 0.18s ease,
+        transform 0.18s var(--ease-spring, ease);
 }
 
-.notify-bell-btn:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.22);
+.follow-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
 }
 
-.notify-bell-btn.on {
-    background: #fff;
-    border-color: #fff;
-    color: var(--ink-800);
+.follow-btn:active:not(:disabled) {
+    transform: scale(0.97);
 }
 
-.notify-bell-btn.on svg {
-    color: var(--gold-600);
+.follow-btn.is-following {
+    border-color: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
 }
 
-.notify-bell-btn:focus-visible {
+.follow-btn.is-following:hover:not(:disabled) {
+    border-color: #fecaca;
+    background: rgba(220, 38, 38, 0.18);
+}
+
+.follow-btn:focus-visible {
     outline: none;
     box-shadow: 0 0 0 3px rgba(245, 184, 61, 0.55);
 }
 
-.notify-bell-btn:disabled {
+.follow-btn:disabled {
     cursor: progress;
 }
 
-.notify-bell-count {
+.follow-count {
     color: #d7defa;
     font-size: 0.85rem;
 }

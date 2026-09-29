@@ -1,4 +1,6 @@
 const Event = require("../models/Event");
+const { audienceOf, assertVenueFitsAudience } = require("./VenueService");
+const { pausedClubIds } = require("./ClubStatusService");
 const Club = require("../models/Club");
 const Venue = require("../models/Venue");
 const ClubMembership = require("../models/ClubMembership");
@@ -328,6 +330,9 @@ const getEventDetail = async (actor, eventId) => {
 
     return serialize(event, {
         galleryCount,
+        // On hold while the club is suspended or archived: visible to those involved, closed to registration.
+        onHold: event.club.status !== CLUB_STATUS.ACTIVE,
+        ...(event.club.status !== CLUB_STATUS.ACTIVE && event.status === EVENT_STATUS.PUBLISHED ? { registrationState: "ON_HOLD" } : {}),
         viewer: actor ? { ...viewerFor(context, event, registration), ...teamInfo } : null,
         ...(isStaff && event.revision ? { revision: await describeRevision(event) } : {})
     });
@@ -338,6 +343,7 @@ const createDraft = async (actor, payload) => {
     assertClubCanHostEvents(club);
 
     const venue = await loadActiveVenue(payload.venue);
+    assertVenueFitsAudience(venue, audienceOf(club, normalizeEligibility(payload.eligibility).departments));
     const schedule = buildSchedule(payload);
     const team = normalizeTeamSettings(payload);
 
@@ -537,6 +543,11 @@ const proposeChanges = async (event, payload, actor) => {
                 proposed[field] = event[field];
             }
         });
+    }
+
+    if (venueChanged || proposed.eligibility) {
+        const club = await Club.findById(event.club).select("allDepartments departmentCodes");
+        assertVenueFitsAudience(venue, audienceOf(club, (proposed.eligibility || event.eligibility)?.departments));
     }
 
     const limit = payload.maxParticipants !== undefined ? payload.maxParticipants : event.maxParticipants;
@@ -1175,13 +1186,14 @@ const TIMEFRAMES = {
 };
 
 // Search/category/club filters shared by the feed list and its per-tab counts.
-const discoveryFilters = (query) => {
-    const filter = {};
+// Discovery leaves out events of suspended or archived clubs (they're on hold until reactivation).
+const discoveryFilters = (query, paused = []) => {
+    const filter = paused.length ? { club: { $nin: paused } } : {};
     if (query.category) {
         filter.category = String(query.category).toUpperCase();
     }
     if (query.club) {
-        filter.club = query.club;
+        filter.club = paused.some((id) => String(id) === String(query.club)) ? { $in: [] } : query.club;
     }
     if (query.search) {
         filter.title = searchRegex(query.search);
@@ -1189,8 +1201,8 @@ const discoveryFilters = (query) => {
     return filter;
 };
 
-const timeframeCounts = async (query, now) => {
-    const shared = discoveryFilters(query);
+const timeframeCounts = async (query, now, paused = []) => {
+    const shared = discoveryFilters(query, paused);
     const [upcoming, ongoing, past] = await Promise.all(
         ["upcoming", "ongoing", "past"].map((key) => Event.countDocuments({ ...TIMEFRAMES[key](now).filter, ...shared }))
     );
@@ -1203,7 +1215,8 @@ const listEvents = async (actor, query = {}) => {
     const timeframe = TIMEFRAMES[query.timeframe] ? query.timeframe : "upcoming";
     const { filter, sort } = TIMEFRAMES[timeframe](now);
 
-    Object.assign(filter, discoveryFilters(query));
+    const paused = await pausedClubIds();
+    Object.assign(filter, discoveryFilters(query, paused));
     if (query.registrationOpen === "true") {
         filter.status = EVENT_STATUS.PUBLISHED;
         filter.registrationClosed = false;
@@ -1217,7 +1230,7 @@ const listEvents = async (actor, query = {}) => {
     const [events, total, counts] = await Promise.all([
         populateEvent(Event.find(filter).sort(sort).skip(pagination.skip).limit(pagination.limit)),
         Event.countDocuments(filter),
-        query.withCounts === "true" ? timeframeCounts(query, now) : null
+        query.withCounts === "true" ? timeframeCounts(query, now, paused) : null
     ]);
 
     return {

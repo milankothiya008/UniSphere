@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { BellOff, BellRing, Mail, ShieldCheck } from "lucide-react";
+import { BellOff, Mail, ShieldCheck, UserCheck } from "lucide-react";
 import { clubApi, notificationApi } from "../api/endpoints";
 import { useApi } from "../hooks/useApi";
 import { useToast } from "../context/ToastContext";
@@ -64,14 +64,14 @@ const FollowedClubs = () => {
         try {
             await clubApi.setSubscription(row.club._id, false);
             setData((list) => list.filter((item) => item.club._id !== row.club._id));
-            toast.info(`Notifications off for ${row.club.name}`);
+            toast.info(`You unfollowed ${row.club.name}`);
         } catch (err) {
             toast.error(err);
         }
     };
 
     return (
-        <Card title={<h2 className="row"><BellRing size={17} /> Clubs you get notified about</h2>}>
+        <Card title={<h2 className="row"><UserCheck size={17} /> Clubs you follow</h2>}>
             <AsyncContent
                 loading={loading}
                 error={error}
@@ -81,7 +81,7 @@ const FollowedClubs = () => {
                     <EmptyState
                         icon={BellOff}
                         title="No clubs yet"
-                        description="Tap the bell on any club's page to get emails about its new events and announcements."
+                        description="Follow a club from its page to get emails about its new events and announcements."
                         action={
                             <Link to="/clubs" className="btn btn-secondary btn-sm">
                                 Browse clubs
@@ -104,7 +104,7 @@ const FollowedClubs = () => {
                                 </div>
                             </div>
                             <Button size="sm" variant="secondary" onClick={() => turnOff(row)}>
-                                <BellOff size={14} /> Turn off
+                                Unfollow
                             </Button>
                         </div>
                     ))}

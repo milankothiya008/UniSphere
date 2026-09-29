@@ -280,6 +280,9 @@ const applyProblem = async (actor, drive, club, now = new Date()) => {
     if (drive.status !== S.PUBLISHED) {
         return "This drive isn't accepting applications";
     }
+    if (club.status !== CLUB_STATUS.ACTIVE) {
+        return `${club.name} is ${String(club.status).toLowerCase()}, so recruitment is on hold`;
+    }
     if (await ClubMembership.exists({ club: club._id, user: actor._id, status: MEMBERSHIP_STATUS.APPROVED })) {
         return `You're already a member of ${club.name}`;
     }
@@ -428,7 +431,8 @@ const listClubDrives = async (actor, clubId) => {
 /** Recruitment open across campus right now (published and not finished), earliest deadline first. */
 const listOpenDrives = async (actor) => {
     const now = new Date();
-    const drives = await RecruitmentDrive.find({ status: S.PUBLISHED, closedAt: null, applicationEnd: { $gt: now } })
+    const paused = await require("./ClubStatusService").pausedClubIds();
+    const drives = await RecruitmentDrive.find({ status: S.PUBLISHED, closedAt: null, applicationEnd: { $gt: now }, club: { $nin: paused } })
         .sort({ applicationEnd: 1 })
         .limit(50)
         .populate("club", "name logo category allDepartments departmentCodes coverImage");
@@ -453,7 +457,8 @@ const listOpenDrives = async (actor) => {
 /** For each club id, its drive currently taking applications (for "Recruiting" badges and the club page). */
 const openDrivesByClub = async (clubIds) => {
     const now = new Date();
-    const drives = await RecruitmentDrive.find({ club: { $in: clubIds }, status: S.PUBLISHED, closedAt: null, applicationEnd: { $gt: now } }).select(
+    const paused = new Set((await require("./ClubStatusService").pausedClubIds()).map(String));
+    const drives = await RecruitmentDrive.find({ club: { $in: clubIds.filter((id) => !paused.has(String(id))) }, status: S.PUBLISHED, closedAt: null, applicationEnd: { $gt: now } }).select(
         "club title applicationStart applicationEnd"
     );
     return new Map(drives.map((drive) => [String(drive.club), { _id: drive._id, title: drive.title, applicationStart: drive.applicationStart, applicationEnd: drive.applicationEnd, open: drive.applicationStart <= now }]));

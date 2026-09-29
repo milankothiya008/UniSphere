@@ -15,7 +15,6 @@ router.use(protect, requireVerified, restrictTo(GLOBAL_ROLES.ADMIN));
 
 router.get("/stats", c.stats);
 router.get("/faculty", c.listFaculty);
-router.get("/audit-logs", c.auditLogs);
 
 router.post("/departments", departmentRules(false), validate, c.createDepartment);
 router.put("/departments/:id", mongoIdParam("id"), departmentRules(true), validate, c.updateDepartment);
