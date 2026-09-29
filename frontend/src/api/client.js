@@ -17,6 +17,8 @@ let onSessionExpired = () => {};
 
 export const setAccessToken = (token) => {
     accessToken = token;
+    // A different (or no) user never sees the previous user's cached responses.
+    getCache.clear();
 };
 
 export const getAccessToken = () => accessToken;
@@ -120,10 +122,38 @@ export const request = async (path, { method = "GET", body, query, retry = true 
     return payload;
 };
 
+// A short-lived cache for GET requests: going back to a page within a few seconds is instant, and
+// identical requests made at the same time share one response. Any change (POST/PUT/PATCH/DELETE) clears
+// it, so what you see after an action is always fresh.
+const GET_TTL_MS = 8000;
+const getCache = new Map();
+
+export const clearRequestCache = () => getCache.clear();
+
+const cachedGet = (path, query) => {
+    const key = `${accessToken ? accessToken.slice(-16) : "anon"} ${buildUrl(path, query)}`;
+    const hit = getCache.get(key);
+    if (hit && Date.now() - hit.at < GET_TTL_MS) {
+        return hit.promise;
+    }
+    const promise = request(path, { query });
+    getCache.set(key, { at: Date.now(), promise });
+    promise.catch(() => getCache.delete(key));
+    if (getCache.size > 200) {
+        getCache.delete(getCache.keys().next().value);
+    }
+    return promise;
+};
+
+const change = (method) => (path, body) => {
+    getCache.clear();
+    return request(path, { method, body }).finally(() => getCache.clear());
+};
+
 export const api = {
-    get: (path, query) => request(path, { query }),
-    post: (path, body) => request(path, { method: "POST", body }),
-    put: (path, body) => request(path, { method: "PUT", body }),
-    patch: (path, body) => request(path, { method: "PATCH", body }),
-    delete: (path, body) => request(path, { method: "DELETE", body })
+    get: cachedGet,
+    post: change("POST"),
+    put: change("PUT"),
+    patch: change("PATCH"),
+    delete: change("DELETE")
 };

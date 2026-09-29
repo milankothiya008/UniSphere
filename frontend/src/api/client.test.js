@@ -55,6 +55,24 @@ describe("api client", () => {
         expect(b.data).toBe("/api/dashboard");
     });
 
+    test("identical GETs share one request for a few seconds, and any change clears the cache", async () => {
+        setAccessToken("token-1");
+        const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(json(200, { data: "ok" })));
+
+        await Promise.all([api.get("/clubs", { page: 1 }), api.get("/clubs", { page: 1 })]);
+        await api.get("/clubs", { page: 1 });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        await api.post("/clubs/c1/subscription", {});
+        await api.get("/clubs", { page: 1 });
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+
+        // Another user never gets the previous user's cached response.
+        setAccessToken("token-2");
+        await api.get("/clubs", { page: 1 });
+        expect(fetchMock).toHaveBeenCalledTimes(4);
+    });
+
     test("signals session expiry when refresh fails", async () => {
         setAccessToken("expired");
         const expired = vi.fn();

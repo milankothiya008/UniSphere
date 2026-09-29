@@ -1,17 +1,19 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Download, X, ZoomIn, ZoomOut } from "lucide-react";
+import { cssImage, imageUrl } from "../../lib/images";
 
 /**
  * The whole picture, never cropped: the image is contained in its frame and a soft blurred copy fills the
  * space around it. Use inside any positioned box with a fixed shape (a card cover, a poster frame).
  */
-export const MediaFill = ({ src, alt = "", loading = "lazy", onLoad }) => (
+export const MediaFill = ({ src, alt = "", loading = "lazy", width = 640, onLoad }) => (
     <>
-        <span className="media-fill" style={{ "--media": `url("${String(src).replace(/"/g, "%22")}")` }} aria-hidden="true" />
+        {/* The fill is a tiny blurred copy: a few KB however large the original. */}
+        <span className="media-fill" style={{ "--media": cssImage(imageUrl(src, 48, { blur: true }), 48) }} aria-hidden="true" />
         <img
             className="media-img"
-            src={src}
+            src={imageUrl(src, width)}
             alt={alt}
             loading={loading}
             decoding="async"
@@ -73,7 +75,7 @@ const Viewer = ({ item, onClose }) => {
                     <video src={item.src} poster={item.poster} controls autoPlay playsInline className="lightbox-media" />
                 ) : (
                     <img
-                        src={item.src}
+                        src={imageUrl(item.src, 1600)}
                         alt={item.alt || ""}
                         className={`lightbox-media ${zoomed ? "is-zoomed" : ""}`}
                         style={{ transformOrigin: origin }}
@@ -106,11 +108,11 @@ export const useLightbox = () => {
 };
 
 /** A framed picture that opens full screen when clicked. */
-export const ZoomableMedia = ({ src, alt = "", caption, className = "", children }) => {
+export const ZoomableMedia = ({ src, alt = "", caption, className = "", width = 1000, children }) => {
     const open = useLightbox();
     return (
         <button type="button" className={`zoomable ${className}`} onClick={() => open({ src, alt, caption, type: "image" })} aria-label={`View ${alt || "image"} full size`}>
-            <MediaFill src={src} alt={alt} />
+            <MediaFill src={src} alt={alt} width={width} />
             <span className="zoomable-hint" aria-hidden="true">
                 <ZoomIn size={16} /> View full size
             </span>

@@ -1,4 +1,6 @@
 const mongoose = require("mongoose");
+const { clearOnWrite } = require("../utils/TtlCache");
+const { userCache } = require("../utils/Caches");
 const { GLOBAL_ROLES, ACCOUNT_TYPES } = require("../constants/Roles");
 
 const userSchema = new mongoose.Schema(
@@ -116,5 +118,13 @@ const userSchema = new mongoose.Schema(
 
 userSchema.index({ globalRole: 1 });
 userSchema.index({ departmentCode: 1 });
+
+// Any write to a user drops the cached copy used by the auth middleware.
+clearOnWrite(userSchema, (target) => {
+    const id = target?._id || target?.getQuery?.()?._id;
+    if (id && typeof id !== "object") userCache.delete(String(id));
+    else if (id && id._bsontype) userCache.delete(String(id));
+    else userCache.clear();
+});
 
 module.exports = mongoose.model("User", userSchema);

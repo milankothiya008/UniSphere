@@ -4,16 +4,23 @@ const asyncHandler = require("../utils/AsyncHandler");
 const ERROR_CODES = require("../constants/ErrorCodes");
 const { USER_PUBLIC_FIELDS } = require("../constants/Roles");
 const { verifyAccessToken } = require("../utils/Token");
+const { userCache } = require("../utils/Caches");
 
 const readBearer = (req) => {
     const header = req.headers.authorization;
     return header && header.startsWith("Bearer ") ? header.split(" ")[1] : null;
 };
 
-// The user is always re-loaded from the database so role changes and deactivation apply immediately.
+// The user comes from a short-lived cache that every write to a user clears, so role changes and
+// deactivation still apply immediately while most requests skip a database round trip.
 const loadUser = async (token) => {
     const decoded = verifyAccessToken(token);
-    const user = await User.findById(decoded.sub).select(USER_PUBLIC_FIELDS);
+    const cached = await userCache.remember(String(decoded.sub), async () => {
+        const found = await User.findById(decoded.sub).select(USER_PUBLIC_FIELDS).lean();
+        return found || null;
+    });
+    // Each request gets its own document, so nothing a request does to it leaks into another.
+    const user = cached ? User.hydrate(cached) : null;
 
     if (!user || !user.isActive) {
         throw new AppError("Authentication required", 401, ERROR_CODES.UNAUTHORIZED);

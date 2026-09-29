@@ -145,20 +145,20 @@ const listFeed = async (actor, query = {}) => {
         filter.event = query.event;
     }
 
+    // One round trip for everything the filter needs: the viewer's clubs, mentored clubs and paused clubs.
+    const [memberships, mentored, paused] = await Promise.all([
+        actor ? ClubMembership.find({ user: actor._id, status: MEMBERSHIP_STATUS.APPROVED }).select("club").lean() : [],
+        actor ? Club.find({ mentor: actor._id }).select("_id").lean() : [],
+        require("./ClubStatusService").pausedClubIds()
+    ]);
+
     if (query.club) {
         filter.club = query.club;
     } else if (query.scope === "my-clubs" && actor) {
-        const memberships = await ClubMembership.find({ user: actor._id, status: MEMBERSHIP_STATUS.APPROVED }).select("club");
         filter.club = { $in: memberships.map((m) => m.club) };
     }
 
     // Members-only posts are visible to that club's members and mentor only (not the university admin).
-    const [memberships, mentored] = actor
-        ? await Promise.all([
-              ClubMembership.find({ user: actor._id, status: MEMBERSHIP_STATUS.APPROVED }).select("club"),
-              Club.find({ mentor: actor._id }).select("_id")
-          ])
-        : [[], []];
     const insideClubs = [...memberships.map((m) => m.club), ...mentored.map((c) => c._id)];
 
     filter.$or = [
@@ -166,7 +166,6 @@ const listFeed = async (actor, query = {}) => {
         { visibility: FEED_VISIBILITY.MEMBERS, club: { $in: insideClubs } }
     ];
     // Suspended or archived clubs' posts stay visible to their own members and mentor only.
-    const paused = await require("./ClubStatusService").pausedClubIds();
     if (paused.length) {
         filter.$and = [{ $or: [{ club: { $nin: paused } }, { club: { $in: insideClubs } }] }];
     }

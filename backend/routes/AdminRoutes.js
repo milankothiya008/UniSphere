@@ -3,13 +3,14 @@ const c = require("../controllers/AdminController");
 const { protect, restrictTo, requireVerified } = require("../middleware/Auth");
 const { GLOBAL_ROLES } = require("../constants/Roles");
 const validate = require("../middleware/Validate");
+const { cacheFor } = require("../middleware/CacheControl");
 const { mongoIdParam, departmentRules, batchRules } = require("../validators/RequestValidators");
 
 const router = express.Router();
 
 // Reference data used by registration and event forms.
-router.get("/departments", c.listDepartments);
-router.get("/batches", c.listBatches);
+router.get("/departments", cacheFor(60), c.listDepartments);
+router.get("/batches", cacheFor(60), c.listBatches);
 
 router.use(protect, requireVerified, restrictTo(GLOBAL_ROLES.ADMIN));
 

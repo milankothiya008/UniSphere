@@ -6,6 +6,7 @@ import { Avatar, ButtonLink, Card, Skeleton } from "../ui";
 import { FollowButton } from "../clubs/NotifyBell";
 import { ApplicationBadge } from "./RecruitmentParts";
 import { departmentsLabel, formatDate, formatDateTime, formatTime, humanize, plural } from "../../lib/format";
+import { cssImage } from "../../lib/images";
 
 // ---------------------------------------------------------------- Key dates
 
@@ -67,7 +68,7 @@ const ClubCard = ({ clubId }) => {
     }
     return (
         <section className="side-club">
-            <div className="side-club-cover" style={club.coverImage ? { "--cover": `url("${String(club.coverImage).replace(/"/g, "%22")}")` } : undefined} />
+            <div className="side-club-cover" style={club.coverImage ? { "--cover": cssImage(club.coverImage, 400) } : undefined} />
             <div className="side-club-body">
                 <Avatar name={club.name} src={club.logo} size="lg" square />
                 <Link to={`/clubs/${club._id}`} className="side-club-name">

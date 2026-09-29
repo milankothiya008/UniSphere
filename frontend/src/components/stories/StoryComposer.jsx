@@ -6,6 +6,7 @@ import { loadStories } from "../../hooks/useStories";
 import { STORY_LIMITS, inspectStoryFile, uploadStoryMedia } from "../../lib/stories";
 import { formatDate } from "../../lib/format";
 import { ApiErrorAlert, Avatar, Button, Modal, Select, Textarea } from "../ui";
+import { imageUrl } from "../../lib/images";
 
 const ACCEPT = [...STORY_LIMITS.imageTypes, ...STORY_LIMITS.videoTypes].join(",");
 
@@ -155,7 +156,7 @@ export const StoryComposer = ({ open, onClose, clubs }) => {
                 >
                     {draft.source === "file" && draft.preview.kind === "VIDEO" && <video src={draft.preview.url} autoPlay muted loop playsInline />}
                     {draft.source === "file" && draft.preview.kind === "IMAGE" && <img src={draft.preview.url} alt="Story preview" />}
-                    {draft.source === "event" && <img src={draft.posterEvent.poster} alt={`${draft.posterEvent.title} poster`} />}
+                    {draft.source === "event" && <img src={imageUrl(draft.posterEvent.poster, 600)} alt={`${draft.posterEvent.title} poster`} />}
 
                     {draft.source ? (
                         <>
@@ -222,7 +223,7 @@ export const StoryComposer = ({ open, onClose, clubs }) => {
                                         disabled={pending}
                                         title={event.title}
                                     >
-                                        <img src={event.poster} alt="" />
+                                        <img src={imageUrl(event.poster, 160)} alt="" loading="lazy" />
                                         <span>{event.title}</span>
                                     </button>
                                 ))}

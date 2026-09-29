@@ -1,4 +1,6 @@
 const mongoose = require("mongoose");
+const { clearOnWrite } = require("../utils/TtlCache");
+const { referenceCache } = require("../utils/Caches");
 
 const academicBatchSchema = new mongoose.Schema(
     {
@@ -21,5 +23,7 @@ const academicBatchSchema = new mongoose.Schema(
     },
     { timestamps: true }
 );
+
+clearOnWrite(academicBatchSchema, () => referenceCache.clear());
 
 module.exports = mongoose.model("AcademicBatch", academicBatchSchema);

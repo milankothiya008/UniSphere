@@ -3,8 +3,37 @@
     "framework": "vite",
     "outputDirectory": "dist",
     "rewrites": [
-        { "source": "/api/:path*", "destination": "https://unisphere-production-3a32.up.railway.app/api/:path*" },
-        { "source": "/uploads/:path*", "destination": "https://unisphere-production-3a32.up.railway.app/uploads/:path*" },
-        { "source": "/(.*)", "destination": "/index.html" }
+        {
+            "source": "/api/:path*",
+            "destination": "https://unisphere-production-3a32.up.railway.app/api/:path*"
+        },
+        {
+            "source": "/uploads/:path*",
+            "destination": "https://unisphere-production-3a32.up.railway.app/uploads/:path*"
+        },
+        {
+            "source": "/(.*)",
+            "destination": "/index.html"
+        }
+    ],
+    "headers": [
+        {
+            "source": "/assets/(.*)",
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=31536000, immutable"
+                }
+            ]
+        },
+        {
+            "source": "/favicon.svg",
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=86400"
+                }
+            ]
+        }
     ]
 }

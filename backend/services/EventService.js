@@ -1155,16 +1155,17 @@ const attachResults = async (items) => {
 };
 
 const attachRegistrations = async (actor, events) => {
-    const items = await attachResults(events.map((event) => serialize(event)));
+    const serialized = events.map((event) => serialize(event));
+    // Results and the viewer's own registrations are looked up at the same time.
+    const [items, registrations] = await Promise.all([
+        attachResults(serialized),
+        actor && serialized.length ? EventRegistration.find({ user: actor._id, event: { $in: serialized.map((event) => event._id) } }).select("event status").lean() : []
+    ]);
 
     if (!actor || !items.length) {
         return items;
     }
 
-    const registrations = await EventRegistration.find({
-        user: actor._id,
-        event: { $in: items.map((event) => event._id) }
-    }).select("event status");
     const byEvent = new Map(registrations.map((registration) => [String(registration.event), registration.status]));
 
     return items.map((event) => ({ ...event, myRegistration: byEvent.get(String(event._id)) || null }));

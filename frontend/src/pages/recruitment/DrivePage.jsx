@@ -13,8 +13,9 @@ import { RoundsPanel } from "../../components/recruitment/RoundsPanel";
 import { DriveOverview, STAGES } from "../../components/recruitment/DriveOverview";
 import { DriveSidebar } from "../../components/recruitment/DriveSidebar";
 import { batchLabel, departmentsLabel, formatDateTime } from "../../lib/format";
+import { cssImage } from "../../lib/images";
 
-const coverStyle = (src) => (src ? { "--cover": `url("${String(src).replace(/"/g, "%22")}")` } : undefined);
+const coverStyle = (src) => (src ? { "--cover": cssImage(src, 1400) } : undefined);
 
 // The role switcher on the Selection tab.
 const RoleSwitcher = ({ positions, value, onChange }) => (

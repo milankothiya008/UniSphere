@@ -3,11 +3,12 @@ const { createVenue, listVenues, updateVenue, available } = require("../controll
 const { protect, requireVerified, restrictTo } = require("../middleware/Auth");
 const { GLOBAL_ROLES } = require("../constants/Roles");
 const validate = require("../middleware/Validate");
+const { cacheFor } = require("../middleware/CacheControl");
 const { mongoIdParam, availabilityRules, venueRules } = require("../validators/RequestValidators");
 
 const router = express.Router();
 
-router.get("/", listVenues);
+router.get("/", cacheFor(30), listVenues);
 router.get("/available", protect, requireVerified, availabilityRules, validate, available);
 
 router.use(protect, requireVerified, restrictTo(GLOBAL_ROLES.ADMIN));

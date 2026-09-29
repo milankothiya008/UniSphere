@@ -383,22 +383,24 @@ const listGalleries = async (actor, query = {}) => {
         base.club = query.club;
     }
 
-    const moderated = await moderatedClubIds(actor);
-    const toReview = moderated.length ? await EventMedia.distinct("event", { status: PENDING, club: { $in: moderated } }) : [];
-
-    // Events with photos come first, most recently updated first; then the rest, newest event first.
-    const activity = await EventMedia.aggregate([
-        { $match: { status: APPROVED } },
-        { $group: { _id: "$event", latest: { $max: "$createdAt" } } },
-        { $sort: { latest: -1 } }
+    // Independent lookups run together: what this viewer moderates, which events have photos, the total.
+    const [moderated, activity, allCount] = await Promise.all([
+        moderatedClubIds(actor),
+        // Events with photos come first, most recently updated first; then the rest, newest event first.
+        EventMedia.aggregate([{ $match: { status: APPROVED } }, { $group: { _id: "$event", latest: { $max: "$createdAt" } } }, { $sort: { latest: -1 } }]),
+        Event.countDocuments(base)
     ]);
-    const matchingIds = new Set((await Event.find({ ...base, _id: { $in: activity.map((row) => row._id) } }).select("_id")).map((event) => String(event._id)));
+    const [toReview, matching] = await Promise.all([
+        moderated.length ? EventMedia.distinct("event", { status: PENDING, club: { $in: moderated } }) : [],
+        Event.find({ ...base, _id: { $in: activity.map((row) => row._id) } }).select("_id").lean()
+    ]);
+    const matchingIds = new Set(matching.map((event) => String(event._id)));
     const withPhotosOrdered = activity.map((row) => row._id).filter((id) => matchingIds.has(String(id)));
 
     const load = (ids) =>
         ids.length
             ? Event.find({ _id: { $in: ids } }).select("title poster category startAt endAt status club").populate("club", "name logo")
-            : [];
+            : Promise.resolve([]);
     const inOrder = (ids, docs) => ids.map((id) => docs.find((doc) => String(doc._id) === String(id))).filter(Boolean);
 
     let events;
@@ -411,9 +413,9 @@ const listGalleries = async (actor, query = {}) => {
         ]);
     } else {
         const firstIds = withPhotosOrdered.slice(pagination.skip, pagination.skip + pagination.limit);
-        events = inOrder(firstIds, await load(firstIds));
         const others = { ...base, _id: { $nin: withPhotosOrdered } };
-        const othersCount = query.show === "photos" ? 0 : await Event.countDocuments(others);
+        const [firstDocs, othersCount] = await Promise.all([load(firstIds), query.show === "photos" ? 0 : Event.countDocuments(others)]);
+        events = inOrder(firstIds, firstDocs);
         total = withPhotosOrdered.length + othersCount;
         const room = pagination.limit - events.length;
         if (room > 0 && othersCount > 0) {
@@ -424,14 +426,11 @@ const listGalleries = async (actor, query = {}) => {
         }
     }
 
-    const [allCount, reviewCount] = await Promise.all([
-        Event.countDocuments(base),
-        toReview.length ? Event.countDocuments({ ...base, _id: { $in: toReview } }) : 0
-    ]);
     const photosCount = withPhotosOrdered.length;
 
     const ids = events.map((event) => event._id);
-    const [stats, covers] = await Promise.all([
+    const [reviewCount, stats, covers] = await Promise.all([
+        toReview.length ? Event.countDocuments({ ...base, _id: { $in: toReview } }) : 0,
         EventMedia.aggregate([
             { $match: { event: { $in: ids } } },
             {

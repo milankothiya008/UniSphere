@@ -152,9 +152,10 @@ const clubWorkspace = async (membership) => {
         Event.find({ club: clubId, status: EVENT_STATUS.COMPLETED }).select("_id title startAt").sort({ startAt: -1 }).limit(20)
     ]);
 
-    // Gallery uploads waiting for the president or vice-president, per event.
-    const galleryReview = has(CLUB_PERMISSIONS.MODERATE_GALLERY)
-        ? await EventMedia.aggregate([
+    // Gallery uploads waiting for the president or vice-president, per event; result states; insights.
+    const [galleryReview, published, insights] = await Promise.all([
+        has(CLUB_PERMISSIONS.MODERATE_GALLERY)
+        ? EventMedia.aggregate([
               { $match: { club: clubId, status: GALLERY_STATUS.PENDING } },
               { $group: { _id: "$event", pending: { $sum: 1 } } },
               { $lookup: { from: "events", localField: "_id", foreignField: "_id", as: "event", pipeline: [{ $project: { title: 1 } }] } },
@@ -162,9 +163,10 @@ const clubWorkspace = async (membership) => {
               { $project: { _id: "$event._id", title: "$event.title", pending: 1 } },
               { $sort: { pending: -1 } }
           ])
-        : [];
-
-    const published = await EventResult.find({ event: { $in: completedIds.map((e) => e._id) } }).select("event status");
+        : [],
+        EventResult.find({ event: { $in: completedIds.map((e) => e._id) } }).select("event status"),
+        has(CLUB_PERMISSIONS.MANAGE_CLUB) ? clubInsights(clubId, memberCount, now) : null
+    ]);
     const resultByEvent = new Map(published.map((r) => [String(r.event), r.status]));
     const byStatus = (status) => withState(events.filter((event) => event.status === status));
 
@@ -189,7 +191,7 @@ const clubWorkspace = async (membership) => {
                   .map((event) => ({ ...event.toObject(), resultStatus: resultByEvent.get(String(event._id)) || null }))
             : [],
         galleryReview,
-        insights: has(CLUB_PERMISSIONS.MANAGE_CLUB) ? await clubInsights(clubId, memberCount, now) : null
+        insights
     };
 };
 
@@ -198,6 +200,17 @@ const clubWorkspace = async (membership) => {
 // they can still register for).
 const studentDashboard = async (actor) => {
     const now = new Date();
+    // Queries that don't depend on the student's clubs start now, alongside the memberships lookup.
+    const independent = Promise.all([
+        getMyRegistrations(actor, { timeframe: "upcoming", includeWaitlist: "true" }),
+        getMyRegistrations(actor, { timeframe: "past" }),
+        ClubCreationRequest.find({ $or: [{ requester: actor._id }, { foundingMembers: actor._id }] })
+            .select("name status updatedAt reviewComment rejectionReason club")
+            .sort({ updatedAt: -1 })
+            .limit(5),
+        Notification.find({ user: actor._id }).sort({ createdAt: -1 }).limit(5),
+        myApplications(actor)
+    ]);
     const memberships = await ClubMembership.find({ user: actor._id, status: MEMBERSHIP_STATUS.APPROVED }).populate(
         "club",
         "name logo category status president mentor allDepartments departmentCodes roles"
@@ -208,17 +221,7 @@ const studentDashboard = async (actor) => {
     // A workspace for every club where the student holds some authority.
     const officerships = approved.filter((m) => permissionsFor(m.club, m.role).length > 0 && m.club.status === CLUB_STATUS.ACTIVE);
 
-    const [upcomingAll, pastRegistrations, clubRequests, recentNotifications, workspaces, applications] = await Promise.all([
-        getMyRegistrations(actor, { timeframe: "upcoming", includeWaitlist: "true" }),
-        getMyRegistrations(actor, { timeframe: "past" }),
-        ClubCreationRequest.find({ $or: [{ requester: actor._id }, { foundingMembers: actor._id }] })
-            .select("name status updatedAt reviewComment rejectionReason club")
-            .sort({ updatedAt: -1 })
-            .limit(5),
-        Notification.find({ user: actor._id }).sort({ createdAt: -1 }).limit(5),
-        Promise.all(officerships.map(clubWorkspace)),
-        myApplications(actor)
-    ]);
+    const [[upcomingAll, pastRegistrations, clubRequests, recentNotifications, applications], workspaces] = await Promise.all([independent, Promise.all(officerships.map(clubWorkspace))]);
 
     const upcomingRegistrations = upcomingAll.filter((r) => r.status === REGISTRATION_STATUS.REGISTERED);
     const waitlistedRegistrations = upcomingAll.filter((r) => r.status === REGISTRATION_STATUS.WAITLISTED);
@@ -234,7 +237,9 @@ const studentDashboard = async (actor) => {
 
     const eligibleFor = (field, value) => ({ $or: [{ [`eligibility.${field}`]: { $size: 0 } }, { [`eligibility.${field}`]: value }] });
 
-    const openEvents = await Event.find({
+    const pastEventIds = pastRegistrations.map((r) => r.event._id);
+    const [openEvents, publishedResults] = await Promise.all([
+        Event.find({
         status: EVENT_STATUS.PUBLISHED,
         startAt: { $gt: now },
         registrationClosed: false,
@@ -247,7 +252,9 @@ const studentDashboard = async (actor) => {
         .populate("club", "name logo")
         .populate("venue", "name")
         .sort({ startAt: 1 })
-        .limit(12);
+        .limit(12),
+        EventResult.find({ event: { $in: pastEventIds }, status: RESULT_STATUS.PUBLISHED }).select("event")
+    ]);
 
     // Events from the student's own clubs first, then by date.
     const recommended = withState(openEvents)
@@ -256,10 +263,7 @@ const studentDashboard = async (actor) => {
         .sort((a, b) => Number(b.fromMyClub) - Number(a.fromMyClub) || a.startAt - b.startAt)
         .slice(0, 6);
 
-    const pastEventIds = pastRegistrations.map((r) => r.event._id);
-    const withResults = new Set(
-        (await EventResult.find({ event: { $in: pastEventIds }, status: RESULT_STATUS.PUBLISHED }).select("event")).map((r) => String(r.event))
-    );
+    const withResults = new Set(publishedResults.map((r) => String(r.event)));
 
     return {
         stats: {
@@ -346,21 +350,24 @@ const adminDashboard = async (actor) => {
 };
 
 const getDashboard = async (actor) => {
-    const base = { role: actor.globalRole, unreadNotifications: await unreadCount(actor) };
+    const unread = unreadCount(actor);
     const campusEvents = async () => (await listEvents(actor, { timeframe: "upcoming", limit: 6 })).items;
+    const base = async () => ({ role: actor.globalRole, unreadNotifications: await unread });
 
     if (isAdmin(actor)) {
-        return { ...base, campusEvents: await campusEvents(), admin: await adminDashboard(actor) };
+        const [head, events, admin] = await Promise.all([base(), campusEvents(), adminDashboard(actor)]);
+        return { ...head, campusEvents: events, admin };
     }
 
     if (isFaculty(actor)) {
-        const faculty = await facultyDashboard(actor);
+        const [head, faculty, events] = await Promise.all([base(), facultyDashboard(actor), campusEvents()]);
         // Events of the faculty's own clubs are already listed in their section.
         const own = new Set(faculty.upcomingEvents.map((event) => String(event._id)));
-        return { ...base, campusEvents: (await campusEvents()).filter((event) => !own.has(String(event._id))), faculty };
+        return { ...head, campusEvents: events.filter((event) => !own.has(String(event._id))), faculty };
     }
 
-    return { ...base, student: await studentDashboard(actor) };
+    const [head, student] = await Promise.all([base(), studentDashboard(actor)]);
+    return { ...head, student };
 };
 
 module.exports = { getDashboard };

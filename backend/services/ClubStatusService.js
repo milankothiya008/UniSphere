@@ -19,6 +19,7 @@ const {
 } = require("../constants/Statuses");
 const { formatDate, formatTime } = require("../utils/CampusTime");
 const { recordAudit } = require("./AuditService");
+const { pausedClubsCache } = require("../utils/Caches");
 const { notify, emailUsers } = require("./NotificationService");
 
 // Suspending or archiving a club pauses it: its upcoming events and live recruitment stay as they are but
@@ -43,7 +44,7 @@ const TRANSITIONS = {
 const isPaused = (club) => PAUSED.includes(club?.status);
 
 /** Ids of clubs that are suspended or archived, so their events and drives can be left out of listings. */
-const pausedClubIds = async () => (await Club.find({ status: { $in: PAUSED } }).select("_id").lean()).map((club) => club._id);
+const pausedClubIds = () => pausedClubsCache.remember("ids", async () => (await Club.find({ status: { $in: PAUSED } }).select("_id").lean()).map((club) => club._id));
 
 const firstName = (user) => String(user?.name || "there").split(" ")[0];
 const when = (date) => `${formatDate(date)}, ${formatTime(date)}`;

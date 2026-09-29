@@ -1,6 +1,7 @@
 import { NavLink, Link } from "react-router-dom";
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { initials } from "../../lib/format";
+import { imageUrl } from "../../lib/images";
 
 // Top-level pages get the animated dark banner; pages with a back link (details, forms) get the lighter variant.
 export const PageHeader = ({ eyebrow, title, description, actions, back }) => (
@@ -43,7 +44,7 @@ export const Card = ({ title, actions, footer, children, padded = true, classNam
 
 export const Avatar = ({ name, src, size, square = false }) => (
     <span className={`avatar ${size ? `avatar-${size}` : ""} ${square ? "avatar-square" : ""}`} aria-hidden="true">
-        {src ? <img src={src} alt="" /> : initials(name)}
+        {src ? <img src={imageUrl(src, size === "lg" ? 96 : 48)} alt="" loading="lazy" decoding="async" /> : initials(name)}
     </span>
 );
 

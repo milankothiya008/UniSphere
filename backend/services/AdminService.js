@@ -1,4 +1,5 @@
 const Department = require("../models/Department");
+const { referenceCache } = require("../utils/Caches");
 const AcademicBatch = require("../models/AcademicBatch");
 const User = require("../models/User");
 const Club = require("../models/Club");
@@ -42,13 +43,15 @@ const createDepartment = async (actor, { code, name, isActive = true }) => {
     return Department.create({ code: String(code).toUpperCase(), name, isActive });
 };
 
-const listDepartments = async (query = {}) => {
+const listDepartmentsUncached = async (query = {}) => {
     const filter = {};
     if (query.active === "true") {
         filter.isActive = true;
     }
-    return Department.find(filter).sort({ code: 1 });
+    return Department.find(filter).sort({ code: 1 }).lean();
 };
+
+const listDepartments = (query = {}) => referenceCache.remember(`listDepartments:${JSON.stringify(query)}`, () => listDepartmentsUncached(query));
 
 const updateDepartment = async (actor, id, data) => {
     assertAdmin(actor);
@@ -72,13 +75,15 @@ const createBatch = async (actor, { code, label, isActive = true }) => {
     return AcademicBatch.create({ code, label, isActive });
 };
 
-const listBatches = async (query = {}) => {
+const listBatchesUncached = async (query = {}) => {
     const filter = {};
     if (query.active === "true") {
         filter.isActive = true;
     }
-    return AcademicBatch.find(filter).sort({ code: -1 });
+    return AcademicBatch.find(filter).sort({ code: -1 }).lean();
 };
+
+const listBatches = (query = {}) => referenceCache.remember(`listBatches:${JSON.stringify(query)}`, () => listBatchesUncached(query));
 
 const updateBatch = async (actor, id, data) => {
     assertAdmin(actor);

@@ -13,9 +13,10 @@ import { belongsToScope } from "../../lib/eligibility";
 import { ClubSocialRow } from "../../components/clubs/ClubConnect";
 import { FollowButton } from "../../components/clubs/NotifyBell";
 import { ClubStoryAvatar } from "../../components/stories/ClubStoryAvatar";
+import { cssImage } from "../../lib/images";
 
 // The cover sits under a dark overlay (see .hero-cover) so the header text stays readable on any image.
-const coverStyle = (src) => (src ? { "--cover": `url("${String(src).replace(/"/g, "%22")}")` } : undefined);
+const coverStyle = (src) => (src ? { "--cover": cssImage(src, 1400) } : undefined);
 
 const ClubLayout = () => {
     const { id } = useParams();
