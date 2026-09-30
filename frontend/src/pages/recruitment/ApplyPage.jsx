@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, FileText, FileUp, Image as ImageIcon, Link2, Megaphone, PencilLine, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, FileText, FileUp, Image as ImageIcon, Link2, PencilLine, Send, Trash2 } from "lucide-react";
 import { recruitmentApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useAuth } from "../../context/AuthContext";
@@ -255,13 +255,7 @@ const ApplyPage = () => {
                     <div ref={top} />
                     <PageHeader
                         back={{ to: `/recruitment/${id}`, label: data.title }}
-                        eyebrow={
-                            <>
-                                <Megaphone size={14} /> {data.club.name} · recruitment
-                            </>
-                        }
                         title={position ? `${editing ? "Edit your application" : "Apply"}: ${position.title}` : "Apply"}
-                        description={data.title}
                         actions={<Deadline drive={data} />}
                     />
                     {!position ? (

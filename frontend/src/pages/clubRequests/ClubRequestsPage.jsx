@@ -44,15 +44,7 @@ const ClubRequestsPage = ({ adminView = false }) => {
     return (
         <>
             <PageHeader
-                eyebrow={<><FileText size={14} /> Club requests</>}
                 title={adminView ? "Club approvals" : isFaculty ? "Club requests to review" : "Your club requests"}
-                description={
-                    isStudent
-                        ? "Propose a new club. A faculty member verifies it, then the university admin gives final approval."
-                        : isFaculty
-                          ? "Verify, request changes or reject proposals. Verifying makes you the club's faculty mentor once it's approved."
-                          : "Faculty-verified proposals waiting for final approval, plus the full request history."
-                }
                 actions={
                     isStudent && (
                         <ButtonLink to="/club-requests/new">

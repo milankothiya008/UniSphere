@@ -38,7 +38,7 @@ const AdminClubsPage = () => {
 
     return (
         <>
-            <PageHeader eyebrow={<><Building2 size={14} /> Administration</>} title="All clubs" description="Every club, including those awaiting a president, suspended or archived." />
+            <PageHeader title="All clubs" />
             <div className="stack">
                 <Tabs tabs={STATUSES} value={filters.status} onChange={(status) => setFilters({ status })} />
                 <div className="filter-bar">

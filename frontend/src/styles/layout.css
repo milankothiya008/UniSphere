@@ -867,54 +867,6 @@ a.list-row:hover {
     white-space: nowrap;
 }
 
-.feed-tabs {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 4px;
-    gap: 4px;
-}
-
-.feed-tab {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    padding: 9px 10px;
-    border: none;
-    border-radius: 10px;
-    background: none;
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--text-muted);
-    cursor: pointer;
-}
-
-.feed-tab:hover {
-    background: var(--surface-muted);
-    color: var(--text);
-}
-
-.feed-tab.active {
-    background: var(--ink-700);
-    color: #fff;
-}
-
-.feed-tab .count {
-    font-size: 0.74rem;
-    padding: 0 7px;
-    border-radius: 999px;
-    background: var(--neutral-100);
-    color: var(--text-muted);
-}
-
-.feed-tab.active .count {
-    background: rgba(255, 255, 255, 0.18);
-    color: #fff;
-}
-
 .live-dot {
     width: 8px;
     height: 8px;
@@ -1103,10 +1055,7 @@ a.list-row:hover {
         aspect-ratio: 1 / 1;
     }
 
-    .feed-tab {
-        font-size: 0.82rem;
-        padding: 8px 6px;
-    }
+    
 }
 
 /* ---------- Student dashboard ---------- */

@@ -6,7 +6,7 @@ import { useApi } from "../../hooks/useApi";
 import { useToast } from "../../context/ToastContext";
 import { Alert, ApiErrorAlert, AsyncContent, Badge, Button, Card, ConfirmDialog, ErrorState, Input, PageHeader, Select, Textarea } from "../../components/ui";
 import { Standings, WinnersPodium } from "../../components/results/ResultParts";
-import { formatDate, formatDateTime, plural, timeAgo } from "../../lib/format";
+import { formatDateTime, plural, timeAgo } from "../../lib/format";
 
 const PRESETS = ["Winner", "Runner-up", "Second runner-up", "Special mention"];
 const QUALIFIED_OPTIONS = [
@@ -505,9 +505,7 @@ const ResultEditorPage = () => {
                 <>
                     <PageHeader
                         back={{ to: `/events/${id}`, label: "Back to event" }}
-                        eyebrow={<><Trophy size={14} /> Results manager</>}
                         title={event.title}
-                        description={`${event.club.name} · ${formatDate(event.startAt)} · ${plural(event.registeredCount, "participant")}`}
                         actions={
                             (result?.status === "PUBLISHED" || result?.rounds?.some((round) => round.status === "PUBLISHED")) && (
                                 <Link to={`/results/${id}`} className="btn btn-secondary">

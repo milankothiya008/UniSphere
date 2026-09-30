@@ -16,13 +16,7 @@ const MyApplicationsPage = () => {
     return (
         <>
             <PageHeader
-                eyebrow={
-                    <>
-                        <FileSignature size={14} /> Recruitment
-                    </>
-                }
                 title="My applications"
-                description="Club recruitment you've applied to, your interviews and results — plus clubs recruiting right now."
             />
             <div className="stack-lg">
                 {available.length > 0 && (

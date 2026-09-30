@@ -77,9 +77,7 @@ const MyRegistrationsPage = () => {
     return (
         <>
             <PageHeader
-                eyebrow={<><CalendarCheck2 size={14} /> My registrations</>}
                 title="Your events"
-                description="Everything you've registered for, plus events you're on the waitlist for."
             />
             <div className="stack">
                 <TeamInvitesCard onAnswered={() => reload({ silent: true })} />

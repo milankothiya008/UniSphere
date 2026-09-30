@@ -6,7 +6,7 @@ const NotFoundPage = () => (
         icon={Compass}
         title="Page not found"
         description="The page you're looking for doesn't exist or has moved."
-        action={<ButtonLink to="/dashboard" variant="secondary">Back to dashboard</ButtonLink>}
+        action={<ButtonLink to="/feed" variant="secondary">Go home</ButtonLink>}
     />
 );
 

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Award, CalendarDays, ChevronRight, Hourglass, ListOrdered, Pencil, Trophy } from "lucide-react";
+import { Award, ChevronRight, Hourglass, ListOrdered, Pencil, Trophy } from "lucide-react";
 import { eventApi } from "../api/endpoints";
 import { useApi } from "../hooks/useApi";
-import { AsyncContent, Avatar, Badge, Card, EmptyState, PageHeader } from "../components/ui";
+import { AsyncContent, Badge, Card, EmptyState, PageHeader } from "../components/ui";
 import { ResultStage, Standings, WinnersPodium } from "../components/results/ResultParts";
 import { formatDate, formatDateTime, timeAgo } from "../lib/format";
 
@@ -81,7 +81,7 @@ const ResultDetailPage = () => {
         <AsyncContent loading={results.loading || eventState.loading} error={notPublished ? null : results.error || eventState.error} onRetry={results.reload}>
             {notPublished ? (
                 <>
-                    <PageHeader back={{ to: "/results", label: "All results" }} eyebrow={<><Trophy size={14} /> Results</>} title={event?.title || "Results"} />
+                    <PageHeader back={{ to: "/results", label: "All results" }} title={event?.title || "Results"} />
                     <EmptyState
                         icon={Hourglass}
                         title="No results yet"
@@ -99,19 +99,12 @@ const ResultDetailPage = () => {
                     <>
                         <PageHeader
                             back={{ to: "/results", label: "All results" }}
-                            eyebrow={
-                                <Link to={`/clubs/${event.club?._id}`} className="row" style={{ gap: 6 }}>
-                                    <Avatar name={event.club?.name} src={event.club?.logo} size="sm" square /> {event.club?.name}
-                                </Link>
-                            }
+                            club={event.club}
                             title={event.title}
-                            description={
-                                <span className="row" style={{ gap: 10 }}>
-                                    <span className="row" style={{ gap: 6 }}>
-                                        <CalendarDays size={14} /> {formatDate(event.startAt)}
-                                    </span>
-                                    <ResultStage final={final} latestRound={latestRound?.name} />
-                                </span>
+                            meta={
+                                <>
+                                    {formatDate(event.startAt)} <ResultStage final={final} latestRound={latestRound?.name} />
+                                </>
                             }
                             actions={
                                 <>

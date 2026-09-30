@@ -42,9 +42,7 @@ const ClubsPage = () => {
     return (
         <>
             <PageHeader
-                eyebrow={<><Building2 size={14} /> Clubs</>}
                 title="Clubs on campus"
-                description={isAdmin ? "All active clubs on campus. Manage club status and mentors from All clubs in Administration." : "Find your people — join clubs to take part in their events and activities."}
                 actions={
                     isStudent && (
                         <ButtonLink to="/club-requests/new" variant="secondary">

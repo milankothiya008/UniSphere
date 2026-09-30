@@ -115,9 +115,7 @@ const ParticipantsPage = () => {
                 <>
                     <PageHeader
                         back={{ to: `/events/${id}`, label: "Back to event" }}
-                        eyebrow={<><ClipboardList size={14} /> Participants</>}
                         title={event.title}
-                        description={`${event.club.name} · ${formatDateTime(event.startAt)}`}
                         actions={
                             <>
                                 <StatusBadge status={event.status} />

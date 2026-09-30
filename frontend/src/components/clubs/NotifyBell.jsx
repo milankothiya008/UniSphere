@@ -8,7 +8,7 @@ import { plural } from "../../lib/format";
  * Follow a club to be emailed about its new events and announcements. The button says what it does:
  * "Follow" while you don't, "Unfollow" while you do.
  */
-export const FollowButton = ({ club, className = "" }) => {
+export const FollowButton = ({ club, className = "", showCount = true, onFollowersChange }) => {
     const toast = useToast();
     const [following, setFollowing] = useState(Boolean(club.viewer?.subscribed));
     const [followers, setFollowers] = useState(club.followerCount ?? 0);
@@ -18,6 +18,10 @@ export const FollowButton = ({ club, className = "" }) => {
         setFollowing(Boolean(club.viewer?.subscribed));
         setFollowers(club.followerCount ?? 0);
     }, [club]);
+
+    useEffect(() => {
+        onFollowersChange?.(followers);
+    }, [followers, onFollowersChange]);
 
     // Inactive clubs can be unfollowed but not followed.
     if (club.status !== "ACTIVE" && !following) {
@@ -62,7 +66,7 @@ export const FollowButton = ({ club, className = "" }) => {
                 {following ? <UserCheck size={16} /> : <UserPlus size={16} />}
                 {following ? "Unfollow" : "Follow"}
             </button>
-            <span className="follow-count">{plural(followers, "follower")}</span>
+            {showCount && <span className="follow-count">{plural(followers, "follower")}</span>}
         </div>
     );
 };

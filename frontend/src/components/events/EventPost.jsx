@@ -1,27 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import {
-    CalendarCheck2,
-    CalendarDays,
-    CalendarPlus,
-    CheckCircle2,
-    ChevronRight,
-    Clock,
-    Flame,
-    Hourglass,
-    ListPlus,
-    MapPin,
-    Share2,
-    Trophy,
-    Users
-} from "lucide-react";
+import { CalendarCheck2, CalendarPlus, CheckCircle2, ChevronRight, Clock, Flame, Hourglass, Link2, ListPlus, Send, Trophy, Users } from "lucide-react";
 import { eventApi } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { useReveal } from "../../hooks/useReveal";
-import { Avatar, Badge, Button, MediaFill } from "../ui";
+import { ActionMenu, Avatar, Badge, Button, MediaFill } from "../ui";
 import { Podium } from "../feed/FeedCard";
-import { dateParts, formatDate, formatDateTime, formatTimeRange, humanize, timeAgo } from "../../lib/format";
+import { formatDate, formatDateTime, formatTimeRange, humanize, shortAgo } from "../../lib/format";
 import { eligibilityProblem, isLive, isPast } from "../../lib/eligibility";
 import { categoryStyle, categoryVars, startsInLabel } from "../../lib/eventVisuals";
 import { downloadIcs } from "../../lib/calendar";
@@ -60,6 +46,7 @@ const Burst = () => (
     </span>
 );
 
+// The "likes" line: how many are going and whether seats are running out.
 const Capacity = ({ event }) => {
     const { registeredCount: going, maxParticipants: max, waitlistCount: waiting = 0 } = event;
     const unit = event.participationMode === "TEAM" ? "teams" : "going";
@@ -68,27 +55,16 @@ const Capacity = ({ event }) => {
 
     return (
         <div className="post-capacity">
-            <div className="post-capacity-top">
-                <span className="post-going">
-                    <Users size={14} /> {max ? `${going} / ${max} ${unit}` : `${going} ${unit}`}
+            <b className="post-going">{max ? `${going} / ${max} ${unit}` : `${going} ${unit}`}</b>
+            {max && left === 0 ? (
+                <span className="post-capacity-flag is-full">
+                    <Hourglass size={12} /> Full{waiting ? ` · ${waiting} waiting` : " · join the waitlist"}
                 </span>
-                {max && left === 0 ? (
-                    <span className="post-capacity-flag is-full">
-                        <Hourglass size={12} /> Full{waiting ? ` · ${waiting} waiting` : " · join the waitlist"}
-                    </span>
-                ) : fill !== null && fill >= 75 ? (
-                    <span className="post-capacity-flag">
-                        <Flame size={12} /> Filling fast · {left} left
-                    </span>
-                ) : left !== null ? (
-                    <span className="subtle">{left} spots left</span>
-                ) : null}
-            </div>
-            {fill !== null && (
-                <span className="post-capacity-bar" aria-hidden="true">
-                    <span style={{ "--fill": `${fill}%` }} className={fill >= 100 ? "is-full" : fill >= 75 ? "is-hot" : ""} />
+            ) : fill !== null && fill >= 75 ? (
+                <span className="post-capacity-flag">
+                    <Flame size={12} /> Filling fast · {left} left
                 </span>
-            )}
+            ) : null}
         </div>
     );
 };
@@ -122,8 +98,7 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
     // A full event still takes sign-ups: they go on the waitlist.
     const canRegister = isStudent && !registered && !waitlisted && !past && !live && ["OPEN", "FULL"].includes(event.registrationState) && !problem;
     const CategoryIcon = categoryStyle(event.category).icon;
-    const { month, day } = dateParts(event.startAt);
-
+    
     const register = async () => {
         setPending(true);
         try {
@@ -221,27 +196,30 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
                     }[event.registrationState])
             : null;
 
-    const longDescription = (event.shortDescription || "").length > 120;
+    const longDescription = (event.shortDescription || "").length > 90;
+
+    const menu = [
+        { label: "View event", icon: ChevronRight, onClick: () => navigate(link) },
+        event.club?._id && { label: "Go to club", icon: Users, onClick: () => navigate(`/clubs/${event.club._id}`) },
+        { label: "Copy link", icon: Link2, onClick: () => navigator.clipboard?.writeText(`${window.location.origin}${link}`).then(() => toast.success("Link copied")) }
+    ].filter(Boolean);
 
     return (
-        <article
-            ref={ref}
-            className={`card event-post ${live ? "is-live" : ""} ${revealed ? "is-revealed" : ""}`}
-            style={{ ...categoryVars(event.category), "--reveal-delay": `${Math.min(index % 4, 3) * 70}ms` }}
-        >
+        <article ref={ref} className={`event-post ${live ? "is-live" : ""} ${revealed ? "is-revealed" : ""}`} style={{ ...categoryVars(event.category), "--reveal-delay": `${Math.min(index % 4, 3) * 70}ms` }}>
             <header className="event-post-head">
                 <Link to={`/clubs/${event.club?._id}`} className="event-post-club">
                     <span className="post-avatar-ring">
                         <Avatar name={event.club?.name} src={event.club?.logo} />
                     </span>
-                    <span>
-                        <strong>{event.club?.name}</strong>
-                        <span className="subtle">{event.publishedAt ? `Posted ${timeAgo(event.publishedAt)}` : humanize(event.category)}</span>
+                    <span className="event-post-who">
+                        <span>
+                            <strong>{event.club?.name}</strong>
+                            {event.publishedAt && <span className="subtle"> · {shortAgo(event.publishedAt)}</span>}
+                        </span>
+                        <small>{event.venue?.name || humanize(event.category)}</small>
                     </span>
                 </Link>
-                <span className="category-chip">
-                    <CategoryIcon size={13} /> {humanize(event.category)}
-                </span>
+                <ActionMenu items={menu} label="Post options" />
             </header>
 
             <Link to={link} className="event-post-media" aria-label={`Open ${event.title}`}>
@@ -257,11 +235,6 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
                         </span>
                     </div>
                 )}
-                <span className="poster-shade" aria-hidden="true" />
-                <span className="poster-date" aria-hidden="true">
-                    <small>{month}</small>
-                    <b>{day}</b>
-                </span>
                 <span className="poster-status">
                     <PosterStatus event={event} live={live} past={past} />
                 </span>
@@ -272,61 +245,39 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
                 <div className="post-tools">
                     {!past && (
                         <button type="button" className="tool-btn" onClick={() => downloadIcs(event)} aria-label="Add to calendar" title="Add to calendar">
-                            <CalendarPlus size={18} />
+                            <CalendarPlus size={24} strokeWidth={1.8} />
                         </button>
                     )}
                     <button type="button" className="tool-btn" onClick={share} aria-label="Share event" title="Share">
-                        <Share2 size={18} />
+                        <Send size={23} strokeWidth={1.8} />
                     </button>
                 </div>
             </div>
 
-            {!past && <Capacity event={event} />}
-
             <div className="event-post-body">
-                <Link to={link} className="event-post-title">
-                    {event.title}
-                </Link>
-                {event.shortDescription && (
-                    <p className={`muted post-description ${expanded || !longDescription ? "" : "is-clamped"}`}>
-                        {event.shortDescription}
-                        {longDescription && !expanded && (
-                            <button type="button" className="more-btn" onClick={() => setExpanded(true)}>
-                                more
-                            </button>
-                        )}
-                    </p>
+                {!past && <Capacity event={event} />}
+                <p className={`post-caption ${expanded || !longDescription ? "" : "is-clamped"}`}>
+                    <Link to={link} className="event-post-title">
+                        {event.title}
+                    </Link>
+                    {event.shortDescription && <span className="muted"> {event.shortDescription}</span>}
+                </p>
+                {longDescription && !expanded && (
+                    <button type="button" className="more-btn" onClick={() => setExpanded(true)}>
+                        more
+                    </button>
                 )}
                 <div className="event-post-meta">
-                    {event.participationMode === "TEAM" && (
-                        <span>
-                            <Users size={14} /> Teams of {event.minTeamSize === event.maxTeamSize ? event.maxTeamSize : `${event.minTeamSize}–${event.maxTeamSize}`}
-                        </span>
-                    )}
                     <span>
-                        <CalendarDays size={14} /> {formatDate(event.startAt)}
+                        {formatDate(event.startAt)} · {formatTimeRange(event.startAt, event.endAt)}
                     </span>
-                    <span>
-                        <Clock size={14} /> {formatTimeRange(event.startAt, event.endAt)}
-                    </span>
-                    {event.venue?.name && (
-                        <span>
-                            <MapPin size={14} /> {event.venue.name}
-                        </span>
-                    )}
-                    {!past && !live && (
-                        <span>
-                            <Hourglass size={14} /> Register by {formatDateTime(event.registrationEnd)}
-                        </span>
-                    )}
+                    {event.participationMode === "TEAM" && <span>Teams of {event.minTeamSize === event.maxTeamSize ? event.maxTeamSize : `${event.minTeamSize}–${event.maxTeamSize}`}</span>}
+                    {!past && !live && event.registrationState === "OPEN" && <span>Register by {formatDateTime(event.registrationEnd)}</span>}
                 </div>
                 {note && <span className="event-post-note">{note}</span>}
 
                 {past && event.result && (
                     <div className="event-post-results">
-                        <div className="section-title" style={{ marginBottom: 6 }}>
-                            <Trophy size={13} style={{ verticalAlign: "-2px" }} /> Results
-                        </div>
                         <Podium awards={event.result.awards} />
                     </div>
                 )}

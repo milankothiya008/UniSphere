@@ -57,6 +57,20 @@ const OFFSET = import.meta.env.VITE_UNIVERSITY_TZ_OFFSET || "+05:30";
 // Converts a datetime-local value (university time) to an ISO instant for the API.
 export const fromDateTimeInput = (value) => (value ? new Date(`${value}:00${OFFSET}`).toISOString() : "");
 
+// Instagram-style age: "now", "5m", "3h", "2d", "4w", then the date.
+export const shortAgo = (value) => {
+    if (!valid(value)) {
+        return "";
+    }
+    const seconds = Math.max(0, Math.round((Date.now() - toDate(value).getTime()) / 1000));
+    for (const [suffix, size] of [["w", 604800], ["d", 86400], ["h", 3600], ["m", 60]]) {
+        if (seconds >= size) {
+            return suffix === "w" && seconds >= 604800 * 8 ? formatDate(value) : `${Math.floor(seconds / size)}${suffix}`;
+        }
+    }
+    return "now";
+};
+
 export const timeAgo = (value) => {
     if (!valid(value)) {
         return "";

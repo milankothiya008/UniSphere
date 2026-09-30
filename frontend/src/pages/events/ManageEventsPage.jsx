@@ -40,13 +40,7 @@ const ManageEventsPage = () => {
     return (
         <>
             <PageHeader
-                eyebrow={<><Wrench size={14} /> Event management</>}
                 title={isFaculty ? "Events in your mentored clubs" : "Your club events"}
-                description={
-                    isFaculty
-                        ? "Review submissions, request changes and keep track of what your clubs are running."
-                        : "Drafts, approvals, publishing and results for the clubs you help run."
-                }
                 actions={
                     eventClubs.length > 0 && (
                         <ButtonLink to="/events/create">

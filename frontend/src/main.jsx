@@ -20,6 +20,7 @@ import "./styles/gallery.css";
 import "./styles/recruitment.css";
 import "./styles/roles.css";
 import "./styles/system.css";
+import "./styles/insta.css";
 
 createRoot(document.getElementById("root")).render(
     <StrictMode>

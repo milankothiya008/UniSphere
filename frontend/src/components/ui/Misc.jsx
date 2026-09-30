@@ -1,32 +1,42 @@
 import { NavLink, Link } from "react-router-dom";
-import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { initials } from "../../lib/format";
 import { imageUrl } from "../../lib/images";
 
-// Top-level pages get the animated dark banner; pages with a back link (details, forms) get the lighter variant.
-export const PageHeader = ({ eyebrow, title, description, actions, back }) => (
-    <>
+// A compact title row: an optional back arrow, the club it belongs to, the title, one line of facts and
+// the page's actions. No banners or blurbs.
+export const PageHeader = ({ title, actions, back, club, meta }) => (
+    <header className="page-header">
         {back && (
-            <Link to={back.to} className="back-link">
-                <ArrowLeft size={15} /> {back.label}
+            <Link to={back.to} className="back-link" aria-label={back.label} title={back.label}>
+                <ChevronLeft size={22} />
             </Link>
         )}
-        <header className={`page-header page-hero ${back ? "page-hero-soft" : ""}`}>
-            {!back && (
-                <span className="page-hero-orbs" aria-hidden="true">
-                    <i />
-                    <i />
-                    <i />
-                </span>
+        <div className="page-header-title">
+            {club && (
+                <Link to={`/clubs/${club._id}`} className="page-header-club">
+                    <Avatar name={club.name} src={club.logo} size="xs" /> {club.name}
+                </Link>
             )}
-            <div className="page-hero-copy">
-                {eyebrow && <div className="eyebrow">{eyebrow}</div>}
-                <h1>{title}</h1>
-                {description && <p>{description}</p>}
-            </div>
-            {actions && <div className="row page-hero-actions">{actions}</div>}
-        </header>
-    </>
+            <h1>{title}</h1>
+            {meta && <div className="page-header-meta">{meta}</div>}
+        </div>
+        {actions && <div className="row page-header-actions">{actions}</div>}
+    </header>
+);
+
+// Instagram-style numbers row ("12 events · 340 members"). Items with `to` are links.
+export const StatStrip = ({ items, className = "" }) => (
+    <ul className={`stat-strip ${className}`}>
+        {items.map(({ label, value, to }) => {
+            const body = (
+                <>
+                    <b>{value ?? "–"}</b> <span>{label}</span>
+                </>
+            );
+            return <li key={label}>{to ? <Link to={to}>{body}</Link> : body}</li>;
+        })}
+    </ul>
 );
 
 export const Card = ({ title, actions, footer, children, padded = true, className = "" }) => (
@@ -44,7 +54,7 @@ export const Card = ({ title, actions, footer, children, padded = true, classNam
 
 export const Avatar = ({ name, src, size, square = false }) => (
     <span className={`avatar ${size ? `avatar-${size}` : ""} ${square ? "avatar-square" : ""}`} aria-hidden="true">
-        {src ? <img src={imageUrl(src, size === "lg" ? 96 : 48)} alt="" loading="lazy" decoding="async" /> : initials(name)}
+        {src ? <img src={imageUrl(src, size === "xl" ? 240 : size === "lg" ? 96 : 48)} alt="" loading="lazy" decoding="async" /> : initials(name)}
     </span>
 );
 

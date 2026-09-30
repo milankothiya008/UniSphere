@@ -305,18 +305,12 @@ const EventFormPage = () => {
         <AsyncContent loading={isEdit && existing.loading}>
             <PageHeader
                 back={isEdit ? { to: `/events/${id}`, label: "Back to event" } : { to: "/events/manage", label: "Manage events" }}
-                eyebrow={<><CalendarPlus size={14} /> {isEdit ? "Edit event" : "New event"}</>}
                 title={isEdit ? event?.title || "Edit event" : "Create an event"}
-                description={
-                    mode === "live"
-                        ? "Everything can be changed until the event starts. Your faculty mentor reviews the changes first — students keep seeing the current details until they're approved and you publish them."
-                        : mode === "reapprove"
-                          ? "This event is approved but not public yet. Saving changes sends it back to your faculty mentor for approval."
-                          : "Save a draft, then submit it to your club's faculty mentor for approval. It becomes public only after you publish it."
-                }
             />
 
             <div className="stack-lg" style={{ maxWidth: 880 }}>
+                {mode === "live" && <Alert type="info">Your faculty mentor reviews the changes first — students see the current details until they're approved and published.</Alert>}
+                {mode === "reapprove" && <Alert type="info">Saving changes sends this event back to your faculty mentor for approval.</Alert>}
                 {event?.status === "NEEDS_CHANGES" && event.reviewComment && (
                     <Alert type="warning" title="Changes requested by your mentor">
                         {event.reviewComment}

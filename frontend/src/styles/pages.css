@@ -3,179 +3,6 @@
  * livelier tabs, tables, empty states, modals and forms. Loaded after feed.css.
  */
 
-/* ---------------------------------------------------------------- Page banner */
-.page-hero {
-    position: relative;
-    isolation: isolate;
-    align-items: center;
-    padding: 28px 32px;
-    border-radius: var(--radius-xl);
-    overflow: hidden;
-    color: #fff;
-    background: linear-gradient(135deg, #0c1538 0%, #1b2a6b 52%, #2c46b0 100%);
-    box-shadow: 0 26px 54px -32px rgba(17, 28, 77, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-    animation: hero-in 0.55s var(--ease-out) both;
-}
-
-/* Dot texture fading out from the top-left. */
-.page-hero::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px);
-    background-size: 20px 20px;
-    mask-image: radial-gradient(ellipse at 15% 20%, #000 0%, transparent 65%);
-    -webkit-mask-image: radial-gradient(ellipse at 15% 20%, #000 0%, transparent 65%);
-}
-
-.page-hero-orbs {
-    position: absolute;
-    inset: 0;
-    z-index: -2;
-    pointer-events: none;
-}
-
-.page-hero-orbs i {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(42px);
-    opacity: 0.65;
-    mix-blend-mode: screen;
-}
-
-.page-hero-orbs i:nth-child(1) {
-    width: 280px;
-    height: 280px;
-    right: -50px;
-    top: -140px;
-    background: rgba(236, 72, 153, 0.5);
-    animation: orb-float 16s ease-in-out infinite alternate;
-}
-
-.page-hero-orbs i:nth-child(2) {
-    width: 240px;
-    height: 240px;
-    right: 30%;
-    bottom: -170px;
-    background: rgba(56, 189, 248, 0.35);
-    animation: orb-float 20s ease-in-out infinite alternate-reverse;
-}
-
-.page-hero-orbs i:nth-child(3) {
-    width: 200px;
-    height: 200px;
-    left: -70px;
-    top: -80px;
-    background: rgba(96, 165, 250, 0.45);
-    animation: orb-float 18s ease-in-out infinite alternate;
-}
-
-.page-hero-copy {
-    min-width: 0;
-    flex: 1 1 320px;
-}
-
-.page-hero h1 {
-    color: #fff;
-    font-family: var(--font-display);
-    font-size: clamp(1.55rem, 1.15rem + 1.3vw, 2.15rem);
-    letter-spacing: -0.02em;
-    line-height: 1.15;
-}
-
-.page-hero p {
-    color: #cdd6fb;
-}
-
-.page-hero .eyebrow {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.18);
-    color: var(--gold-500);
-    backdrop-filter: blur(6px);
-}
-
-.page-hero .eyebrow a {
-    color: inherit;
-}
-
-.page-hero-actions {
-    position: relative;
-    flex-wrap: wrap;
-}
-
-/* Controls sitting on the dark banner */
-.page-hero:not(.page-hero-soft) .btn-primary {
-    background: #fff;
-    color: var(--ink-800);
-    border-color: #fff;
-    box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.5);
-}
-
-.page-hero:not(.page-hero-soft) .btn-primary:hover:not(:disabled) {
-    background: #eef1ff;
-    color: var(--ink-900);
-}
-
-.page-hero:not(.page-hero-soft) .btn-secondary {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.22);
-    color: #fff;
-    backdrop-filter: blur(6px);
-}
-
-.page-hero:not(.page-hero-soft) .btn-secondary:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.18);
-    border-color: rgba(255, 255, 255, 0.35);
-}
-
-.page-hero:not(.page-hero-soft) .btn-ghost {
-    color: #dfe5fb;
-}
-
-.page-hero:not(.page-hero-soft) .badge {
-    background: rgba(255, 255, 255, 0.14);
-    color: #fff;
-    border-color: rgba(255, 255, 255, 0.2);
-}
-
-.page-hero:not(.page-hero-soft) .input,
-.page-hero:not(.page-hero-soft) .select {
-    background: rgba(255, 255, 255, 0.95);
-}
-
-/* Detail and form pages: a lighter tinted banner that keeps the content in focus. */
-.page-hero.page-hero-soft {
-    color: var(--text);
-    background:
-        radial-gradient(520px 200px at 100% 0%, rgba(60, 91, 214, 0.12), transparent 70%),
-        radial-gradient(420px 180px at 0% 100%, rgba(245, 184, 61, 0.12), transparent 70%),
-        var(--surface);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-sm);
-}
-
-.page-hero.page-hero-soft::after {
-    background-image: radial-gradient(rgba(27, 42, 107, 0.09) 1px, transparent 1px);
-    mask-image: radial-gradient(ellipse at 100% 0%, #000 0%, transparent 60%);
-    -webkit-mask-image: radial-gradient(ellipse at 100% 0%, #000 0%, transparent 60%);
-}
-
-.page-hero.page-hero-soft h1 {
-    color: var(--text);
-}
-
-.page-hero.page-hero-soft p {
-    color: var(--text-muted);
-}
-
-.page-hero.page-hero-soft .eyebrow {
-    background: var(--ink-50);
-    border-color: var(--ink-100);
-    color: var(--ink-600);
-}
-
 @keyframes hero-in {
     from {
         opacity: 0;
@@ -780,15 +607,6 @@
         justify-content: flex-start;
     }
 
-    .page-hero {
-        padding: 22px 20px;
-        border-radius: var(--radius-lg);
-    }
-
-    .page-hero-actions {
-        width: 100%;
-    }
-
     /* Tables scroll sideways inside their card rather than squashing columns. */
     .table-wrap .table {
         min-width: 600px;
@@ -812,8 +630,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .page-hero,
-    .page-hero-orbs i,
     .auth-orbs i,
     .auth-aside h1,
     .auth-aside h1 em,

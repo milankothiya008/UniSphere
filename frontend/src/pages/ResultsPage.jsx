@@ -74,9 +74,7 @@ const ResultsPage = () => {
     return (
         <>
             <PageHeader
-                eyebrow={<><Award size={14} /> Results</>}
                 title="Results & winners"
-                description="Round-by-round standings and final results published by clubs. Pick an event to see its results."
             />
             <div className="stack">
                 <div className="filter-bar">

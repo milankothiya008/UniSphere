@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Lightbulb, Send, X } from "lucide-react";
+import { Send, X } from "lucide-react";
 import { clubRequestApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useAuth } from "../../context/AuthContext";
@@ -124,9 +124,7 @@ const ClubRequestFormPage = () => {
         <AsyncContent loading={isEdit && existing.loading}>
             <PageHeader
                 back={isEdit ? { to: `/club-requests/${id}`, label: "Back to request" } : { to: "/club-requests", label: "Club requests" }}
-                eyebrow={<><Lightbulb size={14} /> {isEdit ? "Update request" : "Propose a club"}</>}
                 title={isEdit ? `Update “${request?.name || ""}”` : "Start a new club"}
-                description="Tell reviewers what the club is about and who is starting it. A faculty member verifies the proposal before the university admin approves it."
             />
 
             <form className="stack-lg" style={{ maxWidth: 860 }} onSubmit={submit} noValidate>

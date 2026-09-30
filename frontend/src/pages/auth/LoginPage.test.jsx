@@ -14,11 +14,11 @@ vi.mock("../../api/endpoints", () => ({
 }));
 
 describe("LoginPage", () => {
-    test("signs in and navigates to the dashboard", async () => {
+    test("signs in and navigates to the feed", async () => {
         const login = vi.fn().mockResolvedValue({});
         useAuth.mockReturnValue(authValue({ login, status: "anonymous" }));
 
-        renderWithRouter(<LoginPage />, { route: "/login", path: "/login", extraRoutes: <Route path="/dashboard" element={<p>dashboard</p>} /> });
+        renderWithRouter(<LoginPage />, { route: "/login", path: "/login", extraRoutes: <Route path="/feed" element={<p>dashboard</p>} /> });
 
         await userEvent.type(screen.getByLabelText(/university email/i), "24CEUOG001@ddu.ac.in");
         await userEvent.type(screen.getByLabelText(/password/i), "Secret123");
@@ -32,7 +32,7 @@ describe("LoginPage", () => {
         const login = vi.fn().mockResolvedValue({});
         useAuth.mockReturnValue(authValue({ login, status: "anonymous" }));
 
-        renderWithRouter(<LoginPage />, { route: "/login", path: "/login", extraRoutes: <Route path="/dashboard" element={<p>dashboard</p>} /> });
+        renderWithRouter(<LoginPage />, { route: "/login", path: "/login", extraRoutes: <Route path="/feed" element={<p>dashboard</p>} /> });
 
         const email = screen.getByLabelText(/university email/i);
         await userEvent.type(email, "admin@ddu.ac.in");

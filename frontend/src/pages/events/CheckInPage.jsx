@@ -7,7 +7,7 @@ import { useDebounce } from "../../hooks/useDebounce";
 import { useQrScanner } from "../../hooks/useQrScanner";
 import { useToast } from "../../context/ToastContext";
 import { Alert, AsyncContent, Avatar, Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, PageHeader, SearchInput, Spinner, Tabs } from "../../components/ui";
-import { batchLabel, formatDateTime, formatTime, plural } from "../../lib/format";
+import { batchLabel, formatTime, plural } from "../../lib/format";
 import { spacedCode } from "../../components/events/TicketButton";
 
 const POLL_MS = 30000;
@@ -364,13 +364,7 @@ const CheckInPage = () => {
                 <>
                     <PageHeader
                         back={{ to: `/events/${id}`, label: "Back to event" }}
-                        eyebrow={
-                            <>
-                                <ScanLine size={14} /> Check-in
-                            </>
-                        }
                         title={data.event.title}
-                        description={`${formatDateTime(data.event.startAt)}${data.event.venue?.name ? ` · ${data.event.venue.name}` : ""}`}
                         actions={
                             <>
                                 <Badge tone={open ? "success" : "neutral"}>{open ? "Check-in open" : data.checkIn?.status === "CLOSED" ? "Check-in closed" : "Not started"}</Badge>

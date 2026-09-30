@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { AlignLeft, ArrowDown, ArrowUp, CircleDot, Copy, FileText, Layers, Link2, Megaphone, Paperclip, Plus, Save, Send, SquareCheck, Trash2, Type, UserRoundPlus, X } from "lucide-react";
+import { AlignLeft, ArrowDown, ArrowUp, CircleDot, Copy, FileText, Layers, Link2, Paperclip, Plus, Save, Send, SquareCheck, Trash2, Type, UserRoundPlus, X } from "lucide-react";
 import { clubApi, recruitmentApi, referenceApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useToast } from "../../context/ToastContext";
@@ -554,13 +554,8 @@ const DriveFormPage = () => {
         <AsyncContent loading={(isEdit && existing.loading) || clubRoles.loading} error={existing.error || clubRoles.error} onRetry={existing.error ? existing.reload : clubRoles.reload}>
             <PageHeader
                 back={{ to: isEdit ? `/recruitment/${driveId}` : `/clubs/${routeClubId}/recruitment`, label: isEdit ? "Back to the drive" : "Recruitment" }}
-                eyebrow={
-                    <>
-                        <Megaphone size={14} /> {club ? club.name : "Recruitment"}
-                    </>
-                }
+                club={club?._id ? club : undefined}
                 title={isEdit ? "Edit recruitment drive" : "New recruitment drive"}
-                description="Pick the roles you're recruiting for and build a page-by-page form for each. Your faculty mentor approves the drive before students can apply."
             />
             {locked ? (
                 <Alert type="warning" title="This drive can't be edited now">

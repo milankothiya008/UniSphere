@@ -9,9 +9,7 @@ const MentoredClubsPage = () => {
     return (
         <>
             <PageHeader
-                eyebrow={<><GraduationCap size={14} /> Faculty</>}
                 title="Mentored clubs"
-                description="Clubs you oversee as faculty mentor. You approve their events and appoint their president."
             />
             {mentoredClubs.length === 0 ? (
                 <EmptyState

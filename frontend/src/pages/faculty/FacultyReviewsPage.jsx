@@ -14,9 +14,7 @@ const FacultyReviewsPage = () => {
     return (
         <>
             <PageHeader
-                eyebrow={<><ClipboardCheck size={14} /> Faculty</>}
                 title="Reviews"
-                description="New events, edits and recruitment drives from the clubs you mentor, plus club proposals waiting for a faculty decision."
             />
             <div className="grid-2" style={{ alignItems: "start" }}>
                 <Card title={`Events awaiting approval${events.data ? ` (${events.data.length})` : ""}`} padded={false}>

@@ -32,7 +32,7 @@ const LoginPage = () => {
         setError(null);
         try {
             await login(form.email.trim(), form.password);
-            navigate(location.state?.from || "/dashboard", { replace: true });
+            navigate(location.state?.from || "/feed", { replace: true });
         } catch (err) {
             setError(err);
         } finally {

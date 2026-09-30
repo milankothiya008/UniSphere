@@ -5,7 +5,6 @@ import { useApi } from "../../hooks/useApi";
 import { useToast } from "../../context/ToastContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { ApiErrorAlert, AsyncContent, Button, Card, EmptyState, Field, Input, Modal, PageHeader, Switch, Tabs } from "../../components/ui";
-import { plural } from "../../lib/format";
 
 // The kinds of venue, with the icon used for each. Labs belong to departments.
 export const VENUE_TYPES = [
@@ -157,13 +156,7 @@ const AdminVenuesPage = () => {
     return (
         <>
             <PageHeader
-                eyebrow={
-                    <>
-                        <MapPin size={14} /> Administration
-                    </>
-                }
                 title="Venues & labs"
-                description={data ? `${plural(data.length, "venue")} · ${plural(counts.LAB || 0, "lab")} belonging to departments` : "Bookable spaces for events and interviews."}
                 actions={
                     <Button onClick={() => setEditing("new")}>
                         <Plus size={16} /> Add venue

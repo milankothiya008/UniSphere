@@ -19,6 +19,8 @@ const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const FeedPage = lazy(() => import("./pages/FeedPage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const ExplorePage = lazy(() => import("./pages/ExplorePage"));
 const ResultsPage = lazy(() => import("./pages/ResultsPage"));
 const GalleryPage = lazy(() => import("./pages/gallery/GalleryPage"));
 const DrivePage = lazy(() => import("./pages/recruitment/DrivePage"));
@@ -89,10 +91,13 @@ const App = () => (
                     </ProtectedRoute>
                 }
             >
-                <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route index element={<Navigate to="/feed" replace />} />
                 <Route path="/feed" element={<FeedPage />} />
-                <Route path="/notifications" element={<NotificationsPage />} />
+                <Route path="/explore" element={<ExplorePage />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/activity" element={<NotificationsPage />} />
+                <Route path="/notifications" element={<Navigate to="/activity" replace />} />
+                <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/settings/notifications" element={<NotificationSettingsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/results" element={<ResultsPage />} />

@@ -94,13 +94,7 @@ const GalleryPage = () => {
     return (
         <>
             <PageHeader
-                eyebrow={
-                    <>
-                        <Images size={14} /> Gallery
-                    </>
-                }
                 title="Event gallery"
-                description="Photos and videos from club events, shared by members and participants. Pick an event to see its gallery or add yours."
             />
             <div className="stack">
                 <div className="filter-bar">

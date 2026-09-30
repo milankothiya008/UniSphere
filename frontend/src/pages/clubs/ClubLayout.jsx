@@ -1,22 +1,18 @@
 import { useState } from "react";
 import { Outlet, useParams } from "react-router-dom";
-import { CalendarDays, GraduationCap, Info, Lock, LogOut, Megaphone, Settings, UserPlus, Users, Crown, Clock, Gift } from "lucide-react";
+import { CalendarDays, Clock, Gift, Info, Link2, Lock, LogOut, Megaphone, Settings, UserPlus, Users } from "lucide-react";
 import { clubApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useAuth } from "../../context/AuthContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { useToast } from "../../context/ToastContext";
-import { Alert, AsyncContent, Badge, Button, ButtonLink, ConfirmDialog, RoleBadge, StatusBadge, Tabs } from "../../components/ui";
-import { departmentsLabel, formatDate, humanize, plural } from "../../lib/format";
+import { ActionMenu, Alert, AsyncContent, ButtonLink, ConfirmDialog, RoleBadge, StatStrip, StatusBadge, Tabs } from "../../components/ui";
+import { departmentsLabel, formatDate, humanize } from "../../lib/format";
 import { APPLICATION_STATUSES, PERMISSIONS } from "../../lib/constants";
 import { belongsToScope } from "../../lib/eligibility";
 import { ClubSocialRow } from "../../components/clubs/ClubConnect";
 import { FollowButton } from "../../components/clubs/NotifyBell";
 import { ClubStoryAvatar } from "../../components/stories/ClubStoryAvatar";
-import { cssImage } from "../../lib/images";
-
-// The cover sits under a dark overlay (see .hero-cover) so the header text stays readable on any image.
-const coverStyle = (src) => (src ? { "--cover": cssImage(src, 1400) } : undefined);
 
 const ClubLayout = () => {
     const { id } = useParams();
@@ -25,6 +21,7 @@ const ClubLayout = () => {
     const toast = useToast();
     const { data: club, loading, error, reload } = useApi(() => clubApi.get(id), [id]);
     const [leaving, setLeaving] = useState(false);
+    const [followers, setFollowers] = useState(null);
 
     const refresh = () => {
         reload({ silent: true });
@@ -54,37 +51,35 @@ const ClubLayout = () => {
         <AsyncContent loading={loading} error={error} onRetry={reload}>
             {club && (
                 <div className="stack-lg">
-                    <section className={`hero ${club.coverImage ? "hero-cover" : ""}`} style={coverStyle(club.coverImage)}>
-                        <div className="row" style={{ gap: 18, alignItems: "flex-start", flexWrap: "wrap" }}>
-                            <ClubStoryAvatar club={club} square />
-                            <div className="stack-sm" style={{ flex: 1, minWidth: 220 }}>
-                                <div className="row">
-                                    <Badge>{humanize(club.category)}</Badge>
-                                    <Badge>{departmentsLabel(club)}</Badge>
-                                    {club.status !== "ACTIVE" && <StatusBadge status={club.status} />}
-                                    {viewer.role && <RoleBadge role={viewer.role} label={viewer.roleName} />}
-                                </div>
+                    <section className="club-head">
+                        <div className="club-head-avatar">
+                            <ClubStoryAvatar club={club} />
+                        </div>
+                        <div className="club-head-main">
+                            <div className="club-head-title">
                                 <h1>{club.name}</h1>
-                                {club.tagline && <p className="hero-tagline">{club.tagline}</p>}
-                                <div className="row small" style={{ gap: 16, color: "#d7defa" }}>
-                                    <span className="row" style={{ gap: 6 }}>
-                                        <Users size={14} /> {plural(club.memberCount, "member")}
-                                    </span>
-                                    {club.president && (
-                                        <span className="row" style={{ gap: 6 }}>
-                                            <Crown size={14} /> {club.president.name}
-                                        </span>
-                                    )}
-                                    {club.mentor && (
-                                        <span className="row" style={{ gap: 6 }}>
-                                            <GraduationCap size={14} /> Mentor: {club.mentor.name}
-                                        </span>
-                                    )}
-                                </div>
-                                <ClubSocialRow club={club} className="on-dark" />
+                                {club.status !== "ACTIVE" && <StatusBadge status={club.status} />}
+                                {viewer.role && <RoleBadge role={viewer.role} label={viewer.roleName} />}
                             </div>
-                            <div className="row hero-actions">
-                                {user && <FollowButton club={club} />}
+                            <StatStrip
+                                items={[
+                                    { label: "upcoming", value: club.upcomingEvents ?? 0, to: `/clubs/${id}/events` },
+                                    { label: club.memberCount === 1 ? "member" : "members", value: club.memberCount ?? 0, to: canSeeMembers ? `/clubs/${id}/members` : undefined },
+                                    ...(typeof club.followerCount === "number" ? [{ label: (followers ?? club.followerCount) === 1 ? "follower" : "followers", value: followers ?? club.followerCount }] : [])
+                                ]}
+                            />
+                            <div className="club-head-bio">
+                                <strong>
+                                    {humanize(club.category)} · {departmentsLabel(club)}
+                                </strong>
+                                {club.tagline && <span>{club.tagline}</span>}
+                                {(club.president || club.mentor) && (
+                                    <span className="subtle">{[club.president && `President ${club.president.name}`, club.mentor && `Mentor ${club.mentor.name}`].filter(Boolean).join(" · ")}</span>
+                                )}
+                                <ClubSocialRow club={club} />
+                            </div>
+                            <div className="club-head-actions">
+                                {user && <FollowButton club={club} showCount={false} onFollowersChange={setFollowers} />}
                                 {/* Students join through recruitment drives. */}
                                 {isStudent && club.status === "ACTIVE" && !viewer.isMember &&
                                     (!belongsToScope(user, club) ? (
@@ -93,29 +88,31 @@ const ClubLayout = () => {
                                         </span>
                                     ) : viewer.applications?.some((application) => application.status === "OFFERED") ? (
                                         <ButtonLink to={`/recruitment/${club.recruiting._id}?offer=1`} variant="accent">
-                                            <Gift size={16} /> You have an offer — respond
+                                            <Gift size={16} /> Respond to offer
                                         </ButtonLink>
                                     ) : viewer.applications?.length ? (
                                         <ButtonLink to={`/recruitment/${club.recruiting._id}`} variant="secondary">
                                             <Clock size={16} />{" "}
                                             {viewer.applications.length === 1
-                                                ? `Application: ${APPLICATION_STATUSES[viewer.applications[0].status]?.[0] || "Submitted"}`
+                                                ? APPLICATION_STATUSES[viewer.applications[0].status]?.[0] || "Applied"
                                                 : `Applied for ${viewer.applications.length} roles`}
                                         </ButtonLink>
                                     ) : club.recruiting?.open ? (
-                                        <ButtonLink to={`/recruitment/${club.recruiting._id}`} variant="accent">
-                                            <UserPlus size={16} /> Apply now · until {formatDate(club.recruiting.applicationEnd)}
+                                        <ButtonLink to={`/recruitment/${club.recruiting._id}`}>
+                                            <UserPlus size={16} /> Apply · until {formatDate(club.recruiting.applicationEnd)}
                                         </ButtonLink>
                                     ) : club.recruiting ? (
                                         <ButtonLink to={`/recruitment/${club.recruiting._id}`} variant="secondary">
-                                            <Megaphone size={16} /> Recruitment opens {formatDate(club.recruiting.applicationStart)}
+                                            <Megaphone size={16} /> Opens {formatDate(club.recruiting.applicationStart)}
                                         </ButtonLink>
                                     ) : null)}
-                                {viewer.isMember && viewer.role !== "PRESIDENT" && (
-                                    <Button variant="secondary" onClick={() => setLeaving(true)}>
-                                        <LogOut size={16} /> Leave club
-                                    </Button>
-                                )}
+                                <ActionMenu
+                                    label="Club options"
+                                    items={[
+                                        { label: "Copy link", icon: Link2, onClick: () => navigator.clipboard?.writeText(window.location.href).then(() => toast.success("Link copied")) },
+                                        { label: "Leave club", icon: LogOut, danger: true, hidden: !(viewer.isMember && viewer.role !== "PRESIDENT"), onClick: () => setLeaving(true) }
+                                    ]}
+                                />
                             </div>
                         </div>
                     </section>

@@ -32,7 +32,7 @@ export const GuestRoute = ({ children }) => {
     }
 
     if (status === "authenticated") {
-        return <Navigate to="/dashboard" replace />;
+        return <Navigate to="/feed" replace />;
     }
 
     return children || <Outlet />;

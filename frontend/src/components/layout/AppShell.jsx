@@ -1,196 +1,216 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-    Award,
-    BarChart3,
     BellRing,
     Building2,
-    CalendarCheck2,
     ClipboardCheck,
-    FileSignature,
+    Compass,
     FileText,
     GraduationCap,
+    Heart,
     Home,
-    Images,
-    LayoutDashboard,
-    LogOut,
     MapPin,
     Menu,
-    Newspaper,
+    PlusSquare,
+    Settings,
     Settings2,
     ShieldCheck,
-    Sparkles,
-    User,
+    LogOut,
     Users,
     Wrench
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
-import { Avatar } from "../ui";
-import { ROLE_LABELS } from "../../lib/constants";
-import { NotificationBell } from "./NotificationBell";
+import { useUnreadCount } from "../../hooks/useUnreadCount";
+import { ActionMenu, Avatar } from "../ui";
+import { CreateSheet, useCreateOptions } from "./CreateSheet";
 
-const NavItem = ({ to, icon: Icon, label, end, count }) => (
-    <NavLink to={to} end={end} className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
-        <Icon size={18} />
-        <span>{label}</span>
-        {count ? <span className="nav-count">{count}</span> : null}
-    </NavLink>
+const Brand = () => (
+    <Link to="/feed" className="brand" aria-label="CampusConnect home">
+        <span className="brand-mark" aria-hidden="true">
+            C
+        </span>
+        <span className="brand-name">CampusConnect</span>
+    </Link>
 );
 
-const NavSection = ({ title, children }) => (
-    <div className="nav-section">
-        {title && <div className="nav-section-title">{title}</div>}
-        {children}
-    </div>
-);
+const Count = ({ value }) => (value > 0 ? <span className="nav-badge">{value > 99 ? "99+" : value}</span> : null);
 
-const Sidebar = () => {
+// The main destinations: the same five on the side bar and the phone's bottom tabs.
+const usePrimaryNav = () => {
+    const { user, isFaculty, isAdmin } = useAuth();
+    const unread = useUnreadCount();
+    const canCreate = useCreateOptions().length > 0;
+    const { pathname } = useLocation();
+
+    const role = isAdmin
+        ? { key: "role", to: "/dashboard", icon: ShieldCheck, label: "Admin" }
+        : isFaculty
+          ? { key: "role", to: "/dashboard", icon: ClipboardCheck, label: "Reviews" }
+          : canCreate
+            ? { key: "create", icon: PlusSquare, label: "Create" }
+            : null;
+
+    return [
+        { key: "home", to: "/feed", icon: Home, label: "Home", active: pathname === "/feed" },
+        { key: "explore", to: "/explore", icon: Compass, label: "Explore" },
+        role,
+        { key: "activity", to: "/activity", icon: Heart, label: "Activity", count: unread, active: ["/activity", "/notifications"].includes(pathname) },
+        { key: "profile", to: "/profile", label: "Profile", avatar: user }
+    ].filter(Boolean);
+};
+
+// Everything else: role pages, settings and sign-out. A list on wide screens, a menu on phones.
+const useSecondaryNav = () => {
     const { isStudent, isFaculty, isAdmin } = useAuth();
-    const { officerClubs, eventClubs, mentoredClubs } = useWorkspace();
+    const { officerClubs, eventClubs } = useWorkspace();
     const managesEvents = isFaculty || eventClubs.length > 0 || officerClubs.length > 0;
 
-    return (
-        <aside className="sidebar" aria-label="Main navigation">
-            <Link to="/dashboard" className="brand">
-                <span className="brand-mark">
-                    <Sparkles size={18} />
-                </span>
-                <span className="brand-name">
-                    Campus<span>Connect</span>
-                </span>
-            </Link>
-            <nav className="sidebar-nav">
-                <NavSection>
-                    <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
-                    <NavItem to="/feed" icon={Newspaper} label="Campus feed" />
-                    <NavItem to="/clubs" icon={Building2} label="Clubs" end />
-                    <NavItem to="/results" icon={Award} label="Results" />
-                    <NavItem to="/gallery" icon={Images} label="Gallery" />
-                </NavSection>
-
-                {isStudent && (
-                    <NavSection title="My activity">
-                        <NavItem to="/my-registrations" icon={CalendarCheck2} label="My registrations" />
-                        <NavItem to="/my-applications" icon={FileSignature} label="My applications" />
-                        <NavItem to="/club-requests" icon={FileText} label="Club requests" />
-                    </NavSection>
-                )}
-
-                {managesEvents && (
-                    <NavSection title={isStudent ? "Club workspace" : "Event management"}>
-                        <NavItem to="/events/manage" icon={Wrench} label="Manage events" />
-                        {officerClubs.slice(0, 4).map((membership) => (
-                            <NavItem key={membership.club._id} to={`/clubs/${membership.club._id}`} icon={Users} label={membership.club.name} />
-                        ))}
-                    </NavSection>
-                )}
-
-                {isFaculty && (
-                    <NavSection title="Faculty">
-                        <NavItem to="/faculty" icon={ClipboardCheck} label="Reviews" end />
-                        <NavItem to="/faculty/clubs" icon={GraduationCap} label="Mentored clubs" count={mentoredClubs.length || null} />
-                        <NavItem to="/club-requests" icon={FileText} label="Club requests" />
-                    </NavSection>
-                )}
-
-                {isAdmin && (
-                    <NavSection title="Administration">
-                        <NavItem to="/admin" icon={BarChart3} label="Overview" end />
-                        <NavItem to="/admin/club-requests" icon={ShieldCheck} label="Club approvals" />
-                        <NavItem to="/admin/clubs" icon={Building2} label="All clubs" />
-                        <NavItem to="/admin/users" icon={Users} label="Users" />
-                        <NavItem to="/admin/faculty" icon={GraduationCap} label="Faculty & mentors" />
-                        <NavItem to="/admin/academics" icon={Settings2} label="Departments & batches" />
-                        <NavItem to="/admin/venues" icon={MapPin} label="Venues" />
-                    </NavSection>
-                )}
-            </nav>
-            <div className="sidebar-footer">CampusConnect · University club & event platform</div>
-        </aside>
-    );
+    return [
+        managesEvents && { to: "/events/manage", icon: Wrench, label: "Manage events" },
+        isFaculty && { to: "/faculty/clubs", icon: GraduationCap, label: "Mentored clubs" },
+        (isStudent || isFaculty) && { to: "/club-requests", icon: FileText, label: "Club requests" },
+        ...(isAdmin
+            ? [
+                  { to: "/admin/club-requests", icon: ShieldCheck, label: "Club approvals" },
+                  { to: "/admin/clubs", icon: Building2, label: "All clubs" },
+                  { to: "/admin/users", icon: Users, label: "Users" },
+                  { to: "/admin/faculty", icon: GraduationCap, label: "Faculty & mentors" },
+                  { to: "/admin/academics", icon: Settings2, label: "Departments & batches" },
+                  { to: "/admin/venues", icon: MapPin, label: "Venues & labs" }
+              ]
+            : [])
+    ].filter(Boolean);
 };
 
-const UserMenu = () => {
-    const { user, logout } = useAuth();
-    const [open, setOpen] = useState(false);
-    const boxRef = useRef(null);
+const useAccountMenu = () => {
+    const { logout } = useAuth();
     const navigate = useNavigate();
+    return [
+        { label: "Settings", icon: Settings, onClick: () => navigate("/settings") },
+        { label: "Email settings", icon: BellRing, onClick: () => navigate("/settings/notifications") },
+        "divider",
+        {
+            label: "Sign out",
+            icon: LogOut,
+            onClick: async () => {
+                await logout();
+                navigate("/login", { replace: true });
+            }
+        }
+    ];
+};
 
-    useEffect(() => {
-        const close = (event) => !boxRef.current?.contains(event.target) && setOpen(false);
-        document.addEventListener("mousedown", close);
-        return () => document.removeEventListener("mousedown", close);
-    }, []);
-
-    const signOut = async () => {
-        setOpen(false);
-        await logout();
-        navigate("/login", { replace: true });
-    };
-
-    return (
-        <div style={{ position: "relative" }} ref={boxRef}>
-            <button type="button" className="user-button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Account menu">
-                <Avatar name={user.name} />
-                <span className="who">
-                    <strong>{user.name}</strong>
-                    <span>{ROLE_LABELS[user.globalRole]}</span>
-                </span>
+const PrimaryLink = ({ item, onCreate }) => {
+    const body = (
+        <>
+            <span className="nav-icon">
+                {item.avatar ? <Avatar name={item.avatar.name} size="xs" /> : <item.icon size={24} strokeWidth={1.9} />}
+                <Count value={item.count} />
+            </span>
+            <span className="nav-label">{item.label}</span>
+        </>
+    );
+    if (!item.to) {
+        return (
+            <button type="button" className="nav-item" onClick={onCreate} title={item.label}>
+                {body}
             </button>
-            {open && (
-                <div className="popover">
-                    <div style={{ padding: "8px 10px 10px" }}>
-                        <strong style={{ display: "block" }}>{user.name}</strong>
-                        <span className="subtle">{user.email}</span>
-                    </div>
-                    <div className="menu-divider" />
-                    <Link to="/dashboard" className="menu-item" onClick={() => setOpen(false)}>
-                        <Home size={16} /> Dashboard
-                    </Link>
-                    <Link to="/profile" className="menu-item" onClick={() => setOpen(false)}>
-                        <User size={16} /> Profile & security
-                    </Link>
-                    <Link to="/settings/notifications" className="menu-item" onClick={() => setOpen(false)}>
-                        <BellRing size={16} /> Notification settings
-                    </Link>
-                    <div className="menu-divider" />
-                    <button type="button" className="menu-item" onClick={signOut}>
-                        <LogOut size={16} /> Sign out
-                    </button>
-                </div>
-            )}
-        </div>
+        );
+    }
+    return (
+        <NavLink
+            to={item.to}
+            title={item.label}
+            aria-label={item.count ? `${item.label} (${item.count} unread)` : item.label}
+            className={({ isActive }) => `nav-item ${(item.active ?? isActive) ? "active" : ""}`}
+        >
+            {body}
+        </NavLink>
     );
 };
+
+const SideNav = ({ primary, secondary, account, onCreate }) => (
+    <aside className="sidenav" aria-label="Main navigation">
+        <Brand />
+        <nav className="sidenav-main">
+            {primary.map((item) => (
+                <PrimaryLink key={item.key} item={item} onCreate={onCreate} />
+            ))}
+            {secondary.length > 0 && <div className="sidenav-divider" />}
+            {secondary.map((item) => (
+                <NavLink key={item.to} to={item.to} title={item.label} className={({ isActive }) => `nav-item nav-item-sm ${isActive ? "active" : ""}`}>
+                    <span className="nav-icon">
+                        <item.icon size={20} strokeWidth={1.9} />
+                    </span>
+                    <span className="nav-label">{item.label}</span>
+                </NavLink>
+            ))}
+        </nav>
+        <ActionMenu
+            align="left"
+            items={account}
+            label="More"
+            className="sidenav-more"
+            trigger={({ open, toggle, menuId }) => (
+                <button type="button" className="nav-item" onClick={toggle} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} title="More">
+                    <span className="nav-icon">
+                        <Menu size={24} strokeWidth={1.9} />
+                    </span>
+                    <span className="nav-label">More</span>
+                </button>
+            )}
+        />
+    </aside>
+);
+
+const TopBar = ({ secondary, account }) => {
+    const navigate = useNavigate();
+    const items = [...secondary.map((item) => ({ label: item.label, icon: item.icon, onClick: () => navigate(item.to) })), ...(secondary.length ? ["divider"] : []), ...account];
+    return (
+        <header className="topbar">
+            <Brand />
+            <ActionMenu
+                items={items}
+                label="Menu"
+                trigger={({ open, toggle, menuId }) => (
+                    <button type="button" className="icon-button" onClick={toggle} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} aria-label="Menu">
+                        <Menu size={24} strokeWidth={1.9} />
+                    </button>
+                )}
+            />
+        </header>
+    );
+};
+
+const TabBar = ({ primary, onCreate }) => (
+    <nav className="tabbar" aria-label="Tabs">
+        {primary.map((item) => (
+            <PrimaryLink key={item.key} item={item} onCreate={onCreate} />
+        ))}
+    </nav>
+);
 
 export const AppShell = () => {
-    const [navOpen, setNavOpen] = useState(false);
     const location = useLocation();
+    const primary = usePrimaryNav();
+    const secondary = useSecondaryNav();
+    const account = useAccountMenu();
+    const [creating, setCreating] = useState(false);
 
     useEffect(() => {
-        setNavOpen(false);
         window.scrollTo(0, 0);
     }, [location.pathname]);
 
     return (
-        <div className={`shell ${navOpen ? "nav-open" : ""}`}>
-            <Sidebar />
-            <div className="sidebar-backdrop" onClick={() => setNavOpen(false)} />
-            <div className="main">
-                <header className="topbar">
-                    <button type="button" className="icon-button menu-toggle" onClick={() => setNavOpen(true)} aria-label="Open navigation">
-                        <Menu size={20} />
-                    </button>
-                    <div className="topbar-actions">
-                        <NotificationBell />
-                        <UserMenu />
-                    </div>
-                </header>
-                <main className="content">
-                    <Outlet />
-                </main>
-            </div>
+        <div className="shell">
+            <SideNav primary={primary} secondary={secondary} account={account} onCreate={() => setCreating(true)} />
+            <TopBar secondary={secondary} account={account} />
+            <main className="content">
+                <Outlet />
+            </main>
+            <TabBar primary={primary} onCreate={() => setCreating(true)} />
+            <CreateSheet open={creating} onClose={() => setCreating(false)} />
         </div>
     );
 };

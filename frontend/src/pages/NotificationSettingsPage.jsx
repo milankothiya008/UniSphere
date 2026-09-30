@@ -118,9 +118,7 @@ const NotificationSettingsPage = () => (
     <>
         <PageHeader
             back={{ to: "/notifications", label: "Notifications" }}
-            eyebrow={<><Mail size={14} /> Settings</>}
             title="Notification settings"
-            description="Choose which emails CampusConnect sends you. In-app notifications always appear under the bell at the top."
         />
         <div className="stack-lg" style={{ maxWidth: 760 }}>
             <EmailPreferences />

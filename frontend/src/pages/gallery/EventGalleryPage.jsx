@@ -1,8 +1,8 @@
-import { Link, useParams } from "react-router-dom";
-import { CalendarDays, Images, MapPin } from "lucide-react";
+import { useParams } from "react-router-dom";
+import { Images } from "lucide-react";
 import { eventApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
-import { AsyncContent, Avatar, ButtonLink, Card, EmptyState, PageHeader, StatusBadge } from "../../components/ui";
+import { AsyncContent, ButtonLink, Card, EmptyState, PageHeader, StatusBadge } from "../../components/ui";
 import { EventGallery } from "../../components/gallery/EventGallery";
 import { formatDateLong, formatTimeRange } from "../../lib/format";
 
@@ -18,24 +18,9 @@ const EventGalleryPage = () => {
                 <>
                     <PageHeader
                         back={{ to: "/gallery", label: "Gallery" }}
-                        eyebrow={
-                            <Link to={`/clubs/${event.club._id}`} className="row" style={{ gap: 6 }}>
-                                <Avatar name={event.club.name} src={event.club.logo} size="sm" square /> {event.club.name}
-                            </Link>
-                        }
+                        club={event.club}
                         title={event.title}
-                        description={
-                            <span className="gallery-page-meta">
-                                <span>
-                                    <CalendarDays size={14} /> {formatDateLong(event.startAt)} · {formatTimeRange(event.startAt, event.endAt)}
-                                </span>
-                                {event.venue?.name && (
-                                    <span>
-                                        <MapPin size={14} /> {event.venue.name}
-                                    </span>
-                                )}
-                            </span>
-                        }
+                        meta={[formatDateLong(event.startAt), formatTimeRange(event.startAt, event.endAt), event.venue?.name].filter(Boolean).join(" · ")}
                         actions={
                             <>
                                 <StatusBadge status={event.status} />

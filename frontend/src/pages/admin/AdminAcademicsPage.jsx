@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pencil, Plus, Settings2 } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { adminApi, referenceApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useToast } from "../../context/ToastContext";
@@ -100,9 +100,7 @@ const ReferenceEditor = ({ title, description, kind, load, create, update, label
 const AdminAcademicsPage = () => (
     <>
         <PageHeader
-            eyebrow={<><Settings2 size={14} /> Administration</>}
             title="Departments & batches"
-            description="These decide which university emails can register: students need an active batch and department, faculty an active department."
         />
         <div className="grid-2" style={{ alignItems: "start" }}>
             <ReferenceEditor

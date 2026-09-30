@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Check, CheckCircle2, FilePenLine, FileText, MessageSquareWarning, PencilLine, ShieldCheck, X, XCircle } from "lucide-react";
+import { Check, CheckCircle2, FilePenLine, MessageSquareWarning, PencilLine, ShieldCheck, X, XCircle } from "lucide-react";
 import { clubRequestApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { Alert, AsyncContent, Avatar, Badge, Button, ButtonLink, Card, ConfirmDialog, PageHeader, StatusBadge } from "../../components/ui";
-import { departmentsLabel, formatDateTime, humanize } from "../../lib/format";
+import { formatDateTime, humanize } from "../../lib/format";
 
 const STEPS = ["Submitted", "Faculty review", "Admin approval", "Club created"];
 
@@ -77,9 +77,7 @@ const ClubRequestDetailPage = () => {
                 <>
                     <PageHeader
                         back={{ to: isAdmin ? "/admin/club-requests" : "/club-requests", label: "Club requests" }}
-                        eyebrow={<><FileText size={14} /> Club request</>}
                         title={request.name}
-                        description={`${humanize(request.category)} · ${departmentsLabel(request)} · submitted ${formatDateTime(request.createdAt)}`}
                         actions={<StatusBadge status={request.status} />}
                     />
 

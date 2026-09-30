@@ -14,9 +14,7 @@ const AdminFacultyPage = () => {
     return (
         <>
             <PageHeader
-                eyebrow={<><GraduationCap size={14} /> Administration</>}
                 title="Faculty & mentors"
-                description="Faculty accounts and the clubs they mentor. Reassign a mentor from the club's Manage tab."
             />
             <div className="stack">
                 <div className="filter-bar">

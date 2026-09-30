@@ -1,4 +1,4 @@
-import { BarChart3, Building2, CalendarDays, FileText, GraduationCap, Mail, MapPin, UserPlus, Users } from "lucide-react";
+import { Building2, CalendarDays, FileText, GraduationCap, Mail, MapPin, UserPlus, Users } from "lucide-react";
 import { adminApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { AsyncContent, Card, PageHeader, StatTile, StatusBadge } from "../../components/ui";
@@ -35,7 +35,7 @@ const AdminOverviewPage = () => {
 
     return (
         <>
-            <PageHeader eyebrow={<><BarChart3 size={14} /> Administration</>} title="Platform overview" description="Live statistics across CampusConnect." />
+            <PageHeader title="Platform overview" />
             <AsyncContent loading={loading} error={error} onRetry={reload}>
                 {stats && (
                     <div className="stack-lg">

@@ -38,7 +38,7 @@ const AdminUsersPage = () => {
 
     return (
         <>
-            <PageHeader eyebrow={<><Users size={14} /> Administration</>} title="Users" description="Everyone registered on CampusConnect." />
+            <PageHeader title="Users" />
             <div className="stack">
                 <div className="filter-bar">
                     <SearchInput value={search} onChange={setSearch} placeholder="Search by name or email" />

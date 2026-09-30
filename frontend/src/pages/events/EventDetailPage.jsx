@@ -2,7 +2,7 @@ import { useParams, Link } from "react-router-dom";
 import { Check, AlertTriangle, CalendarDays, ChevronRight, Clock, Hourglass, Images, Mail, MapPin, Megaphone, Phone, ShieldCheck, Trophy, User, Users } from "lucide-react";
 import { eventApi, feedApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
-import { Alert, AsyncContent, Avatar, Badge, ButtonLink, Card, PageHeader, StatusBadge, ZoomableMedia } from "../../components/ui";
+import { Alert, AsyncContent, Badge, ButtonLink, Card, PageHeader, StatusBadge, ZoomableMedia } from "../../components/ui";
 import { EventActions } from "../../components/events/EventActions";
 import { EventChanges } from "../../components/events/EventChanges";
 import { RegistrationPanel } from "../../components/events/RegistrationPanel";
@@ -132,14 +132,9 @@ const EventDetailPage = () => {
             {event && (
                 <>
                     <PageHeader
-                        back={{ to: "/feed", label: "Campus feed" }}
-                        eyebrow={
-                            <Link to={`/clubs/${event.club._id}`} className="row" style={{ gap: 6 }}>
-                                <Avatar name={event.club.name} src={event.club.logo} size="sm" square /> {event.club.name}
-                            </Link>
-                        }
+                        back={{ to: "/feed", label: "Home" }}
+                        club={event.club}
                         title={event.title}
-                        description={event.shortDescription}
                         actions={
                             <>
                                 <Badge tone="ink">{humanize(event.category)}</Badge>
