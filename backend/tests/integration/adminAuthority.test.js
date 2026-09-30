@@ -70,8 +70,8 @@ describe("university admin authority is limited to approval, status and mentor",
         expect(res.body.data.viewer.isAdmin).toBe(true);
     });
 
-    test("admin cannot see or manage members, roles or recruitment", async () => {
-        expect((await api(admin).get(`${clubUrl()}/members`)).status).toBe(403);
+    test("admin can see the member list but cannot manage members, roles or recruitment", async () => {
+        expect((await api(admin).get(`${clubUrl()}/members`)).status).toBe(200);
         expect((await api(admin).patch(`${clubUrl()}/members/${member._id}/role`, { role: "TREASURER" })).status).toBe(403);
         expect((await api(admin).delete(`${clubUrl()}/members/${member._id}`)).status).toBe(403);
         expect((await api(admin).post(`${clubUrl()}/members`, { userId: String(applicant._id) })).status).toBe(403);

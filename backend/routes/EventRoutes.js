@@ -17,7 +17,7 @@ const {
     resultRules,
     roundRules
 } = require("../validators/RequestValidators");
-const { body } = require("express-validator");
+const { body, query } = require("express-validator");
 const { singleGalleryFile } = require("../middleware/Upload");
 const { uploadLimiter } = require("../middleware/RateLimiter");
 
@@ -29,6 +29,15 @@ const roundId = mongoIdParam("roundId");
 // Discovery and public detail (registration status is included when signed in).
 router.get("/", optionalAuth, e.listEvents);
 router.get("/manage", ...auth, e.listManaged);
+// Campus-wide schedule for planning: which slots other clubs have taken (officers, faculty, admin).
+router.get(
+    "/schedule",
+    ...auth,
+    query("from").optional().isISO8601().withMessage("from must be a date (YYYY-MM-DD)"),
+    query("days").optional().isInt({ min: 1, max: 31 }).withMessage("days must be 1 to 31"),
+    validate,
+    e.schedule
+);
 router.get("/:id", optionalAuth, id, validate, e.getEvent);
 router.get("/:id/registration-count", id, validate, registration.count);
 router.get("/:id/results", optionalAuth, id, validate, result.getOne);

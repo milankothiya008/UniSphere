@@ -60,6 +60,9 @@ export const WorkspaceProvider = ({ children }) => {
     return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 };
 
+// For components that also render outside the signed-in shell (and in isolated tests).
+export const useOptionalWorkspace = () => useContext(WorkspaceContext);
+
 export const useWorkspace = () => {
     const context = useContext(WorkspaceContext);
     if (!context) {

@@ -11,7 +11,7 @@ const venues = [
 ];
 
 vi.mock("../../api/endpoints", () => ({
-    eventApi: { get: vi.fn(), create: vi.fn(), update: vi.fn(), submit: vi.fn() },
+    eventApi: { get: vi.fn(), create: vi.fn(), update: vi.fn(), submit: vi.fn(), schedule: vi.fn(() => Promise.resolve({ data: { items: [] } })) },
     referenceApi: { availableVenues: vi.fn(), venues: vi.fn(() => Promise.resolve({ data: [] })) }
 }));
 

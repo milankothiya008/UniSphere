@@ -1,0 +1,627 @@
+/* ================================================================ Event planner
+ * A day timeline of campus events, the week strip above it, free slots and the clash notes shown
+ * in the event form and the mentor's review. Confirmed = navy, awaiting approval = violet + hatching
+ * (texture, not only colour), your club = gold ring, the slot being planned = dashed gold band.
+ */
+
+.planner-intro {
+    margin: -6px 0 18px;
+    max-width: 68ch;
+}
+
+/* ---------------------------------------------------------------- Week strip */
+.planner-week-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--hairline);
+}
+
+.planner-week-head > strong {
+    min-width: 128px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.planner-nav {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    color: var(--text);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.planner-nav:hover {
+    background: var(--surface-muted);
+}
+
+.planner-today {
+    padding: 5px 12px;
+    color: var(--ink-700);
+    font-weight: 600;
+    font-size: 13px;
+    background: var(--ink-50);
+    border: 0;
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.planner-dept {
+    width: auto;
+    margin-left: auto;
+    height: 34px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+.week-strip {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+    padding: 10px;
+}
+
+.week-day {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 10px 4px 9px;
+    color: var(--text);
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    cursor: pointer;
+    transition:
+        background 0.15s ease,
+        border-color 0.15s ease,
+        transform 0.15s ease;
+}
+
+.week-day:hover {
+    background: var(--surface-muted);
+}
+
+.week-day:active {
+    transform: scale(0.97);
+}
+
+.week-day.is-past {
+    color: var(--text-subtle);
+}
+
+.week-day-name {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.week-day-num {
+    font-size: 1.15rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.week-day.is-today .week-day-num {
+    color: var(--ink-600);
+}
+
+.week-day.is-on {
+    background: var(--ink-800);
+    border-color: var(--ink-800);
+}
+
+.week-day.is-on .week-day-name,
+.week-day.is-on .week-day-num,
+.week-day.is-on em {
+    color: #fff;
+}
+
+.week-day-load {
+    display: flex;
+    gap: 3px;
+    height: 14px;
+    align-items: center;
+}
+
+.week-day-load i {
+    width: 6px;
+    height: 6px;
+    background: var(--ink-500);
+    border-radius: 50%;
+}
+
+.week-day-load i.is-tentative {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px var(--violet-600);
+}
+
+.week-day.is-on .week-day-load i {
+    background: var(--gold-500);
+}
+
+.week-day.is-on .week-day-load i.is-tentative {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px #fff;
+}
+
+.week-day-load em {
+    font-size: 11px;
+    font-style: normal;
+    color: var(--success-600);
+}
+
+/* ---------------------------------------------------------------- Day timeline */
+.tl-scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+}
+
+.tl-inner {
+    position: relative;
+    min-width: 680px;
+    padding: 0 18px 0 14px;
+}
+
+.tl-hours {
+    position: relative;
+    height: 22px;
+}
+
+.tl-hours span {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.tl-body {
+    position: relative;
+    margin-bottom: 10px;
+    min-height: 74px;
+    background: var(--surface-muted);
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+}
+
+.tl-grid {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--hairline);
+}
+
+.tl-event {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 6px;
+    height: 50px;
+    padding: 4px 8px;
+    overflow: hidden;
+    color: var(--ink-900);
+    background: var(--ink-100);
+    border-left: 3px solid var(--ink-600);
+    border-radius: 8px;
+    box-shadow: var(--shadow-xs);
+    animation: tl-in 0.35s var(--ease-out, ease-out) both;
+    animation-delay: calc(var(--i, 0) * 30ms);
+    transition:
+        transform 0.15s ease,
+        box-shadow 0.15s ease,
+        opacity 0.2s ease;
+}
+
+a.tl-event:hover {
+    z-index: 2;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+.tl-event strong,
+.tl-event span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.tl-event strong {
+    font-size: 12.5px;
+}
+
+.tl-event span {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.tl-event.is-tentative {
+    color: var(--violet-600);
+    background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--violet-600) 12%, transparent) 6px 8px), var(--violet-100);
+    border-left: 3px dashed var(--violet-600);
+}
+
+.tl-event.is-mine {
+    box-shadow: inset 0 0 0 2px var(--gold-500);
+}
+
+.tl-event.is-faded {
+    opacity: 0.35;
+    filter: grayscale(0.6);
+}
+
+.tl-event.is-clash {
+    box-shadow: inset 0 0 0 2px var(--danger-600);
+}
+
+.tl-proposed {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: color-mix(in srgb, var(--gold-500) 16%, transparent);
+    border: 2px dashed var(--gold-600);
+    border-radius: 10px;
+    pointer-events: none;
+}
+
+/* The label sits on the band's bottom edge, above the event blocks. */
+.tl-proposed span {
+    position: absolute;
+    left: 50%;
+    bottom: -9px;
+    z-index: 3;
+    padding: 1px 7px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    background: var(--gold-600);
+    border-radius: 6px;
+    transform: translateX(-50%);
+}
+
+.tl-proposed.is-clash {
+    background: color-mix(in srgb, var(--danger-600) 9%, transparent);
+    border-color: var(--danger-600);
+}
+
+.tl-proposed.is-clash span {
+    background: var(--danger-600);
+}
+
+.tl-now {
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    width: 2px;
+    background: var(--danger-600);
+    border-radius: 2px;
+}
+
+.tl-now::before {
+    content: "";
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    width: 8px;
+    height: 8px;
+    background: var(--danger-600);
+    border-radius: 50%;
+}
+
+.tl-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.tl-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tl-key {
+    width: 18px;
+    height: 12px;
+    background: var(--ink-100);
+    border-left: 3px solid var(--ink-600);
+    border-radius: 3px;
+}
+
+.tl-key.is-tentative {
+    background: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--violet-600) 25%, transparent) 3px 4px), var(--violet-100);
+    border-left: 3px dashed var(--violet-600);
+}
+
+.tl-key.is-mine {
+    box-shadow: inset 0 0 0 2px var(--gold-500);
+}
+
+.tl-key.is-proposed {
+    background: color-mix(in srgb, var(--gold-500) 16%, transparent);
+    border: 2px dashed var(--gold-600);
+}
+
+.tl-key.is-faded {
+    opacity: 0.35;
+}
+
+@keyframes tl-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px) scale(0.98);
+    }
+}
+
+/* ---------------------------------------------------------------- Free slots and the day's list */
+.planner-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.free-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.free-slot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: color-mix(in srgb, var(--success-100) 55%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--success-600) 22%, transparent);
+    border-radius: 12px;
+    animation: tl-in 0.35s var(--ease-out, ease-out) both;
+}
+
+.free-slot-icon {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    color: var(--success-600);
+    background: var(--surface);
+    border-radius: 50%;
+}
+
+.free-slot-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.free-slot-body strong {
+    font-variant-numeric: tabular-nums;
+}
+
+.free-slot-go {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    color: #fff;
+    font-weight: 600;
+    font-size: 12.5px;
+    background: var(--ink-800);
+    border-radius: 8px;
+    transition: background 0.15s ease;
+}
+
+.free-slot-go:hover {
+    color: #fff;
+    background: var(--ink-600);
+}
+
+.planner-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.planner-row {
+    display: flex;
+    gap: 14px;
+    padding: 12px 16px;
+    color: var(--text);
+    border-top: 1px solid var(--hairline);
+    transition: background 0.15s ease;
+}
+
+.planner-row:first-child {
+    border-top: 0;
+}
+
+a.planner-row:hover {
+    background: var(--surface-muted);
+}
+
+.planner-row-time {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    width: 64px;
+    padding-left: 10px;
+    border-left: 3px solid var(--ink-600);
+    font-variant-numeric: tabular-nums;
+}
+
+.planner-row-time.is-tentative {
+    border-left-style: dashed;
+    border-left-color: var(--violet-600);
+}
+
+.planner-row-time span {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.planner-row-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.planner-row-body > strong {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.planner-row-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.planner-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    background: var(--surface-muted);
+    border: 1px solid var(--hairline);
+    border-radius: 999px;
+}
+
+.planner-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-600);
+}
+
+/* ---------------------------------------------------------------- Schedule inside the event form */
+.schedule-embed {
+    padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+}
+
+.schedule-embed-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+/* ---------------------------------------------------------------- Clash notes */
+.clash-note {
+    display: flex;
+    gap: 10px;
+    padding: 12px 14px;
+    color: var(--text);
+    background: var(--surface-muted);
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    animation: tl-in 0.3s var(--ease-out, ease-out) both;
+}
+
+.clash-note > svg {
+    flex-shrink: 0;
+    margin-top: 1px;
+    color: var(--text-muted);
+}
+
+.clash-note ul {
+    margin: 6px 0;
+    padding-left: 18px;
+}
+
+.clash-note li {
+    margin: 2px 0;
+}
+
+.clash-note.is-warn {
+    background: var(--warning-100);
+    border-color: color-mix(in srgb, var(--warning-600) 30%, transparent);
+}
+
+.clash-note.is-warn > svg {
+    color: var(--warning-600);
+}
+
+.clash-note.is-ok {
+    align-items: center;
+    background: color-mix(in srgb, var(--success-100) 60%, var(--surface));
+    border-color: color-mix(in srgb, var(--success-600) 25%, transparent);
+}
+
+.clash-note.is-ok > svg {
+    color: var(--success-600);
+}
+
+/* ---------------------------------------------------------------- Phones */
+@media (max-width: 860px) {
+    .planner-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 560px) {
+    .planner-week-head {
+        flex-wrap: wrap;
+    }
+
+    .planner-dept {
+        order: 5;
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .week-strip {
+        gap: 2px;
+        padding: 8px 6px;
+    }
+
+    .week-day {
+        padding: 8px 0 7px;
+    }
+
+    .week-day-num {
+        font-size: 1rem;
+    }
+
+    .week-day-load i {
+        width: 5px;
+        height: 5px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tl-event,
+    .free-slot,
+    .clash-note {
+        animation: none;
+    }
+}

@@ -17,6 +17,7 @@ router.put(
     "/:id",
     mongoIdParam("id"),
     body("name").optional().isString().trim().isLength({ min: 2, max: 80 }).withMessage("Name must be 2-80 characters"),
+    body("phone").optional({ values: "null" }).isString().isLength({ max: 20 }).withMessage("Enter a valid 10-digit Indian mobile number"),
     validate,
     updateUser
 );

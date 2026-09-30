@@ -40,7 +40,9 @@ const ROUTES = [
     "/api/recruitment",
     "/api/registrations/me?timeframe=upcoming&includeWaitlist=true",
     "/api/recruitment/mine",
-    "/api/stories"
+    "/api/stories",
+    "/api/events/schedule?days=7",
+    "/api/events/manage?page=1&limit=20"
 ];
 
 (async () => {

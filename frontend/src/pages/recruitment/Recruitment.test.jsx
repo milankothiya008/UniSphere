@@ -221,6 +221,7 @@ describe("offers", () => {
     });
 
     test("accepting one offer warns that the student's other applications will close", async () => {
+        useAuth.mockReturnValue(authValue({ user: { ...authValue().user, phone: "+919876543210" } }));
         recruitmentApi.acceptOffer.mockResolvedValue({ message: "Offer accepted — welcome to the club!", data: [] });
         const onChange = vi.fn();
         const offer = { _id: "a1", position: "p1", positionTitle: "Technical coordinator", status: "OFFERED", offerExpiresAt: inDays(2), rounds: [], createdAt: inDays(-5), canEdit: false, canWithdraw: false };
@@ -236,6 +237,27 @@ describe("offers", () => {
         await userEvent.click(within(dialog).getByRole("button", { name: "Accept and join" }));
         await waitFor(() => expect(recruitmentApi.acceptOffer).toHaveBeenCalledWith("d1", "a1"));
         expect(onChange).toHaveBeenCalled();
+    });
+
+    test("a student without a mobile number gives one when accepting", async () => {
+        const setUser = vi.fn();
+        useAuth.mockReturnValue(authValue({ setUser }));
+        recruitmentApi.acceptOffer.mockResolvedValue({ message: "Offer accepted — welcome to the club!", data: [] });
+        const offer = { _id: "a1", position: "p1", positionTitle: "Technical coordinator", status: "OFFERED", offerExpiresAt: inDays(2), rounds: [], createdAt: inDays(-5) };
+        renderWithRouter(<MyApplicationCard drive={drive()} application={offer} onChange={vi.fn()} />);
+
+        await userEvent.click(screen.getByRole("button", { name: /Accept offer/ }));
+        const dialog = screen.getByRole("dialog", { name: "Join Coding Club as Technical coordinator?" });
+        const join = within(dialog).getByRole("button", { name: "Accept and join" });
+        expect(join).toBeDisabled();
+        await userEvent.type(within(dialog).getByLabelText(/Your mobile number/), "12345");
+        expect(within(dialog).getByText("Enter a 10-digit Indian mobile number")).toBeInTheDocument();
+        expect(join).toBeDisabled();
+        await userEvent.clear(within(dialog).getByLabelText(/Your mobile number/));
+        await userEvent.type(within(dialog).getByLabelText(/Your mobile number/), "98765 43210");
+        await userEvent.click(join);
+        await waitFor(() => expect(recruitmentApi.acceptOffer).toHaveBeenCalledWith("d1", "a1", { phone: "+919876543210" }));
+        expect(setUser).toHaveBeenCalled();
     });
 
     test("an application waiting for news starts folded; it opens on click and keeps Edit/Withdraw in its menu", async () => {

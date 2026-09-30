@@ -23,6 +23,7 @@ import {
     Textarea
 } from "../../components/ui";
 import { EVENT_CATEGORIES } from "../../lib/constants";
+import { ScheduleCheck } from "../../components/events/ScheduleCheck";
 import { batchLabel, fromDateTimeInput, humanize, toDateInput, toDateTimeInput } from "../../lib/format";
 
 const blank = {
@@ -144,7 +145,17 @@ const EventFormPage = () => {
 
     const existing = useApi(() => eventApi.get(id), [id], { enabled: isEdit });
 
-    const [form, setForm] = useState({ ...blank, club: params.get("club") || "" });
+    // The planner links here with a free slot: ?date=YYYY-MM-DD&start=HH:mm&end=HH:mm.
+    const [form, setForm] = useState(() => {
+        const time = (value, fallback) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(value || "") ? value : fallback);
+        return {
+            ...blank,
+            club: params.get("club") || "",
+            eventDate: /^\d{4}-\d{2}-\d{2}$/.test(params.get("date") || "") ? params.get("date") : "",
+            startTime: time(params.get("start"), blank.startTime),
+            endTime: time(params.get("end"), blank.endTime)
+        };
+    });
     const [touched, setTouched] = useState(false);
     const [venues, setVenues] = useState([]);
     const [pending, setPending] = useState(null);
@@ -207,6 +218,10 @@ const EventFormPage = () => {
             ...prev,
             [field]: prev[field].includes(value) ? prev[field].filter((item) => item !== value) : [...prev[field], value]
         }));
+
+    // Who the event is for, to tell real clashes (same students) from events for other departments.
+    const chosenClub = eventClubs.find((membership) => membership.club._id === form.club)?.club;
+    const formAudience = form.departments.length ? form.departments : chosenClub && !chosenClub.allDepartments && chosenClub.departmentCodes?.length ? chosenClub.departmentCodes : "ALL";
 
     const isTeam = form.participationMode === "TEAM";
     const payload = () => {
@@ -426,6 +441,11 @@ const EventFormPage = () => {
                             }))}
                             required
                         />
+                        {form.eventDate && (
+                            <div className="span-2">
+                                <ScheduleCheck dateKey={form.eventDate} startTime={form.startTime} endTime={form.endTime} audience={formAudience} excludeId={id} embedded />
+                            </div>
+                        )}
                         {selectedVenue?.available === false && (
                             <div className="span-2">
                                 <Alert type="warning" title={`${selectedVenue.name} is not free in this slot`}>

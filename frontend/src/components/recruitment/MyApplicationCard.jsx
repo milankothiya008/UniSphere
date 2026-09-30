@@ -3,7 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { CalendarPlus, Check, ChevronDown, Clock, Gift, Hourglass, Info, MapPin, PartyPopper, PencilLine, Send, Undo2, Video, X } from "lucide-react";
 import { recruitmentApi } from "../../api/endpoints";
 import { useToast } from "../../context/ToastContext";
-import { ActionMenu, Alert, Badge, ButtonLink, Button, ConfirmDialog } from "../ui";
+import { useAuth } from "../../context/AuthContext";
+import { useOptionalWorkspace } from "../../context/WorkspaceContext";
+import { ActionMenu, Alert, Badge, ButtonLink, Button, ConfirmDialog, Input } from "../ui";
+import { normalizePhone } from "../../lib/phone";
 import { ApplicationBadge } from "./RecruitmentParts";
 import { ROUND_MODES } from "../../lib/constants";
 import { countdownParts, dateParts, formatDate, formatDateTime, formatTimeRange, timeAgo } from "../../lib/format";
@@ -88,7 +91,12 @@ const OPEN = ["APPLIED", "IN_ROUNDS", "OFFERED", "RESERVE"];
 /** An offer to join in this role: accept (closing every other application) or decline, before the deadline. */
 const OfferPanel = ({ drive, application, others, onChange }) => {
     const toast = useToast();
+    const { user, setUser } = useAuth();
+    const workspace = useOptionalWorkspace();
     const [dialog, setDialog] = useState(null);
+    const [phone, setPhone] = useState("");
+    const needsPhone = !user?.phone;
+    const phoneValue = normalizePhone(phone);
     const now = useNow();
     const left = new Date(application.offerExpiresAt) - now;
     const closing = others.filter((other) => OPEN.includes(other.status));
@@ -96,7 +104,14 @@ const OfferPanel = ({ drive, application, others, onChange }) => {
     const applicationWord = closing.length === 1 ? "application" : "applications";
 
     const respond = async (accept) => {
-        const response = accept ? await recruitmentApi.acceptOffer(drive._id, application._id) : await recruitmentApi.declineOffer(drive._id, application._id);
+        let response;
+        if (!accept) response = await recruitmentApi.declineOffer(drive._id, application._id);
+        else if (needsPhone) response = await recruitmentApi.acceptOffer(drive._id, application._id, { phone: phoneValue });
+        else response = await recruitmentApi.acceptOffer(drive._id, application._id);
+        if (accept) {
+            if (needsPhone) setUser((prev) => ({ ...prev, phone: phoneValue }));
+            workspace?.reloadClubs();
+        }
         toast.success(response.message);
         onChange();
     };
@@ -147,7 +162,23 @@ const OfferPanel = ({ drive, application, others, onChange }) => {
                 }
                 confirmLabel="Accept and join"
                 variant="success"
-            />
+                confirmDisabled={needsPhone && !phoneValue}
+            >
+                {needsPhone && (
+                    <Input
+                        label="Your mobile number"
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel-national"
+                        placeholder="98765 43210"
+                        value={phone}
+                        onChange={(event) => setPhone(event.target.value)}
+                        error={phone && !phoneValue ? "Enter a 10-digit Indian mobile number" : null}
+                        hint="Club members share their number with mentors and other clubs' members. You can change it in Settings."
+                        required
+                    />
+                )}
+            </ConfirmDialog>
             <ConfirmDialog
                 open={dialog === "decline"}
                 onClose={() => setDialog(null)}

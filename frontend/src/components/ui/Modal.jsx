@@ -75,7 +75,9 @@ export const ConfirmDialog = ({
     reasonLabel,
     reasonRequired = false,
     reasonPlaceholder,
-    minReasonLength = 5
+    minReasonLength = 5,
+    confirmDisabled = false,
+    children
 }) => {
     const formId = useId();
     const [reason, setReason] = useState("");
@@ -93,7 +95,7 @@ export const ConfirmDialog = ({
 
     const submit = async (event) => {
         event.preventDefault();
-        if (tooShort) {
+        if (tooShort || confirmDisabled) {
             return;
         }
         setPending(true);
@@ -118,7 +120,7 @@ export const ConfirmDialog = ({
                     <Button variant="secondary" onClick={onClose} disabled={pending}>
                         Cancel
                     </Button>
-                    <Button variant={variant} type="submit" form={formId} loading={pending} disabled={tooShort}>
+                    <Button variant={variant} type="submit" form={formId} loading={pending} disabled={tooShort || confirmDisabled}>
                         {confirmLabel}
                     </Button>
                 </>
@@ -126,6 +128,7 @@ export const ConfirmDialog = ({
         >
             <form id={formId} className="stack" onSubmit={submit}>
                 {description && <p className="muted">{description}</p>}
+                {children}
                 {reasonLabel && (
                     <Textarea
                         label={reasonLabel}

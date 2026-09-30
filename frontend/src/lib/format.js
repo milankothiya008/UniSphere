@@ -133,3 +133,9 @@ export const countdownParts = (ms) => {
         ? [[days, days === 1 ? "day" : "days"], [hours, "hrs"], [minutes, "min"]]
         : [[hours, "hrs"], [minutes, "min"]];
 };
+
+// The instant a university-calendar day ("YYYY-MM-DD") starts.
+export const campusDayStart = (dateKey) => new Date(`${dateKey}T00:00:00${OFFSET}`);
+
+// "YYYY-MM-DD" plus `days` calendar days.
+export const addDaysToKey = (dateKey, days) => new Date(Date.parse(`${dateKey}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);

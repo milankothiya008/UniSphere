@@ -69,6 +69,8 @@ export const clubRequestApi = {
 export const eventApi = {
     list: (query) => api.get("/events", query),
     manage: (query) => api.get("/events/manage", query),
+    // Every event holding time from `from` (YYYY-MM-DD) for `days` days, for planning around other clubs.
+    schedule: (query) => api.get("/events/schedule", query),
     get: (id) => api.get(`/events/${id}`),
     create: (body) => api.post("/events", body),
     update: (id, body) => api.put(`/events/${id}`, body),
@@ -171,7 +173,7 @@ export const recruitmentApi = {
     apply: (id, positionId, body) => api.post(`/recruitment/${id}/positions/${positionId}/application`, body),
     updateApplication: (id, positionId, body) => api.put(`/recruitment/${id}/positions/${positionId}/application`, body),
     withdraw: (id, positionId) => api.delete(`/recruitment/${id}/positions/${positionId}/application`),
-    acceptOffer: (id, applicationId) => api.post(`/recruitment/${id}/applications/${applicationId}/accept`),
+    acceptOffer: (id, applicationId, body) => api.post(`/recruitment/${id}/applications/${applicationId}/accept`, body),
     declineOffer: (id, applicationId) => api.post(`/recruitment/${id}/applications/${applicationId}/decline`),
     uploadTickets: (id, kinds) => api.post(`/recruitment/${id}/uploads`, { kinds }),
     applications: (id, query) => api.get(`/recruitment/${id}/applications`, query),

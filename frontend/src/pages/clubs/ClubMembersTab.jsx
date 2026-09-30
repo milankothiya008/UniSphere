@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { UserMinus, Users } from "lucide-react";
+import { Phone, UserMinus, Users } from "lucide-react";
 import { clubApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useAuth } from "../../context/AuthContext";
@@ -10,6 +10,7 @@ import { PERMISSIONS } from "../../lib/constants";
 import { departmentsLabel, batchLabel, formatDate } from "../../lib/format";
 import { scopeDepartments } from "../../lib/eligibility";
 import { ClubRolesCard } from "../../components/clubs/ClubRolesCard";
+import { formatPhone } from "../../lib/phone";
 
 const ClubMembersTab = () => {
     const { club, reload: reloadClub } = useOutletContext();
@@ -20,9 +21,11 @@ const ClubMembersTab = () => {
     const canManage = can(PERMISSIONS.MANAGE_MEMBERS);
     const canAssign = can(PERMISSIONS.ASSIGN_ROLES);
 
-    const canSee = viewer.isMember || viewer.isMentor;
+    // Members of any club, club mentors and the admin can see the list; roles stay inside the club.
+    const insider = viewer.isMember || viewer.isMentor;
+    const canSee = insider || Boolean(viewer.canSeeMembers);
     const members = useApi(() => (canSee ? clubApi.members(club._id) : Promise.resolve({ data: [] })), [club._id, canSee]);
-    const roles = useApi(() => (canSee ? clubApi.roles(club._id) : Promise.resolve({ data: null })), [club._id, canSee]);
+    const roles = useApi(() => (insider ? clubApi.roles(club._id) : Promise.resolve({ data: null })), [club._id, insider]);
     const [removing, setRemoving] = useState(null);
 
     const refresh = () => {
@@ -69,7 +72,7 @@ const ClubMembersTab = () => {
     };
 
     if (!canSee) {
-        return <ErrorState error={{ status: 403, message: "Only club members and the club's mentor can see the member list." }} />;
+        return <ErrorState error={{ status: 403, message: "Member lists are open to club members, club mentors and the admin." }} />;
     }
 
     const canRemove = (membership) =>
@@ -107,6 +110,7 @@ const ClubMembersTab = () => {
                             <thead>
                                 <tr>
                                     <th>Member</th>
+                                    <th>Mobile</th>
                                     <th>Department</th>
                                     <th>Role</th>
                                     <th>Joined</th>
@@ -125,6 +129,15 @@ const ClubMembersTab = () => {
                                                     <div className="subtle">{membership.user.email}</div>
                                                 </div>
                                             </div>
+                                        </td>
+                                        <td className="nowrap">
+                                            {membership.user.phone ? (
+                                                <a className="member-phone" href={`tel:${membership.user.phone}`} title={`Call ${membership.user.name}`}>
+                                                    <Phone size={13} /> {formatPhone(membership.user.phone)}
+                                                </a>
+                                            ) : (
+                                                <span className="subtle small">Not added yet</span>
+                                            )}
                                         </td>
                                         <td className="nowrap">
                                             {membership.user.departmentCode} · {batchLabel(membership.user.batchCode)}

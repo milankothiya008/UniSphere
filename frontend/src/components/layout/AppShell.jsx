@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import {
     BellRing,
     Building2,
+    CalendarRange,
     ClipboardCheck,
     Compass,
     FileText,
@@ -17,11 +18,13 @@ import {
     ShieldCheck,
     LogOut,
     Users,
-    Wrench
+    Wrench,
+    Smartphone
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { useUnreadCount } from "../../hooks/useUnreadCount";
+import { PERMISSIONS } from "../../lib/constants";
 import { ActionMenu, Avatar } from "../ui";
 import { CreateSheet, useCreateOptions } from "./CreateSheet";
 
@@ -65,9 +68,13 @@ const useSecondaryNav = () => {
     const { isStudent, isFaculty, isAdmin } = useAuth();
     const { officerClubs, eventClubs } = useWorkspace();
     const managesEvents = isFaculty || eventClubs.length > 0 || officerClubs.length > 0;
+    // The campus-wide planner: mentors, the admin and officers who create or publish events.
+    const plansEvents =
+        isFaculty || isAdmin || officerClubs.some((m) => m.permissions?.includes(PERMISSIONS.MANAGE_EVENTS) || m.permissions?.includes(PERMISSIONS.PUBLISH_EVENTS));
 
     return [
         managesEvents && { to: "/events/manage", icon: Wrench, label: "Manage events" },
+        plansEvents && { to: "/events/planner", icon: CalendarRange, label: "Event planner" },
         isFaculty && { to: "/faculty/clubs", icon: GraduationCap, label: "Mentored clubs" },
         (isStudent || isFaculty) && { to: "/club-requests", icon: FileText, label: "Club requests" },
         ...(isAdmin
@@ -191,6 +198,28 @@ const TabBar = ({ primary, onCreate }) => (
     </nav>
 );
 
+// Club members must have a mobile number on file; until they add one, every page reminds them.
+const PhoneNudge = () => {
+    const { user } = useAuth();
+    const { approvedMemberships } = useWorkspace();
+    const { pathname } = useLocation();
+    if (!approvedMemberships.length || user?.phone || user?.accountType !== "STUDENT" || pathname === "/settings") {
+        return null;
+    }
+    return (
+        <Link to="/settings#mobile" className="phone-nudge">
+            <span className="phone-nudge-icon">
+                <Smartphone size={18} />
+            </span>
+            <span className="phone-nudge-text">
+                <strong>Add your mobile number</strong>
+                <span>Club members need one so mentors and other clubs can reach you.</span>
+            </span>
+            <span className="phone-nudge-go">Add now</span>
+        </Link>
+    );
+};
+
 export const AppShell = () => {
     const location = useLocation();
     const primary = usePrimaryNav();
@@ -207,6 +236,7 @@ export const AppShell = () => {
             <SideNav primary={primary} secondary={secondary} account={account} onCreate={() => setCreating(true)} />
             <TopBar secondary={secondary} account={account} />
             <main className="content">
+                <PhoneNudge />
                 <Outlet />
             </main>
             <TabBar primary={primary} onCreate={() => setCreating(true)} />

@@ -8,25 +8,36 @@ import { ApiErrorAlert, Avatar, Badge, Button, Card, Input, PageHeader } from ".
 import { ROLE_LABELS } from "../lib/constants";
 import { batchLabel, formatDate } from "../lib/format";
 import { passwordProblems } from "../lib/validation";
+import { formatPhone, normalizePhone, phoneInputValue } from "../lib/phone";
+import { useWorkspace } from "../context/WorkspaceContext";
 
 const SettingsPage = () => {
     const { user, setUser, logout } = useAuth();
     const toast = useToast();
     const navigate = useNavigate();
+    const { approvedMemberships } = useWorkspace();
     const [name, setName] = useState(user.name);
+    const [phone, setPhone] = useState(phoneInputValue(user.phone));
     const [savingName, setSavingName] = useState(false);
     const [nameError, setNameError] = useState(null);
     const [passwords, setPasswords] = useState({ currentPassword: "", newPassword: "", confirm: "" });
     const [savingPassword, setSavingPassword] = useState(false);
     const [passwordError, setPasswordError] = useState(null);
 
+    const phoneValue = phone.trim() ? normalizePhone(phone) : null;
+    const phoneInvalid = Boolean(phone.trim()) && !phoneValue;
+    const isMember = approvedMemberships.length > 0;
+    const phoneMissing = isMember && !phone.trim();
+    const changed = name.trim() !== user.name || phoneValue !== (user.phone || null);
+
     const saveName = async (event) => {
         event.preventDefault();
         setSavingName(true);
         setNameError(null);
         try {
-            const response = await userApi.update(user._id, { name: name.trim() });
-            setUser((prev) => ({ ...prev, name: response.data.name }));
+            const response = await userApi.update(user._id, { name: name.trim(), phone: phoneValue });
+            setUser((prev) => ({ ...prev, name: response.data.name, phone: response.data.phone }));
+            setPhone(phoneInputValue(response.data.phone));
             toast.success("Profile updated");
         } catch (err) {
             setNameError(err);
@@ -63,9 +74,27 @@ const SettingsPage = () => {
                         <form className="stack" onSubmit={saveName}>
                             <Input label="Full name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} required />
                             <Input label="University email" value={user.email} disabled hint="Your email identifies your account and role and cannot be changed." />
+                            <div id="mobile">
+                                <Input
+                                    label="Mobile number"
+                                    type="tel"
+                                    inputMode="tel"
+                                    autoComplete="tel-national"
+                                    placeholder="98765 43210"
+                                    value={phone}
+                                    onChange={(e) => setPhone(e.target.value)}
+                                    required={isMember}
+                                    error={phoneInvalid ? "Enter a 10-digit Indian mobile number" : phoneMissing && user.phone ? "Club members need a mobile number, so it can be changed but not removed" : null}
+                                    hint={
+                                        user.accountType === "STUDENT"
+                                            ? "Shown in club member lists to members of every club, club mentors and the admin — never to other students."
+                                            : "Optional. Only the university admin can see it."
+                                    }
+                                />
+                            </div>
                             <ApiErrorAlert error={nameError} />
                             <div className="form-actions">
-                                <Button type="submit" loading={savingName} disabled={name.trim().length < 2 || name.trim() === user.name}>
+                                <Button type="submit" loading={savingName} disabled={name.trim().length < 2 || phoneInvalid || phoneMissing || !changed}>
                                     <Save size={16} /> Save
                                 </Button>
                             </div>
@@ -122,6 +151,7 @@ const SettingsPage = () => {
                             {user.departmentCode && <Badge>{user.departmentCode}</Badge>}
                             {user.batchCode && <Badge>Batch {batchLabel(user.batchCode)}</Badge>}
                         </div>
+                        {user.phone && <span className="subtle">{formatPhone(user.phone)}</span>}
                         {user.createdAt && <span className="subtle">Member since {formatDate(user.createdAt)}</span>}
                     </div>
                 </Card>

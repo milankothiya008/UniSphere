@@ -1902,3 +1902,79 @@ a.next-up:hover {
         animation: none;
     }
 }
+
+/* ---------------------------------------------------------------- Mobile number */
+.phone-nudge {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 20px;
+    padding: 12px 14px;
+    color: var(--text);
+    background: var(--gold-100);
+    border: 1px solid color-mix(in srgb, var(--gold-500) 45%, transparent);
+    border-radius: 12px;
+    animation: nudge-in 0.35s var(--ease-out, ease-out) both;
+}
+
+.phone-nudge:hover {
+    border-color: var(--gold-600);
+}
+
+.phone-nudge-icon {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    color: var(--ink-800);
+    background: var(--surface);
+    border-radius: 50%;
+}
+
+.phone-nudge-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.phone-nudge-text span {
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.phone-nudge-go {
+    flex-shrink: 0;
+    padding: 7px 14px;
+    color: #fff;
+    font-weight: 600;
+    font-size: 13px;
+    background: var(--ink-800);
+    border-radius: 8px;
+}
+
+@keyframes nudge-in {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+}
+
+.member-phone {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}
+
+.member-phone:hover {
+    color: var(--ink-600);
+}
+
+@media (max-width: 560px) {
+    .phone-nudge-text span {
+        display: none;
+    }
+}

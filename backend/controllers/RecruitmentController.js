@@ -42,7 +42,7 @@ module.exports = {
         await applications.withdraw(req.user, req.params.id, req.params.positionId);
         return null;
     }),
-    accept: ok("Offer accepted — welcome to the club!", (req) => applications.respondToOffer(req.user, req.params.id, req.params.applicationId, true)),
+    accept: ok("Offer accepted — welcome to the club!", (req) => applications.respondToOffer(req.user, req.params.id, req.params.applicationId, true, { phone: req.body?.phone })),
     decline: ok("Offer declined", (req) => applications.respondToOffer(req.user, req.params.id, req.params.applicationId, false)),
     uploadTickets: ok("Uploads ready", (req) => applications.createUploadTickets(req.user, req.params.id, req.body.kinds), 201),
     uploadLocal: ok("File uploaded", (req) => applications.uploadLocalFile(req.user, req.params.id, req.file), 201),

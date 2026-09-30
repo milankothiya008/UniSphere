@@ -10,7 +10,7 @@ const EventRegistration = require("../models/EventRegistration");
 const Venue = require("../models/Venue");
 const AppError = require("../utils/AppError");
 const ERROR_CODES = require("../constants/ErrorCodes");
-const { GLOBAL_ROLES, ACCOUNT_TYPES, USER_PUBLIC_FIELDS } = require("../constants/Roles");
+const { GLOBAL_ROLES, ACCOUNT_TYPES, USER_PUBLIC_FIELDS, USER_ACCOUNT_FIELDS } = require("../constants/Roles");
 const {
     AUDIT_ACTIONS,
     CLUB_REQUEST_STATUS,
@@ -120,7 +120,7 @@ const listUsers = async (actor, query = {}) => {
     }
 
     const [items, total] = await Promise.all([
-        User.find(filter).select(USER_PUBLIC_FIELDS).sort({ createdAt: -1 }).skip(pagination.skip).limit(pagination.limit),
+        User.find(filter).select(USER_ACCOUNT_FIELDS).sort({ createdAt: -1 }).skip(pagination.skip).limit(pagination.limit),
         User.countDocuments(filter)
     ]);
 
@@ -132,7 +132,7 @@ const getUserById = async (actor, id) => {
         assertAdmin(actor);
     }
 
-    const user = await User.findById(id).select(USER_PUBLIC_FIELDS);
+    const user = await User.findById(id).select(USER_ACCOUNT_FIELDS);
 
     if (!user) {
         throw new AppError("User not found", 404, ERROR_CODES.NOT_FOUND);
@@ -148,7 +148,7 @@ const setUserActive = async (actor, id, isActive) => {
         throw new AppError("You cannot change your own account status", 400, ERROR_CODES.VALIDATION_ERROR);
     }
 
-    const user = await User.findById(id).select(USER_PUBLIC_FIELDS);
+    const user = await User.findById(id).select(USER_ACCOUNT_FIELDS);
 
     if (!user) {
         throw new AppError("User not found", 404, ERROR_CODES.NOT_FOUND);

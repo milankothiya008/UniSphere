@@ -6,10 +6,11 @@ import { Alert, AsyncContent, Badge, ButtonLink, Card, PageHeader, StatusBadge, 
 import { EventActions } from "../../components/events/EventActions";
 import { EventChanges } from "../../components/events/EventChanges";
 import { RegistrationPanel } from "../../components/events/RegistrationPanel";
+import { ScheduleCheck } from "../../components/events/ScheduleCheck";
 import { Podium } from "../../components/feed/FeedCard";
 import { CategoryArt } from "../../components/events/EventCard";
 import { categoryVars } from "../../lib/eventVisuals";
-import { batchLabel, formatDateLong, formatDateTime, formatTimeRange, humanize, timeAgo } from "../../lib/format";
+import { batchLabel, formatDateLong, formatDateTime, formatTimeRange, humanize, timeAgo, toDateInput } from "../../lib/format";
 
 const WORKFLOW = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "PUBLISHED", "COMPLETED"];
 const WORKFLOW_LABELS = ["Draft", "Mentor review", "Approved", "Published", "Completed"];
@@ -30,6 +31,10 @@ const Workflow = ({ status }) => {
         </ol>
     );
 };
+
+// Before an event goes live, its club and the reviewing mentor see what else is on at that time.
+const showsSchedule = (event) =>
+    (event.viewer?.canManage || event.viewer?.canReview) && ["DRAFT", "NEEDS_CHANGES", "PENDING_APPROVAL", "APPROVED"].includes(event.status) && new Date(event.startAt) > new Date();
 
 // Organiser updates and cancellation notices for this event (everyone is also notified when they're posted).
 const UpdatesSection = ({ event }) => {
@@ -187,6 +192,18 @@ const EventDetailPage = () => {
                                 <Alert type="error" title="This event was cancelled">
                                     {event.cancellationReason}
                                 </Alert>
+                            )}
+
+                            {showsSchedule(event) && (
+                                <ScheduleCheck
+                                    dateKey={toDateInput(event.startAt)}
+                                    startTime={event.startTime}
+                                    endTime={event.endTime}
+                                    audience={event.eligibility?.departments?.length ? event.eligibility.departments : "ALL"}
+                                    excludeId={event._id}
+                                    title={event.viewer?.canReview ? "Other events at this time" : "Campus schedule that day"}
+                                    reviewer={Boolean(event.viewer?.canReview)}
+                                />
                             )}
 
                             <EventChanges event={event} onChange={(updated) => setData(updated)} />

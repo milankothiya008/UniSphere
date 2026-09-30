@@ -66,6 +66,20 @@ const getMembership = async (userId, clubId) => {
     });
 };
 
+/**
+ * Who may open club member lists (with members' mobile numbers): the admin, any club's faculty mentor
+ * and anyone who is an approved member of any club. Other students cannot.
+ */
+const canSeeMemberDirectory = async (user) => {
+    if (!user) return false;
+    if (isAdmin(user)) return true;
+    const [mentors, member] = await Promise.all([
+        isFaculty(user) ? Club.exists({ mentor: user._id }) : null,
+        ClubMembership.exists({ user: user._id, status: MEMBERSHIP_STATUS.APPROVED })
+    ]);
+    return Boolean(mentors || member);
+};
+
 // Resolves everything the backend needs to authorise a user against one club.
 const getClubContext = async (user, clubOrId) => {
     const club = await loadClub(clubOrId);
@@ -132,6 +146,7 @@ module.exports = {
     isClubMentor,
     getMembership,
     getClubContext,
+    canSeeMemberDirectory,
     contextHas,
     assertClubPermission,
     assertClubMentor,

@@ -1,10 +1,15 @@
 const eventService = require("../services/EventService");
+const scheduleService = require("../services/ScheduleService");
 const asyncHandler = require("../utils/AsyncHandler");
 const { sendSuccess } = require("../utils/ApiResponse");
 
 const listEvents = asyncHandler(async (req, res) => {
     const { items, ...meta } = await eventService.listEvents(req.user, req.query);
     sendSuccess(res, 200, "Events fetched", items, { meta });
+});
+
+const schedule = asyncHandler(async (req, res) => {
+    sendSuccess(res, 200, "Schedule fetched", await scheduleService.getSchedule(req.user, req.query));
 });
 
 const listManaged = asyncHandler(async (req, res) => {
@@ -97,6 +102,7 @@ const completeEvent = asyncHandler(async (req, res) => {
 module.exports = {
     listEvents,
     listManaged,
+    schedule,
     listClubEvents,
     getEvent,
     createEvent,

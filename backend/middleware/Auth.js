@@ -2,7 +2,7 @@ const User = require("../models/User");
 const AppError = require("../utils/AppError");
 const asyncHandler = require("../utils/AsyncHandler");
 const ERROR_CODES = require("../constants/ErrorCodes");
-const { USER_PUBLIC_FIELDS } = require("../constants/Roles");
+const { USER_ACCOUNT_FIELDS } = require("../constants/Roles");
 const { verifyAccessToken } = require("../utils/Token");
 const { userCache } = require("../utils/Caches");
 
@@ -16,7 +16,7 @@ const readBearer = (req) => {
 const loadUser = async (token) => {
     const decoded = verifyAccessToken(token);
     const cached = await userCache.remember(String(decoded.sub), async () => {
-        const found = await User.findById(decoded.sub).select(USER_PUBLIC_FIELDS).lean();
+        const found = await User.findById(decoded.sub).select(USER_ACCOUNT_FIELDS).lean();
         return found || null;
     });
     // Each request gets its own document, so nothing a request does to it leaks into another.

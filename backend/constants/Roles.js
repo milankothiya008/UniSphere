@@ -18,9 +18,13 @@ const CLUB_ROLES = Object.freeze({
 
 const USER_PUBLIC_FIELDS = "name email accountType globalRole isEmailVerified departmentCode batchCode isActive createdAt";
 
+// What a signed-in user (and the admin) sees of an account: the public fields plus the mobile number.
+const USER_ACCOUNT_FIELDS = `${USER_PUBLIC_FIELDS} phone`;
+
 module.exports = {
     GLOBAL_ROLES,
     ACCOUNT_TYPES,
     CLUB_ROLES,
-    USER_PUBLIC_FIELDS
+    USER_PUBLIC_FIELDS,
+    USER_ACCOUNT_FIELDS
 };

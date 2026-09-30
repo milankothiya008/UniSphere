@@ -36,7 +36,7 @@ const ClubLayout = () => {
 
     const viewer = club?.viewer || {};
     const can = (permission) => viewer.permissions?.includes(permission);
-    const canSeeMembers = viewer.isMember || viewer.isMentor;
+    const canSeeMembers = viewer.isMember || viewer.isMentor || Boolean(viewer.canSeeMembers);
     const canSettings = can(PERMISSIONS.MANAGE_CLUB) || viewer.isMentor || viewer.isAdmin;
 
     const tabs = [

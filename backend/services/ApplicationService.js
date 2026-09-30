@@ -9,6 +9,7 @@ const { CLUB_PERMISSIONS } = require("../constants/Permissions");
 const { APPLICATION_STATUS, MEMBERSHIP_STATUS, QUESTION_TYPES, ROUND_STATUS, NOTIFICATION_TYPES, AUDIT_ACTIONS } = require("../constants/Statuses");
 const { SYSTEM, findRole } = require("../utils/ClubRoles");
 const { searchRegex } = require("../utils/Query");
+const { normalizePhone } = require("../utils/Phone");
 const { recordAudit } = require("./AuditService");
 const { notify } = require("./NotificationService");
 const { clubUsersWithPermission } = require("./MembershipService");
@@ -294,11 +295,26 @@ const withdraw = async (actor, driveId, positionId) => {
     await drives.completeIfDone(drive._id);
 };
 
+// Club members must have a mobile number on file; it can be given with the acceptance itself.
+const ensurePhone = async (actor, phone) => {
+    const current = actor.phone || (await User.findById(actor._id).select("phone").lean())?.phone;
+    if (current) return;
+    const normalized = phone ? normalizePhone(phone) : null;
+    if (!normalized) {
+        throw new AppError(
+            phone ? "Enter a valid 10-digit Indian mobile number" : "Add your mobile number to join the club",
+            400,
+            phone ? ERROR_CODES.VALIDATION_ERROR : ERROR_CODES.PHONE_REQUIRED
+        );
+    }
+    await User.updateOne({ _id: actor._id }, { $set: { phone: normalized } });
+};
+
 /**
  * The student answers an offer. Accepting makes them a member in that role and closes every other
  * application they have in the drive (they can hold one role); declining frees the seat.
  */
-const respondToOffer = async (actor, driveId, applicationId, accept) => {
+const respondToOffer = async (actor, driveId, applicationId, accept, { phone } = {}) => {
     const drive = await drives.loadDrive(driveId);
     const club = await Club.findById(drive.club);
     const application = await RecruitmentApplication.findOne({ _id: applicationId, drive: drive._id, applicant: actor._id });
@@ -337,6 +353,7 @@ const respondToOffer = async (actor, driveId, applicationId, accept) => {
     if (position.role === SYSTEM.VICE_PRESIDENT && (await ClubMembership.exists({ club: club._id, role: SYSTEM.VICE_PRESIDENT, status: MEMBERSHIP_STATUS.APPROVED }))) {
         throw conflict("The vice-president seat has already been filled");
     }
+    await ensurePhone(actor, phone);
     try {
         await ClubMembership.findOneAndUpdate(
             { club: club._id, user: actor._id },

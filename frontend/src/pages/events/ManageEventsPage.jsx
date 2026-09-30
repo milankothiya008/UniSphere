@@ -1,4 +1,4 @@
-import { Plus, Wrench, ChevronRight } from "lucide-react";
+import { CalendarRange, Plus, Wrench, ChevronRight } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { eventApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
@@ -42,11 +42,16 @@ const ManageEventsPage = () => {
             <PageHeader
                 title={isFaculty ? "Events in your mentored clubs" : "Your club events"}
                 actions={
-                    eventClubs.length > 0 && (
-                        <ButtonLink to="/events/create">
-                            <Plus size={16} /> Create event
+                    <>
+                        <ButtonLink to="/events/planner" variant="secondary">
+                            <CalendarRange size={16} /> Event planner
                         </ButtonLink>
-                    )
+                        {eventClubs.length > 0 && (
+                            <ButtonLink to="/events/create">
+                                <Plus size={16} /> Create event
+                            </ButtonLink>
+                        )}
+                    </>
                 }
             />
 

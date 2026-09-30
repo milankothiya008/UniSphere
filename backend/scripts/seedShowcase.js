@@ -244,6 +244,9 @@ const photo = (seed, width = 1080, height = 1350) => `https://picsum.photos/seed
 
 // ---------------------------------------------------------------- Helpers
 
+// Demo students get made-up mobile numbers (club members must have one).
+let demoPhones = 0;
+
 const makeUser = async ({ name, local }, { faculty = false } = {}) => {
     const email = `${local}@${DOMAIN}`.toLowerCase();
     const parsed = faculty ? parseFacultyEmail(email) : parseStudentEmail(email);
@@ -258,6 +261,7 @@ const makeUser = async ({ name, local }, { faculty = false } = {}) => {
         globalRole: faculty ? GLOBAL_ROLES.FACULTY : GLOBAL_ROLES.STUDENT,
         departmentCode: parsed.departmentCode,
         batchCode: faculty ? null : parsed.batchCode,
+        phone: faculty ? null : `+9190000${String(++demoPhones).padStart(5, "0")}`,
         isEmailVerified: true
     });
 };

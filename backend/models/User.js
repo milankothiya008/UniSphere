@@ -44,6 +44,13 @@ const userSchema = new mongoose.Schema(
             type: String,
             default: null
         },
+        // Mobile number ("+91" and ten digits). Club members must add one; it is shown in member lists
+        // to other club members, mentors and the admin (utils/Phone).
+        phone: {
+            type: String,
+            default: null,
+            match: [/^\+91[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"]
+        },
         isEmailVerified: {
             type: Boolean,
             default: false

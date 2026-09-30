@@ -20,6 +20,7 @@ const {
     isAdmin,
     assertAdmin,
     getClubContext,
+    canSeeMemberDirectory,
     contextHas,
     assertClubMentor
 } = require("./AuthorizationService");
@@ -108,20 +109,21 @@ const getClub = async (actor, clubId) => {
         throw new AppError("Club not found", 404, ERROR_CODES.NOT_FOUND);
     }
 
-    const [populated, counts, openDrives, upcomingEvents, followers, subscribed] = await Promise.all([
+    const insider = context.isMember || context.isMentor || context.isAdmin;
+    const [populated, counts, openDrives, upcomingEvents, followers, subscribed, canSeeMembers] = await Promise.all([
         populateClub(Club.findById(club._id)),
         memberCounts([club._id]),
         openDrivesByClub([club._id]),
         Event.countDocuments({ club: club._id, status: EVENT_STATUS.PUBLISHED, startAt: { $gte: new Date() } }),
         followerCount(club._id),
-        actor ? isSubscribed(actor._id, club._id) : false
+        actor ? isSubscribed(actor._id, club._id) : false,
+        insider || canSeeMemberDirectory(actor)
     ]);
 
     const recruiting = openDrives.get(String(club._id)) || null;
     const applications =
         actor && recruiting ? await RecruitmentApplication.find({ drive: recruiting._id, applicant: actor._id, status: { $ne: "WITHDRAWN" } }).select("status position") : [];
 
-    const insider = context.isMember || context.isMentor || context.isAdmin;
     const clubView = populated.toObject();
     if (!insider) {
         delete clubView.statusNote;
@@ -132,31 +134,58 @@ const getClub = async (actor, clubId) => {
         followerCount: followers,
         upcomingEvents,
         recruiting,
-        viewer: actor ? { ...viewerSummary(context, applications), subscribed } : null
+        viewer: actor ? { ...viewerSummary(context, applications), subscribed, canSeeMembers } : null
     };
 };
 
+// A user joined in as { _id, ...fields } (or null), inside an aggregation.
+const lookupUser = (field, fields) => [
+    { $lookup: { from: User.collection.name, localField: field, foreignField: "_id", as: field, pipeline: [{ $project: Object.fromEntries(fields.split(" ").map((name) => [name, 1])) }] } },
+    { $set: { [field]: { $ifNull: [{ $first: `$${field}` }, null] } } }
+];
+
+/**
+ * The signed-in user's clubs (loaded on every visit): memberships with their clubs, and the clubs they
+ * mentor with member counts. Each list is one aggregation, so the page waits for two round trips, not six.
+ */
 const getMyClubs = async (actor) => {
     const [memberships, mentored] = await Promise.all([
-        ClubMembership.find({ user: actor._id, status: MEMBERSHIP_STATUS.APPROVED })
-            .populate({ path: "club", populate: { path: "president", select: "name" } })
-            .sort({ updatedAt: -1 }),
-        populateClub(Club.find({ mentor: actor._id }).sort({ name: 1 }))
+        ClubMembership.aggregate([
+            { $match: { user: actor._id, status: MEMBERSHIP_STATUS.APPROVED } },
+            { $sort: { updatedAt: -1 } },
+            { $lookup: { from: Club.collection.name, localField: "club", foreignField: "_id", as: "club", pipeline: lookupUser("president", "name") } },
+            { $unwind: "$club" }
+        ]),
+        Club.aggregate([
+            { $match: { mentor: actor._id } },
+            { $sort: { name: 1 } },
+            ...lookupUser("president", "name email departmentCode batchCode"),
+            ...lookupUser("mentor", "name email departmentCode"),
+            {
+                $lookup: {
+                    from: ClubMembership.collection.name,
+                    localField: "_id",
+                    foreignField: "club",
+                    as: "memberCount",
+                    pipeline: [{ $match: { status: MEMBERSHIP_STATUS.APPROVED } }, { $count: "n" }]
+                }
+            },
+            { $set: { memberCount: { $ifNull: [{ $first: "$memberCount.n" }, 0] } } }
+        ])
     ]);
-
-    const valid = memberships.filter((membership) => membership.club);
+    const open = mentored.length ? await openDrivesByClub(mentored.map((club) => club._id)) : new Map();
 
     return {
-        memberships: valid.map((membership) => ({
+        memberships: memberships.map((membership) => ({
             _id: membership._id,
             role: membership.role,
             roleName: roleName(membership.club, membership.role),
             status: membership.status,
             joinedAt: membership.joinedAt,
-            permissions: membership.status === MEMBERSHIP_STATUS.APPROVED ? permissionsFor(membership.club, membership.role) : [],
+            permissions: permissionsFor(membership.club, membership.role),
             club: membership.club
         })),
-        mentored: await withCounts(mentored)
+        mentored: mentored.map((club) => ({ ...club, recruiting: open.get(String(club._id)) || null }))
     };
 };
 
@@ -377,13 +406,19 @@ const assignPresident = async (actor, clubId, userId) => {
 
 const listClubMembers = async (actor, clubId) => {
     const context = await getClubContext(actor, clubId);
+    const insider = context.isMentor || context.isMember || context.isAdmin;
 
-    if (!context.isMentor && !context.isMember) {
-        throw new AppError("Only club members and the club's mentor can view the member list", 403, ERROR_CODES.FORBIDDEN);
+    // Members of any club, every club mentor and the admin can reach any club's members (and their
+    // mobile numbers) to coordinate; students outside all clubs cannot.
+    if (!insider && !(await canSeeMemberDirectory(actor))) {
+        throw new AppError("Member lists are open to club members, mentors and the admin", 403, ERROR_CODES.FORBIDDEN);
+    }
+    if (!insider && context.club.status !== CLUB_STATUS.ACTIVE) {
+        throw new AppError("Club not found", 404, ERROR_CODES.NOT_FOUND);
     }
 
     const members = await ClubMembership.find({ club: context.club._id, status: MEMBERSHIP_STATUS.APPROVED })
-        .populate("user", "name email departmentCode batchCode")
+        .populate("user", "name email phone departmentCode batchCode")
         .sort({ joinedAt: 1 });
 
     return members

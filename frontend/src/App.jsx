@@ -47,6 +47,7 @@ const ClubRequestDetailPage = lazy(() => import("./pages/clubRequests/ClubReques
 const EventDetailPage = lazy(() => import("./pages/events/EventDetailPage"));
 const EventFormPage = lazy(() => import("./pages/events/EventFormPage"));
 const ManageEventsPage = lazy(() => import("./pages/events/ManageEventsPage"));
+const EventPlannerPage = lazy(() => import("./pages/events/EventPlannerPage"));
 const ParticipantsPage = lazy(() => import("./pages/events/ParticipantsPage"));
 const CheckInPage = lazy(() => import("./pages/events/CheckInPage"));
 const ResultEditorPage = lazy(() => import("./pages/events/ResultEditorPage"));
@@ -107,6 +108,7 @@ const App = () => (
 
                 <Route path="/events" element={<Navigate to="/feed" replace />} />
                 <Route path="/events/manage" element={<ManageEventsPage />} />
+                <Route path="/events/planner" element={<EventPlannerPage />} />
                 <Route path="/events/create" element={<ProtectedRoute roles={[STUDENT]}><EventFormPage /></ProtectedRoute>} />
                 <Route path="/events/:id" element={<EventDetailPage />} />
                 <Route path="/events/:id/edit" element={<EventFormPage />} />

@@ -2,7 +2,7 @@ const User = require("../models/User");
 const RefreshToken = require("../models/RefreshToken");
 const AppError = require("../utils/AppError");
 const ERROR_CODES = require("../constants/ErrorCodes");
-const { GLOBAL_ROLES, ACCOUNT_TYPES, USER_PUBLIC_FIELDS } = require("../constants/Roles");
+const { GLOBAL_ROLES, ACCOUNT_TYPES, USER_ACCOUNT_FIELDS } = require("../constants/Roles");
 const { AUDIT_ACTIONS } = require("../constants/Statuses");
 const { hashPassword, comparePassword } = require("../utils/Password");
 const {
@@ -479,7 +479,7 @@ const changePassword = async (userId, { currentPassword, newPassword }) => {
 };
 
 const getMe = async (userId) => {
-    const user = await User.findById(userId).select(USER_PUBLIC_FIELDS);
+    const user = await User.findById(userId).select(USER_ACCOUNT_FIELDS);
 
     if (!user) {
         throw new AppError("User not found", 404, ERROR_CODES.NOT_FOUND);

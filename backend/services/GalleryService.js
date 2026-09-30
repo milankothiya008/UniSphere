@@ -1,4 +1,5 @@
 const Event = require("../models/Event");
+const Club = require("../models/Club");
 const ClubMembership = require("../models/ClubMembership");
 const EventMedia = require("../models/EventMedia");
 const EventRegistration = require("../models/EventRegistration");
@@ -397,10 +398,10 @@ const listGalleries = async (actor, query = {}) => {
     const matchingIds = new Set(matching.map((event) => String(event._id)));
     const withPhotosOrdered = activity.map((row) => row._id).filter((id) => matchingIds.has(String(id)));
 
-    const load = (ids) =>
-        ids.length
-            ? Event.find({ _id: { $in: ids } }).select("title poster category startAt endAt status club").populate("club", "name logo")
-            : Promise.resolve([]);
+    // Events load without their clubs; one club lookup runs later alongside the photo counts.
+    const FIELDS = "title poster category startAt endAt status club";
+    const newestFirst = { startAt: -1, _id: -1 };
+    const load = (ids) => (ids.length ? Event.find({ _id: { $in: ids } }).select(FIELDS).lean() : Promise.resolve([]));
     const inOrder = (ids, docs) => ids.map((id) => docs.find((doc) => String(doc._id) === String(id))).filter(Boolean);
 
     let events;
@@ -408,28 +409,31 @@ const listGalleries = async (actor, query = {}) => {
     if (query.show === "review") {
         const filter = { ...base, _id: { $in: toReview } };
         [events, total] = await Promise.all([
-            Event.find(filter).select("title poster category startAt endAt status club").populate("club", "name logo").sort({ startAt: -1, _id: -1 }).skip(pagination.skip).limit(pagination.limit),
+            Event.find(filter).select(FIELDS).sort(newestFirst).skip(pagination.skip).limit(pagination.limit).lean(),
             Event.countDocuments(filter)
         ]);
     } else {
+        // The page is the events with photos first, then the rest; both parts load at once.
         const firstIds = withPhotosOrdered.slice(pagination.skip, pagination.skip + pagination.limit);
         const others = { ...base, _id: { $nin: withPhotosOrdered } };
-        const [firstDocs, othersCount] = await Promise.all([load(firstIds), query.show === "photos" ? 0 : Event.countDocuments(others)]);
-        events = inOrder(firstIds, firstDocs);
+        const room = pagination.limit - firstIds.length;
+        const withOthers = query.show !== "photos";
+        const [firstDocs, othersCount, otherDocs] = await Promise.all([
+            load(firstIds),
+            withOthers ? Event.countDocuments(others) : 0,
+            withOthers && room > 0
+                ? Event.find(others).select(FIELDS).sort(newestFirst).skip(Math.max(0, pagination.skip - withPhotosOrdered.length)).limit(room).lean()
+                : []
+        ]);
+        events = inOrder(firstIds, firstDocs).concat(otherDocs);
         total = withPhotosOrdered.length + othersCount;
-        const room = pagination.limit - events.length;
-        if (room > 0 && othersCount > 0) {
-            const skip = Math.max(0, pagination.skip - withPhotosOrdered.length);
-            events = events.concat(
-                await Event.find(others).select("title poster category startAt endAt status club").populate("club", "name logo").sort({ startAt: -1, _id: -1 }).skip(skip).limit(room)
-            );
-        }
     }
 
     const photosCount = withPhotosOrdered.length;
 
     const ids = events.map((event) => event._id);
-    const [reviewCount, stats, covers] = await Promise.all([
+    const clubIds = [...new Set(events.map((event) => String(event.club)))];
+    const [reviewCount, stats, covers, clubs] = await Promise.all([
         toReview.length ? Event.countDocuments({ ...base, _id: { $in: toReview } }) : 0,
         EventMedia.aggregate([
             { $match: { event: { $in: ids } } },
@@ -448,8 +452,13 @@ const listGalleries = async (actor, query = {}) => {
             { $sort: { "media.kind": 1, createdAt: -1 } },
             { $group: { _id: "$event", media: { $first: "$media" }, thumbs: { $push: "$media" } } },
             { $project: { media: 1, thumbs: { $slice: ["$thumbs", 4] } } }
-        ])
+        ]),
+        clubIds.length ? Club.find({ _id: { $in: clubIds } }).select("name logo").lean() : []
     ]);
+    const clubBy = new Map(clubs.map((club) => [String(club._id), club]));
+    events.forEach((event) => {
+        event.club = clubBy.get(String(event.club)) || null;
+    });
     const statsBy = new Map(stats.map((row) => [String(row._id), row]));
     const coverBy = new Map(covers.map((row) => [String(row._id), row]));
     const moderatedSet = new Set(moderated.map(String));

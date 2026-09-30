@@ -40,7 +40,8 @@ const withToken = (user) => {
     return user;
 };
 
-const makeStudent = async ({ department = "CE", batch = "24", name } = {}) => {
+// Students get a mobile number unless a test passes phone: null (club members must have one).
+const makeStudent = async ({ department = "CE", batch = "24", name, phone = undefined } = {}) => {
     sequence += 1;
     const user = await User.create({
         name: name || `Student ${sequence}`,
@@ -50,6 +51,7 @@ const makeStudent = async ({ department = "CE", batch = "24", name } = {}) => {
         globalRole: GLOBAL_ROLES.STUDENT,
         departmentCode: department,
         batchCode: batch,
+        phone: phone === undefined ? `+9198${String(sequence).padStart(8, "0")}` : phone,
         isEmailVerified: true
     });
     return withToken(user);
