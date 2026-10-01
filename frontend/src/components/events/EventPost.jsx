@@ -11,6 +11,34 @@ import { formatDate, formatDateTime, formatTimeRange, humanize, shortAgo } from 
 import { eligibilityProblem, isLive, isPast } from "../../lib/eligibility";
 import { categoryStyle, categoryVars, startsInLabel } from "../../lib/eventVisuals";
 import { downloadIcs } from "../../lib/calendar";
+import { useClubFollow } from "../../hooks/useClubFollow";
+
+// "Follow" beside the club's name, like Instagram's post header: shown only while the viewer doesn't
+// follow the club, and gone as soon as they do (on every post from that club).
+const PostFollow = ({ club, initial }) => {
+    const toast = useToast();
+    const { following, follow } = useClubFollow(club._id, initial);
+    const [pending, setPending] = useState(false);
+    if (following && !pending) {
+        return null;
+    }
+    const go = async () => {
+        setPending(true);
+        try {
+            const data = await follow();
+            toast.success(data.emailsEnabled === false ? `Following ${club.name}` : `Following ${club.name} — you'll hear about its new events`);
+        } catch (error) {
+            toast.error(error);
+        } finally {
+            setPending(false);
+        }
+    };
+    return (
+        <button type="button" className="post-follow" onClick={go} disabled={pending} aria-label={`Follow ${club.name}`}>
+            {pending ? "Following…" : "Follow"}
+        </button>
+    );
+};
 
 // Pill over the poster: live pulse, a countdown, or where the results stand.
 const PosterStatus = ({ event, live, past }) => {
@@ -219,6 +247,7 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
                         <small>{event.venue?.name || humanize(event.category)}</small>
                     </span>
                 </Link>
+                {event.club?._id && event.followingClub === false && <PostFollow club={event.club} initial={false} />}
                 <ActionMenu items={menu} label="Post options" />
             </header>
 

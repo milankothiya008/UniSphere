@@ -115,6 +115,23 @@ const listNotifications = async (user, query = {}) => {
 
 const unreadCount = async (user) => Notification.countDocuments({ user: user._id, readAt: null });
 
+// The kinds shown in the Activity bubble (like Instagram's likes / comments / follows counts).
+const KIND_OF = {
+    recruitment: ["RECRUITMENT_REVIEW", "RECRUITMENT_UPDATE", "RECRUITMENT_OPEN", "APPLICATION_UPDATE", "INTERVIEW_SCHEDULED", "INTERVIEW_REMINDER", "RECRUITMENT_OFFER"],
+    clubs: ["CLUB_REQUEST_UPDATE", "CLUB_UPDATE", "MEMBERSHIP_REQUEST", "MEMBERSHIP_APPROVED", "MEMBERSHIP_REJECTED", "CLUB_ROLE_CHANGED", "ANNOUNCEMENT", "NEW_CLUB", "GALLERY_SUBMITTED", "GALLERY_APPROVED", "GALLERY_REJECTED"]
+};
+const kindOf = (type) => Object.keys(KIND_OF).find((kind) => KIND_OF[kind].includes(type)) || "events";
+
+/** Unread notifications: the total, plus how many are about events, clubs and recruitment. */
+const unreadSummary = async (user) => {
+    const rows = await Notification.aggregate([{ $match: { user: user._id, readAt: null } }, { $group: { _id: "$type", count: { $sum: 1 } } }]);
+    const kinds = { events: 0, clubs: 0, recruitment: 0 };
+    rows.forEach((row) => {
+        kinds[kindOf(row._id)] += row.count;
+    });
+    return { count: rows.reduce((sum, row) => sum + row.count, 0), kinds };
+};
+
 const markRead = async (user, id) => {
     const notification = await Notification.findOneAndUpdate(
         { _id: id, user: user._id },
@@ -211,6 +228,7 @@ module.exports = {
     emailUsers,
     listNotifications,
     unreadCount,
+    unreadSummary,
     markRead,
     markAllRead,
     getEmailPreferences,

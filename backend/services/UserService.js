@@ -1,11 +1,13 @@
 const User = require("../models/User");
 const ClubMembership = require("../models/ClubMembership");
+const Club = require("../models/Club");
+const { roleName, roleRank } = require("../utils/ClubRoles");
 const AppError = require("../utils/AppError");
 const ERROR_CODES = require("../constants/ErrorCodes");
 const { USER_ACCOUNT_FIELDS, ACCOUNT_TYPES, GLOBAL_ROLES } = require("../constants/Roles");
 const { searchRegex } = require("../utils/Query");
 const { normalizePhone } = require("../utils/Phone");
-const { MEMBERSHIP_STATUS } = require("../constants/Statuses");
+const { MEMBERSHIP_STATUS, CLUB_STATUS } = require("../constants/Statuses");
 const adminService = require("./AdminService");
 
 const getAllUsers = async (actor, query) => adminService.listUsers(actor, query);
@@ -52,6 +54,43 @@ const updateUser = async (actor, id, data) => {
     return user;
 };
 
+/**
+ * What anyone signed in sees on someone's profile page: name, role, department and batch, and the
+ * active clubs they belong to or mentor. Personal details (email, mobile number) and their event
+ * schedule, registrations and applications are never included — only the person sees those, on
+ * their own profile.
+ */
+const getPublicProfile = async (actor, id) => {
+    const user = await User.findOne({ _id: id, isActive: true, isEmailVerified: true }).select("name accountType globalRole departmentCode batchCode createdAt").lean();
+    if (!user) {
+        throw new AppError("Profile not found", 404, ERROR_CODES.NOT_FOUND);
+    }
+    const [memberships, mentored] = await Promise.all([
+        ClubMembership.find({ user: user._id, status: MEMBERSHIP_STATUS.APPROVED }).select("club role joinedAt").populate("club", "name logo category status roles").lean(),
+        user.globalRole === GLOBAL_ROLES.FACULTY ? Club.find({ mentor: user._id, status: CLUB_STATUS.ACTIVE }).select("name logo category").sort({ name: 1 }).lean() : []
+    ]);
+    const clubs = memberships
+        .filter((membership) => membership.club?.status === CLUB_STATUS.ACTIVE)
+        .sort((a, b) => roleRank(a.club, a.role) - roleRank(b.club, b.role))
+        .map((membership) => ({
+            club: { _id: membership.club._id, name: membership.club.name, logo: membership.club.logo, category: membership.club.category },
+            role: membership.role,
+            roleName: roleName(membership.club, membership.role)
+        }));
+    return {
+        _id: user._id,
+        name: user.name,
+        accountType: user.accountType,
+        globalRole: user.globalRole,
+        departmentCode: user.departmentCode,
+        batchCode: user.batchCode,
+        joinedAt: user.createdAt,
+        isSelf: String(actor._id) === String(user._id),
+        clubs,
+        mentoredClubs: mentored
+    };
+};
+
 // Lightweight directory lookup used by pickers (founding members, president, award recipients).
 const searchUsers = async (query = {}) => {
     const filter = {
@@ -77,6 +116,7 @@ const searchUsers = async (query = {}) => {
 };
 
 module.exports = {
+    getPublicProfile,
     getAllUsers,
     getUserById,
     updateUser,

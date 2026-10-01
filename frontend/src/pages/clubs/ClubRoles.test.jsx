@@ -50,9 +50,9 @@ const roles = {
     ]
 };
 
-const renderTab = (tab) =>
+const renderTab = (tab, search = "") =>
     render(
-        <MemoryRouter initialEntries={["/clubs/c1/tab"]}>
+        <MemoryRouter initialEntries={[`/clubs/c1/tab${search}`]}>
             <ToastProvider>
                 <Routes>
                     <Route path="/clubs/:id" element={<Outlet context={{ club, reload: vi.fn() }} />}>
@@ -87,9 +87,24 @@ describe("club roles", () => {
         expect(await screen.findByText("Rohan is now Design lead")).toBeInTheDocument();
     });
 
+    test("People shows the core team first; Roles & authority shows who holds each role", async () => {
+        renderTab(<ClubMembersTab />);
+        const team = (await screen.findByText("Core team")).closest("section");
+        expect(within(team).getByText("Asha")).toBeInTheDocument();
+        expect(within(team).getByText("Meera")).toBeInTheDocument();
+        expect(within(team).queryByText("Rohan")).not.toBeInTheDocument();
+        expect(screen.getByRole("link", { name: /Rohan/ })).toHaveAttribute("href", "/people/u3");
+
+        await userEvent.click(screen.getByRole("button", { name: /Roles & authority/ }));
+        const design = (await screen.findByRole("button", { name: "Edit Design lead" })).closest("li");
+        expect(within(design).getByText("No one yet")).toBeInTheDocument();
+        const vice = screen.getByRole("button", { name: "Edit Vice-president" });
+        expect(within(vice).getByText("Meera")).toBeInTheDocument();
+    });
+
     test("the president creates a role and picks its authorities; president-only authorities are locked", async () => {
         clubApi.createRole.mockResolvedValue({ data: roles });
-        renderTab(<ClubMembersTab />);
+        renderTab(<ClubMembersTab />, "?view=roles");
 
         expect(await screen.findByText("Roles & authorities")).toBeInTheDocument();
         expect(screen.getByText(/Everything, including club settings/)).toBeInTheDocument();
@@ -110,7 +125,7 @@ describe("club roles", () => {
     test("built-in roles keep their names; custom roles can be deleted", async () => {
         clubApi.updateRole.mockResolvedValue({ data: roles });
         clubApi.deleteRole.mockResolvedValue({ data: roles });
-        renderTab(<ClubMembersTab />);
+        renderTab(<ClubMembersTab />, "?view=roles");
 
         await screen.findByText("Roles & authorities");
         expect(screen.queryByRole("button", { name: "Edit President" })).not.toBeInTheDocument();

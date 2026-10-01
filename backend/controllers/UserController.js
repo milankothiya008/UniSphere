@@ -12,6 +12,10 @@ const searchUsers = asyncHandler(async (req, res) => {
     sendSuccess(res, 200, "Users found", users);
 });
 
+const getProfile = asyncHandler(async (req, res) => {
+    sendSuccess(res, 200, "Profile fetched", await userService.getPublicProfile(req.user, req.params.id));
+});
+
 const getUserById = asyncHandler(async (req, res) => {
     const user = await userService.getUserById(req.user, req.params.id);
     sendSuccess(res, 200, "User fetched", user);
@@ -31,6 +35,7 @@ module.exports = {
     getAllUsers,
     searchUsers,
     getUserById,
+    getProfile,
     updateUser,
     setStatus
 };

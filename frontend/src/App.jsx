@@ -46,6 +46,7 @@ const ClubRequestDetailPage = lazy(() => import("./pages/clubRequests/ClubReques
 
 const EventDetailPage = lazy(() => import("./pages/events/EventDetailPage"));
 const EventFormPage = lazy(() => import("./pages/events/EventFormPage"));
+const PersonPage = lazy(() => import("./pages/PersonPage"));
 const ManageEventsPage = lazy(() => import("./pages/events/ManageEventsPage"));
 const EventPlannerPage = lazy(() => import("./pages/events/EventPlannerPage"));
 const ParticipantsPage = lazy(() => import("./pages/events/ParticipantsPage"));
@@ -101,6 +102,7 @@ const App = () => (
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/settings/notifications" element={<NotificationSettingsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/people/:id" element={<PersonPage />} />
                 <Route path="/results" element={<ResultsPage />} />
                 <Route path="/results/:eventId" element={<ResultDetailPage />} />
                 <Route path="/gallery" element={<GalleryPage />} />
@@ -118,8 +120,9 @@ const App = () => (
 
                 <Route path="/clubs" element={<ClubsPage />} />
                 <Route path="/clubs/:id" element={<ClubLayout />}>
-                    <Route index element={<ClubAboutTab />} />
-                    <Route path="events" element={<ClubEventsTab />} />
+                    <Route index element={<ClubEventsTab />} />
+                    <Route path="about" element={<ClubAboutTab />} />
+                    <Route path="events" element={<Navigate to=".." replace />} />
                     <Route path="recruitment" element={<ClubRecruitmentTab />} />
                     <Route path="members" element={<ClubMembersTab />} />
                     <Route path="settings" element={<ClubSettingsTab />} />

@@ -9,8 +9,7 @@ const list = asyncHandler(async (req, res) => {
 });
 
 const unreadCount = asyncHandler(async (req, res) => {
-    const count = await notificationService.unreadCount(req.user);
-    sendSuccess(res, 200, "Unread count fetched", { count });
+    sendSuccess(res, 200, "Unread count fetched", await notificationService.unreadSummary(req.user));
 });
 
 const markRead = asyncHandler(async (req, res) => {

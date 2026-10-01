@@ -1,5 +1,5 @@
 const express = require("express");
-const { getAllUsers, searchUsers, getUserById, updateUser, setStatus } = require("../controllers/UserController");
+const { getAllUsers, searchUsers, getUserById, getProfile, updateUser, setStatus } = require("../controllers/UserController");
 const { protect, requireVerified, restrictTo } = require("../middleware/Auth");
 const { GLOBAL_ROLES } = require("../constants/Roles");
 const validate = require("../middleware/Validate");
@@ -12,6 +12,7 @@ router.use(protect, requireVerified);
 
 router.get("/", restrictTo(GLOBAL_ROLES.ADMIN), getAllUsers);
 router.get("/search", userSearchRules, validate, searchUsers);
+router.get("/:id/profile", mongoIdParam("id"), validate, getProfile);
 router.get("/:id", mongoIdParam("id"), validate, getUserById);
 router.put(
     "/:id",

@@ -43,6 +43,7 @@ const { EMAIL_CATEGORIES } = require("../constants/EmailCategories");
 const { recordAudit } = require("./AuditService");
 const { notify, notifyAllUsers } = require("./NotificationService");
 const { createSystemPost } = require("./FeedService");
+const { followedAmong } = require("./SubscriptionService");
 const { clubUsersWithPermission, clubIdsWithAnyPermission } = require("./MembershipService");
 const teams = require("./TeamService");
 
@@ -1157,9 +1158,11 @@ const attachResults = async (items) => {
 const attachRegistrations = async (actor, events) => {
     const serialized = events.map((event) => serialize(event));
     // Results and the viewer's own registrations are looked up at the same time.
-    const [items, registrations] = await Promise.all([
+    const clubIds = [...new Set(serialized.map((event) => String(event.club?._id || event.club)).filter(Boolean))];
+    const [items, registrations, followed] = await Promise.all([
         attachResults(serialized),
-        actor && serialized.length ? EventRegistration.find({ user: actor._id, event: { $in: serialized.map((event) => event._id) } }).select("event status").lean() : []
+        actor && serialized.length ? EventRegistration.find({ user: actor._id, event: { $in: serialized.map((event) => event._id) } }).select("event status").lean() : [],
+        actor ? followedAmong(actor._id, clubIds) : new Set()
     ]);
 
     if (!actor || !items.length) {
@@ -1168,7 +1171,8 @@ const attachRegistrations = async (actor, events) => {
 
     const byEvent = new Map(registrations.map((registration) => [String(registration.event), registration.status]));
 
-    return items.map((event) => ({ ...event, myRegistration: byEvent.get(String(event._id)) || null }));
+    // followingClub lets the feed offer "Follow" on posts from clubs the viewer doesn't follow yet.
+    return items.map((event) => ({ ...event, myRegistration: byEvent.get(String(event._id)) || null, followingClub: followed.has(String(event.club?._id || event.club)) }));
 };
 
 const TIMEFRAMES = {

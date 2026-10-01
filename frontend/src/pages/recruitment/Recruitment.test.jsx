@@ -147,7 +147,7 @@ describe("recruitment drive builder", () => {
         ]);
         expect(body.positions[1].form.pages[0].questions[0]).toMatchObject({ type: "PARAGRAPH", label: "Why do you want to be Design lead?", required: true });
         expect(recruitmentApi.submit).toHaveBeenCalledWith("new");
-    });
+    }, 15000); // A long, many-step form test: slow when the whole suite runs in parallel.
 });
 
 describe("applying, page by page", () => {

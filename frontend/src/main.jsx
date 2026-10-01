@@ -22,6 +22,7 @@ import "./styles/roles.css";
 import "./styles/system.css";
 import "./styles/planner.css";
 import "./styles/insta.css";
+import "./styles/social.css";
 
 createRoot(document.getElementById("root")).render(
     <StrictMode>

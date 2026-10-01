@@ -1,0 +1,418 @@
+/* ================================================================ Social layer
+ * Instagram-style touches: the red activity dot and bubble, "Follow" in post headers, people's
+ * profiles, and the club Members tab (core team, roles laid out as cards).
+ */
+
+/* ---------------------------------------------------------------- Activity: red dot and bubble */
+.nav-dot {
+    position: absolute;
+    top: -2px;
+    right: -3px;
+    width: 9px;
+    height: 9px;
+    background: var(--danger-600);
+    border: 2px solid var(--surface);
+    border-radius: 50%;
+    box-sizing: content-box;
+    animation: dot-pop 0.35s var(--ease-spring, ease-out) both;
+}
+
+.tabbar .nav-dot {
+    top: auto;
+    right: 50%;
+    bottom: -9px;
+    width: 5px;
+    height: 5px;
+    border: 0;
+    transform: translateX(50%);
+}
+
+@keyframes dot-pop {
+    from {
+        transform: scale(0);
+    }
+}
+
+.tabbar .nav-dot {
+    animation: none;
+}
+
+.activity-bubble {
+    position: fixed;
+    z-index: 70;
+    padding: 0;
+    color: #fff;
+    font: inherit;
+    background: none;
+    border: 0;
+    cursor: pointer;
+}
+
+.activity-bubble.is-up {
+    transform: translate(-50%, calc(-100% - 10px));
+}
+
+.activity-bubble.is-side {
+    transform: translate(10px, -50%);
+}
+
+.activity-bubble-body {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 9px 14px;
+    font-weight: 700;
+    font-size: 14px;
+    background: var(--danger-600);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--danger-600) 70%, transparent);
+    white-space: nowrap;
+    animation: bubble-in 0.4s var(--ease-spring, ease-out) both;
+}
+
+/* The little pointer towards the heart. */
+.activity-bubble-body::after {
+    content: "";
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: inherit;
+    border-radius: 2px;
+}
+
+.is-up .activity-bubble-body::after {
+    left: 50%;
+    bottom: -5px;
+    transform: translateX(-50%) rotate(45deg);
+}
+
+.is-side .activity-bubble-body::after {
+    left: -5px;
+    top: 50%;
+    transform: translateY(-50%) rotate(45deg);
+}
+
+.activity-bubble-kind {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-variant-numeric: tabular-nums;
+}
+
+.activity-bubble-kind svg {
+    fill: currentColor;
+    fill-opacity: 0.25;
+}
+
+@keyframes bubble-in {
+    from {
+        opacity: 0;
+        transform: scale(0.6);
+    }
+}
+
+/* The "New" group on the Activity page. */
+.activity-section.is-new .activity-heading {
+    color: var(--danger-600);
+}
+
+.activity-section.is-new .notification-row {
+    background: color-mix(in srgb, var(--ink-50) 70%, var(--surface));
+}
+
+/* ---------------------------------------------------------------- Follow in a post header */
+.post-follow {
+    flex: none;
+    margin-right: auto;
+    padding: 4px 2px;
+    color: var(--ink-600);
+    font: inherit;
+    font-weight: 700;
+    font-size: 13.5px;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.post-follow::before {
+    content: "•";
+    margin-right: 6px;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.post-follow:hover {
+    color: var(--ink-800);
+}
+
+.post-follow:disabled {
+    color: var(--text-muted);
+    cursor: default;
+}
+
+.event-post-head .event-post-club {
+    flex: 0 1 auto;
+}
+
+/* ---------------------------------------------------------------- Someone's profile */
+.person-private {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+}
+
+.person-heading {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.person-clubs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 10px;
+}
+
+.person-club {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    animation: tl-in 0.35s var(--ease-out, ease-out) both;
+    animation-delay: calc(var(--i, 0) * 40ms);
+    transition:
+        border-color 0.15s ease,
+        transform 0.15s ease;
+}
+
+.person-club:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-1px);
+}
+
+.person-club-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.person-club-body strong {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.person-club-tag {
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-700);
+    background: var(--ink-50);
+    border-radius: 999px;
+}
+
+/* ---------------------------------------------------------------- Club members */
+.core-team {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 12px;
+}
+
+.core-member {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 12px 14px;
+    text-align: center;
+    background: var(--surface-muted);
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    animation: tl-in 0.35s var(--ease-out, ease-out) both;
+    animation-delay: calc(var(--i, 0) * 40ms);
+}
+
+.core-member.is-president {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--gold-100) 80%, var(--surface)), var(--surface));
+    border-color: color-mix(in srgb, var(--gold-500) 40%, transparent);
+}
+
+.core-member-who {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+}
+
+.core-member-who:hover strong {
+    text-decoration: underline;
+}
+
+.core-member .member-phone {
+    font-size: 12.5px;
+}
+
+.members-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.members-tools .input-with-icon {
+    width: 220px;
+}
+
+.members-tools > :last-child:not(.input-with-icon) {
+    width: 280px;
+    max-width: 100%;
+}
+
+.member-who {
+    color: var(--text);
+}
+
+.member-who:hover strong {
+    text-decoration: underline;
+}
+
+.member-email {
+    display: block;
+    font-size: 12.5px;
+}
+
+/* Roles as cards, president first, each with who holds it and what it can do. */
+.role-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+    padding: 14px 16px 16px;
+}
+
+.role-grid > li + li {
+    border-top: 0;
+}
+
+.role-grid > li {
+    display: flex;
+    animation: tl-in 0.35s var(--ease-out, ease-out) both;
+    animation-delay: calc(var(--i, 0) * 35ms);
+}
+
+.role-grid .role-item,
+.role-grid .role-item:first-child {
+    flex: 1;
+    gap: 2px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    animation: none;
+}
+
+.role-grid > li.is-president .role-item {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--gold-100) 70%, var(--surface)), var(--surface));
+    border-color: color-mix(in srgb, var(--gold-500) 40%, transparent);
+}
+
+.role-grid button.role-item:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-muted);
+}
+
+.role-grid .role-item {
+    position: relative;
+}
+
+.role-grid button.role-item .role-item-head {
+    padding-right: 56px;
+}
+
+.role-grid .role-item-edit {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    opacity: 1;
+    transform: none;
+    color: var(--text-muted);
+}
+
+.role-grid button.role-item:hover .role-item-edit {
+    color: var(--ink-600);
+}
+
+.role-holders {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    min-width: 0;
+}
+
+.role-holders .small {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.role-holders.is-vacant {
+    color: var(--warning-600);
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.role-faces {
+    display: flex;
+    flex: none;
+}
+
+.role-faces .avatar + .avatar {
+    margin-left: -8px;
+}
+
+.role-faces .avatar {
+    box-shadow: 0 0 0 2px var(--surface);
+}
+
+@media (max-width: 640px) {
+    .members-tools,
+    .members-tools .input-with-icon,
+    .members-tools > :last-child:not(.input-with-icon) {
+        width: 100%;
+    }
+
+    .role-grid {
+        grid-template-columns: minmax(0, 1fr);
+        padding: 12px;
+    }
+
+    .core-team {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nav-dot,
+    .activity-bubble-body,
+    .person-club,
+    .core-member,
+    .role-grid > li {
+        animation: none;
+    }
+}

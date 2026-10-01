@@ -3,6 +3,7 @@ import { UserCheck, UserPlus } from "lucide-react";
 import { clubApi } from "../../api/endpoints";
 import { useToast } from "../../context/ToastContext";
 import { plural } from "../../lib/format";
+import { setClubFollow } from "../../hooks/useClubFollow";
 
 /**
  * Follow a club to be emailed about its new events and announcements. The button says what it does:
@@ -36,6 +37,7 @@ export const FollowButton = ({ club, className = "", showCount = true, onFollowe
         try {
             const { data } = await clubApi.setSubscription(club._id, next);
             setFollowing(data.subscribed);
+            setClubFollow(club._id, data.subscribed);
             if (typeof data.followerCount === "number") setFollowers(data.followerCount);
             if (!next) {
                 toast.info(`You unfollowed ${club.name}`);

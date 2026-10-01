@@ -152,6 +152,8 @@ const change = (method) => (path, body) => {
 
 export const api = {
     get: cachedGet,
+    // Live data that must never come from the cache (unread counts, the activity list).
+    fresh: (path, query) => request(path, { query }),
     post: change("POST"),
     put: change("PUT"),
     patch: change("PATCH"),

@@ -27,6 +27,7 @@ import { useUnreadCount } from "../../hooks/useUnreadCount";
 import { PERMISSIONS } from "../../lib/constants";
 import { ActionMenu, Avatar } from "../ui";
 import { CreateSheet, useCreateOptions } from "./CreateSheet";
+import { ActivityBubble } from "./ActivityBubble";
 
 const Brand = () => (
     <Link to="/feed" className="brand" aria-label="CampusConnect home">
@@ -37,7 +38,11 @@ const Brand = () => (
     </Link>
 );
 
-const Count = ({ value }) => (value > 0 ? <span className="nav-badge">{value > 99 ? "99+" : value}</span> : null);
+// Activity shows Instagram's red dot rather than a number; the bubble says what's new.
+const Count = ({ value, dot }) => {
+    if (!(value > 0)) return null;
+    return dot ? <span className="nav-dot" aria-hidden="true" /> : <span className="nav-badge">{value > 99 ? "99+" : value}</span>;
+};
 
 // The main destinations: the same five on the side bar and the phone's bottom tabs.
 const usePrimaryNav = () => {
@@ -58,7 +63,7 @@ const usePrimaryNav = () => {
         { key: "home", to: "/feed", icon: Home, label: "Home", active: pathname === "/feed" },
         { key: "explore", to: "/explore", icon: Compass, label: "Explore" },
         role,
-        { key: "activity", to: "/activity", icon: Heart, label: "Activity", count: unread, active: ["/activity", "/notifications"].includes(pathname) },
+        { key: "activity", to: "/activity", icon: Heart, label: "Activity", count: unread, dot: true, active: ["/activity", "/notifications"].includes(pathname) },
         { key: "profile", to: "/profile", label: "Profile", avatar: user }
     ].filter(Boolean);
 };
@@ -113,7 +118,7 @@ const PrimaryLink = ({ item, onCreate }) => {
         <>
             <span className="nav-icon">
                 {item.avatar ? <Avatar name={item.avatar.name} size="xs" /> : <item.icon size={24} strokeWidth={1.9} />}
-                <Count value={item.count} />
+                <Count value={item.count} dot={item.dot} />
             </span>
             <span className="nav-label">{item.label}</span>
         </>
@@ -129,7 +134,8 @@ const PrimaryLink = ({ item, onCreate }) => {
         <NavLink
             to={item.to}
             title={item.label}
-            aria-label={item.count ? `${item.label} (${item.count} unread)` : item.label}
+            aria-label={item.count ? `${item.label} (${item.count} new)` : item.label}
+            data-activity-anchor={item.key === "activity" ? "" : undefined}
             className={({ isActive }) => `nav-item ${(item.active ?? isActive) ? "active" : ""}`}
         >
             {body}
@@ -241,6 +247,7 @@ export const AppShell = () => {
             </main>
             <TabBar primary={primary} onCreate={() => setCreating(true)} />
             <CreateSheet open={creating} onClose={() => setCreating(false)} />
+            <ActivityBubble />
         </div>
     );
 };

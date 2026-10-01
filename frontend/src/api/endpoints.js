@@ -24,6 +24,8 @@ export const userApi = {
     list: (query) => api.get("/users", query),
     search: (q, accountType, departments) => api.get("/users/search", { q, accountType, departments }),
     update: (id, body) => api.put(`/users/${id}`, body),
+    // Anyone's public profile: no email, mobile number or schedule.
+    profile: (id) => api.get(`/users/${id}/profile`),
     setStatus: (id, isActive) => api.patch(`/users/${id}/status`, { isActive })
 };
 
@@ -132,8 +134,8 @@ export const feedApi = {
 };
 
 export const notificationApi = {
-    list: (query) => api.get("/notifications", query),
-    unreadCount: () => api.get("/notifications/unread-count"),
+    list: (query) => api.fresh("/notifications", query),
+    unreadCount: () => api.fresh("/notifications/unread-count"),
     markRead: (id) => api.patch(`/notifications/${id}/read`),
     markAllRead: () => api.post("/notifications/read-all"),
     preferences: () => api.get("/notifications/preferences"),

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Outlet, useParams } from "react-router-dom";
+import { Link, Outlet, useParams } from "react-router-dom";
 import { CalendarDays, Clock, Gift, Info, Link2, Lock, LogOut, Megaphone, Settings, UserPlus, Users } from "lucide-react";
 import { clubApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
@@ -40,10 +40,10 @@ const ClubLayout = () => {
     const canSettings = can(PERMISSIONS.MANAGE_CLUB) || viewer.isMentor || viewer.isAdmin;
 
     const tabs = [
-        { to: `/clubs/${id}`, label: "About", icon: Info, end: true },
-        { to: `/clubs/${id}/events`, label: "Events", icon: CalendarDays, count: club?.upcomingEvents || null },
+        { to: `/clubs/${id}`, label: "Events", icon: CalendarDays, count: club?.upcomingEvents || null, end: true },
         ...(club?.status === "ACTIVE" ? [{ to: `/clubs/${id}/recruitment`, label: club?.recruiting ? "Recruitment · open" : "Recruitment", icon: Megaphone }] : []),
         ...(canSeeMembers ? [{ to: `/clubs/${id}/members`, label: "Members", icon: Users, count: club?.memberCount }] : []),
+        { to: `/clubs/${id}/about`, label: "About", icon: Info },
         ...(canSettings ? [{ to: `/clubs/${id}/settings`, label: viewer.isAdmin && !viewer.isMember ? "Administration" : "Manage", icon: Settings }] : [])
     ];
 
@@ -63,7 +63,7 @@ const ClubLayout = () => {
                             </div>
                             <StatStrip
                                 items={[
-                                    { label: "upcoming", value: club.upcomingEvents ?? 0, to: `/clubs/${id}/events` },
+                                    { label: "upcoming", value: club.upcomingEvents ?? 0, to: `/clubs/${id}` },
                                     { label: club.memberCount === 1 ? "member" : "members", value: club.memberCount ?? 0, to: canSeeMembers ? `/clubs/${id}/members` : undefined },
                                     ...(typeof club.followerCount === "number" ? [{ label: (followers ?? club.followerCount) === 1 ? "follower" : "followers", value: followers ?? club.followerCount }] : [])
                                 ]}
@@ -74,7 +74,19 @@ const ClubLayout = () => {
                                 </strong>
                                 {club.tagline && <span>{club.tagline}</span>}
                                 {(club.president || club.mentor) && (
-                                    <span className="subtle">{[club.president && `President ${club.president.name}`, club.mentor && `Mentor ${club.mentor.name}`].filter(Boolean).join(" · ")}</span>
+                                    <span className="subtle">
+                                        {club.president && (
+                                            <>
+                                                President <Link to={`/people/${club.president._id}`}>{club.president.name}</Link>
+                                            </>
+                                        )}
+                                        {club.president && club.mentor && " · "}
+                                        {club.mentor && (
+                                            <>
+                                                Mentor <Link to={`/people/${club.mentor._id}`}>{club.mentor.name}</Link>
+                                            </>
+                                        )}
+                                    </span>
                                 )}
                                 <ClubSocialRow club={club} />
                             </div>

@@ -32,6 +32,21 @@ const clubFollowerIds = async (clubId, { membersOnly = false } = {}) => {
 const optedOutIds = async (clubId) =>
     ids((await ClubSubscription.find({ club: clubId, enabled: false }).select("user")).map((choice) => choice.user));
 
+/** The ids (as strings) of the given clubs that this user follows. */
+const followedAmong = async (userId, clubIds) => {
+    if (!clubIds.length) return new Set();
+    const [memberships, choices] = await Promise.all([
+        ClubMembership.find({ user: userId, club: { $in: clubIds }, status: MEMBERSHIP_STATUS.APPROVED }).select("club").lean(),
+        ClubSubscription.find({ user: userId, club: { $in: clubIds } }).select("club enabled").lean()
+    ]);
+    const choice = new Map(choices.map((row) => [String(row.club), row.enabled]));
+    const followed = new Set(choices.filter((row) => row.enabled).map((row) => String(row.club)));
+    memberships.forEach((membership) => {
+        if (choice.get(String(membership.club)) !== false) followed.add(String(membership.club));
+    });
+    return followed;
+};
+
 const followerCount = async (clubId) => (await clubFollowerIds(clubId)).length;
 
 const isSubscribed = async (userId, clubId) => {
@@ -105,6 +120,7 @@ const turnOffForUser = async (userId, clubId) => {
 };
 
 module.exports = {
+    followedAmong,
     clubFollowerIds,
     optedOutIds,
     followerCount,
