@@ -21,6 +21,7 @@ const {
     assertAdmin,
     getClubContext,
     canSeeMemberDirectory,
+    canSeeFacultyContacts,
     contextHas,
     assertClubMentor
 } = require("./AuthorizationService");
@@ -35,8 +36,11 @@ const { openDrivesByClub } = require("./RecruitmentService");
 const PHONE_PATTERN = /^\+?[0-9][0-9 ()-]{6,18}[0-9]$/;
 
 
-const populateClub = (query) =>
-    query.populate("president", "name email departmentCode batchCode avatar").populate("mentor", "name email departmentCode avatar");
+// Phone numbers only for the single-club view, which then removes them for viewers who may not see them.
+const populateClub = (query, { withPhones = false } = {}) =>
+    query
+        .populate("president", `name email departmentCode batchCode avatar${withPhones ? " phone" : ""}`)
+        .populate("mentor", `name email departmentCode avatar${withPhones ? " phone" : ""}`);
 
 const memberCounts = async (clubIds) => {
     const rows = await ClubMembership.aggregate([
@@ -111,7 +115,7 @@ const getClub = async (actor, clubId) => {
 
     const insider = context.isMember || context.isMentor || context.isAdmin;
     const [populated, counts, openDrives, upcomingEvents, followers, subscribed, canSeeMembers] = await Promise.all([
-        populateClub(Club.findById(club._id)),
+        populateClub(Club.findById(club._id), { withPhones: true }),
         memberCounts([club._id]),
         openDrivesByClub([club._id]),
         Event.countDocuments({ club: club._id, status: EVENT_STATUS.PUBLISHED, startAt: { $gte: new Date() } }),
@@ -128,6 +132,10 @@ const getClub = async (actor, clubId) => {
     if (!insider) {
         delete clubView.statusNote;
     }
+    // Contact numbers: the mentor's for club members anywhere, faculty and the admin; the president's like
+    // any member's number (club members, mentors, the admin).
+    if (clubView.mentor && !(actor && (await canSeeFacultyContacts(actor)))) delete clubView.mentor.phone;
+    if (clubView.president && !canSeeMembers) delete clubView.president.phone;
     return {
         ...clubView,
         memberCount: counts.get(String(club._id)) || 0,

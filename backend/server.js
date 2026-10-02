@@ -39,6 +39,7 @@ const galleryRoutes = require("./routes/GalleryRoutes");
 const recruitmentRoutes = require("./routes/RecruitmentRoutes");
 const certificateRoutes = require("./routes/CertificateRoutes");
 const pushRoutes = require("./routes/PushRoutes");
+const likeRoutes = require("./routes/LikeRoutes");
 const devRoutes = require("./routes/DevRoutes");
 
 validateEnv();
@@ -95,6 +96,7 @@ app.use("/api/gallery", galleryRoutes);
 app.use("/api/recruitment", recruitmentRoutes);
 app.use("/api/certificates", certificateRoutes);
 app.use("/api/push", pushRoutes);
+app.use("/api/likes", likeRoutes);
 
 // Development inbox: only exists when SMTP is not configured and NODE_ENV is not production.
 if (deliveryMode() === "preview") {

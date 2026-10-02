@@ -28,10 +28,60 @@ import { eventApi, hackathonApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useQueryState } from "../../hooks/useQueryState";
 import { useToast } from "../../context/ToastContext";
-import { ApiErrorAlert, AsyncContent, Avatar, Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, Input, Modal, PageHeader, Tabs, Textarea, UserPicker } from "../../components/ui";
+import {
+    ApiErrorAlert,
+    AsyncContent,
+    Avatar,
+    Badge,
+    Button,
+    Card,
+    ConfirmDialog,
+    EmptyState,
+    ErrorState,
+    Input,
+    Modal,
+    PageHeader,
+    Segmented,
+    Tabs,
+    Textarea,
+    UserPicker
+} from "../../components/ui";
+import { QuestionBuilder, questionProblem, toQuestionPayload, withKeys } from "../../components/forms/QuestionBuilder";
+import { QuestionFields, answersMap, missingAnswer, toAnswers } from "../../components/forms/QuestionFields";
 import { countdownParts, formatDateTime, fromDateTimeInput, formatEventDates, timeAgo, toDateTimeInput } from "../../lib/format";
 
 // ---------------------------------------------------------------- shared bits
+
+// The organisers' extra submission questions with this team's answers.
+const SubmissionAnswers = ({ questions = [], answers = [] }) => {
+    const byQuestion = new Map(answers.map((answer) => [String(answer.question), answer]));
+    const rows = questions
+        .map((question) => {
+            const answer = byQuestion.get(String(question._id));
+            const text = answer ? (answer.choices?.length ? answer.choices.join(", ") : answer.text) : "";
+            return text ? { question, text } : null;
+        })
+        .filter(Boolean);
+    if (!rows.length) return null;
+    return (
+        <dl className="answer-list">
+            {rows.map(({ question, text }) => (
+                <div key={question._id}>
+                    <dt>{question.label}</dt>
+                    <dd>
+                        {question.type === "LINK" ? (
+                            <a href={text} target="_blank" rel="noreferrer">
+                                {text}
+                            </a>
+                        ) : (
+                            text
+                        )}
+                    </dd>
+                </div>
+            ))}
+        </dl>
+    );
+};
 
 const useNow = (every = 30000) => {
     const [now, setNow] = useState(() => Date.now());
@@ -50,7 +100,13 @@ const Countdown = ({ to, label }) => {
         <div className={`hack-countdown ${left < 3600000 ? "is-urgent" : ""}`}>
             <Clock size={16} />
             <span>
-                {label} in <strong>{countdownParts(left).filter(([value], index, all) => value > 0 || index === all.length - 1).map(([value, unit]) => `${value} ${unit}`).join(" ")}</strong>
+                {label} in{" "}
+                <strong>
+                    {countdownParts(left)
+                        .filter(([value], index, all) => value > 0 || index === all.length - 1)
+                        .map(([value, unit]) => `${value} ${unit}`)
+                        .join(" ")}
+                </strong>
             </span>
             <span className="subtle small">{formatDateTime(to)}</span>
         </div>
@@ -167,9 +223,18 @@ const SubmissionForm = ({ hack, eventId, onSaved, onCancel }) => {
     const toast = useToast();
     const existing = hack.myEntry?.project || {};
     const [form, setForm] = useState({ title: "", summary: "", demoUrl: "", videoUrl: "", deckUrl: "", techStack: "", ...existing });
+    const fields = hack.submissionFields || {};
+    const questions = hack.submissionQuestions || [];
+    const [answers, setAnswers] = useState(() => answersMap(hack.myEntry?.submissionAnswers || []));
     const [pending, setPending] = useState(false);
     const [error, setError] = useState(null);
     const set = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
+    const shown = (field) => (fields[field] || "OPTIONAL") !== "OFF";
+    const required = (field) => fields[field] === "REQUIRED";
+    const label = (field, text) => (fields[field] === "OPTIONAL" && !["demoUrl", "videoUrl"].includes(field) ? `${text} (optional)` : text);
+    const eitherDemo = (fields.demoUrl || "OPTIONAL") === "OPTIONAL" && (fields.videoUrl || "OPTIONAL") === "OPTIONAL";
+    const missingField = SUBMISSION_FIELDS.find(([field]) => required(field) && !String(form[field] || "").trim());
+    const missing = missingField ? missingField[1] : missingAnswer(questions, answers)?.label;
 
     const save = async (event) => {
         event.preventDefault();
@@ -177,7 +242,15 @@ const SubmissionForm = ({ hack, eventId, onSaved, onCancel }) => {
         setError(null);
         try {
             const { title, summary, demoUrl, videoUrl, deckUrl, techStack } = form;
-            const response = await hackathonApi.submitProject(eventId, { title, summary, demoUrl, videoUrl, deckUrl, techStack });
+            const response = await hackathonApi.submitProject(eventId, {
+                title,
+                summary,
+                demoUrl,
+                videoUrl,
+                deckUrl,
+                techStack,
+                answers: toAnswers(questions, answers)
+            });
             onSaved(response.data);
             toast.success(hack.myEntry?.submittedAt ? "Submission updated" : "Project submitted — good luck!");
         } catch (err) {
@@ -190,16 +263,75 @@ const SubmissionForm = ({ hack, eventId, onSaved, onCancel }) => {
     return (
         <form className="hack-stage-form" onSubmit={save}>
             <div className="form-grid">
-                <Input label="Project name" value={form.title} onChange={set("title")} maxLength={120} required />
-                <Input label="Tech stack" value={form.techStack} onChange={set("techStack")} maxLength={300} placeholder="React, Node.js, MongoDB" />
-                <Textarea className="span-2" label="What did you build?" value={form.summary} onChange={set("summary")} rows={4} maxLength={3000} required hint="The problem, your solution and how it works (at least 20 characters)" />
-                <Input label="Live demo" type="url" value={form.demoUrl} onChange={set("demoUrl")} placeholder="https://your-project.vercel.app" />
-                <Input label="Demo video" type="url" value={form.videoUrl} onChange={set("videoUrl")} placeholder="YouTube or Drive link" />
-                <Input className="span-2" label="Presentation (optional)" type="url" value={form.deckUrl} onChange={set("deckUrl")} placeholder="Slides or PDF link" />
+                <Input
+                    className={shown("techStack") ? "" : "span-2"}
+                    label="Project name"
+                    value={form.title}
+                    onChange={set("title")}
+                    maxLength={120}
+                    required
+                />
+                {shown("techStack") && (
+                    <Input
+                        label={label("techStack", "Tech stack")}
+                        value={form.techStack}
+                        onChange={set("techStack")}
+                        maxLength={300}
+                        placeholder="React, Node.js, MongoDB"
+                        required={required("techStack")}
+                    />
+                )}
+                <Textarea
+                    className="span-2"
+                    label="What did you build?"
+                    value={form.summary}
+                    onChange={set("summary")}
+                    rows={4}
+                    maxLength={3000}
+                    required
+                    hint="The problem, your solution and how it works (at least 20 characters)"
+                />
+                {shown("demoUrl") && (
+                    <Input
+                        className={shown("videoUrl") ? "" : "span-2"}
+                        label="Live demo"
+                        type="url"
+                        value={form.demoUrl}
+                        onChange={set("demoUrl")}
+                        placeholder="https://your-project.vercel.app"
+                        required={required("demoUrl")}
+                    />
+                )}
+                {shown("videoUrl") && (
+                    <Input
+                        className={shown("demoUrl") ? "" : "span-2"}
+                        label="Demo video"
+                        type="url"
+                        value={form.videoUrl}
+                        onChange={set("videoUrl")}
+                        placeholder="YouTube or Drive link"
+                        required={required("videoUrl")}
+                    />
+                )}
+                {shown("deckUrl") && (
+                    <Input
+                        className="span-2"
+                        label={label("deckUrl", "Presentation")}
+                        type="url"
+                        value={form.deckUrl}
+                        onChange={set("deckUrl")}
+                        placeholder="Slides or PDF link"
+                        required={required("deckUrl")}
+                    />
+                )}
             </div>
+            {questions.length > 0 && <QuestionFields questions={questions} values={answers} onChange={setAnswers} idPrefix="sub" />}
             <span className="subtle small">
-                Add a live demo link or a demo video. Repository: <a href={existing.repoUrl} target="_blank" rel="noreferrer">{existing.repoUrl}</a> (locked). You can edit until{" "}
-                {formatDateTime(hack.submissionDeadline)}.
+                {eitherDemo ? "Add a live demo link or a demo video. " : ""}Repository:{" "}
+                <a href={existing.repoUrl} target="_blank" rel="noreferrer">
+                    {existing.repoUrl}
+                </a>{" "}
+                (locked). You can edit until {formatDateTime(hack.submissionDeadline)}.
             </span>
             <ApiErrorAlert error={error} />
             <div className="form-actions">
@@ -208,7 +340,7 @@ const SubmissionForm = ({ hack, eventId, onSaved, onCancel }) => {
                         Cancel
                     </Button>
                 )}
-                <Button type="submit" loading={pending}>
+                <Button type="submit" loading={pending} disabled={Boolean(missing)} title={missing ? `Fill in "${missing}"` : undefined}>
                     <Send size={16} /> {hack.myEntry?.submittedAt ? "Update submission" : "Submit project"}
                 </Button>
             </div>
@@ -322,6 +454,7 @@ const TeamCard = ({ hack, eventId, onChange }) => {
                                 {entry.project.summary}
                             </p>
                             <ProjectLinks project={entry.project} />
+                            <SubmissionAnswers questions={hack.submissionQuestions} answers={entry.submissionAnswers} />
                             {finalEditable && (
                                 <button type="button" className="link-button small" onClick={() => setEditing("final")}>
                                     Edit submission
@@ -397,7 +530,13 @@ const Problems = ({ hack, eventId, onChange }) => {
                                 </span>
                             ) : (
                                 hack.viewer.canChooseProblem && (
-                                    <Button size="sm" variant={mine ? "secondary" : "primary"} onClick={() => choose(problem)} loading={choosing === problem._id} disabled={full}>
+                                    <Button
+                                        size="sm"
+                                        variant={mine ? "secondary" : "primary"}
+                                        onClick={() => choose(problem)}
+                                        loading={choosing === problem._id}
+                                        disabled={full}
+                                    >
                                         {full ? "Full" : mine ? "Switch to this" : "Choose this problem"}
                                     </Button>
                                 )
@@ -419,7 +558,8 @@ const Overview = ({ hack, event, setHack }) => {
             {!hack.viewer.isParticipant && !hack.viewer.canManage && !hack.viewer.canJudge && (
                 <Card>
                     <p className="subtle" style={{ margin: 0 }}>
-                        Problem statements and submissions are for registered teams. <Link to={`/events/${event._id}`}>Register on the event page</Link> while registration is open.
+                        Problem statements and submissions are for registered teams. <Link to={`/events/${event._id}`}>Register on the event page</Link> while
+                        registration is open.
                     </p>
                 </Card>
             )}
@@ -494,7 +634,16 @@ const ProblemEditor = ({ eventId, problem, onClose, onSaved }) => {
         >
             <form id="problem-form" className="form-grid" onSubmit={save}>
                 <Input className="span-2" label="Title" value={form.title} onChange={set("title")} maxLength={160} required />
-                <Textarea className="span-2" label="Problem description" value={form.description} onChange={set("description")} rows={7} maxLength={4000} required hint="The challenge, who it's for, and what a good solution should do" />
+                <Textarea
+                    className="span-2"
+                    label="Problem description"
+                    value={form.description}
+                    onChange={set("description")}
+                    rows={7}
+                    maxLength={4000}
+                    required
+                    hint="The challenge, who it's for, and what a good solution should do"
+                />
                 <Input label="Track (optional)" value={form.track} onChange={set("track")} maxLength={60} placeholder="e.g. Health, FinTech" />
                 <Input label="Max teams (optional)" type="number" min={1} value={form.maxTeams} onChange={set("maxTeams")} hint="Empty for no limit" />
                 <div className="span-2">
@@ -502,6 +651,82 @@ const ProblemEditor = ({ eventId, problem, onClose, onSaved }) => {
                 </div>
             </form>
         </Modal>
+    );
+};
+
+const SUBMISSION_FIELDS = [
+    ["demoUrl", "Live demo link"],
+    ["videoUrl", "Demo video link"],
+    ["deckUrl", "Presentation link"],
+    ["techStack", "Tech stack"]
+];
+
+const FIELD_MODES = [
+    { value: "REQUIRED", label: "Required" },
+    { value: "OPTIONAL", label: "Optional" },
+    { value: "OFF", label: "Off" }
+];
+
+// What teams fill in for the final submission: the standard fields (required, optional or not asked)
+// plus any questions of the organisers' own. Project name and description are always asked.
+const SubmissionFormSetup = ({ hack, saving, onSave }) => {
+    const [fields, setFields] = useState(() => ({
+        demoUrl: "OPTIONAL",
+        videoUrl: "OPTIONAL",
+        deckUrl: "OPTIONAL",
+        techStack: "OPTIONAL",
+        ...hack.submissionFields
+    }));
+    const [questions, setQuestions] = useState(() => withKeys(hack.submissionQuestions || []));
+    const problem = questionProblem(questions);
+    const eitherDemo = fields.demoUrl === "OPTIONAL" && fields.videoUrl === "OPTIONAL";
+    return (
+        <Card
+            title={
+                <h2 className="row">
+                    <Send size={18} /> Final submission form
+                </h2>
+            }
+        >
+            <div className="stack">
+                <p className="subtle small" style={{ margin: 0 }}>
+                    Project name and description are always asked. Choose what else teams must give, and add your own questions.
+                </p>
+                <ul className="field-modes">
+                    <li>
+                        <span>Project name &amp; description</span>
+                        <Badge tone="ink">Always</Badge>
+                    </li>
+                    {SUBMISSION_FIELDS.map(([field, label]) => (
+                        <li key={field}>
+                            <span>{label}</span>
+                            <Segmented
+                                label={label}
+                                value={fields[field]}
+                                onChange={(value) => setFields((prev) => ({ ...prev, [field]: value }))}
+                                options={FIELD_MODES}
+                            />
+                        </li>
+                    ))}
+                </ul>
+                {eitherDemo && <span className="subtle small">With demo and video both optional, teams must give at least one of them.</span>}
+                <QuestionBuilder
+                    questions={questions}
+                    onChange={setQuestions}
+                    emptyHint="Need more? Add questions like “Team's college ID numbers” or “Which APIs did you use?”."
+                />
+                {problem && <span className="field-error small">{problem}</span>}
+                <div className="form-actions">
+                    <Button
+                        loading={saving}
+                        disabled={Boolean(problem)}
+                        onClick={() => onSave({ submissionFields: fields, submissionQuestions: toQuestionPayload(questions) })}
+                    >
+                        <Save size={16} /> Save submission form
+                    </Button>
+                </div>
+            </div>
+        </Card>
     );
 };
 
@@ -549,8 +774,23 @@ const Setup = ({ hack, event, setHack }) => {
                 }
             >
                 <div className="form-grid">
-                    <Input label="Release problem statements" type="datetime-local" min={startInput} max={endInput} value={times.revealAt} onChange={setTime("revealAt")} hint="Not before the event starts" />
-                    <Input label="1. Problem selection closes" type="datetime-local" min={times.revealAt} max={endInput} value={times.selectionDeadline} onChange={setTime("selectionDeadline")} />
+                    <Input
+                        label="Release problem statements"
+                        type="datetime-local"
+                        min={startInput}
+                        max={endInput}
+                        value={times.revealAt}
+                        onChange={setTime("revealAt")}
+                        hint="Not before the event starts"
+                    />
+                    <Input
+                        label="1. Problem selection closes"
+                        type="datetime-local"
+                        min={times.revealAt}
+                        max={endInput}
+                        value={times.selectionDeadline}
+                        onChange={setTime("selectionDeadline")}
+                    />
                     <Input
                         label="2. Repository deadline"
                         type="datetime-local"
@@ -560,7 +800,15 @@ const Setup = ({ hack, event, setHack }) => {
                         onChange={setTime("repoDeadline")}
                         hint="Teams share their GitHub link by then; the final submission opens after it"
                     />
-                    <Input label="3. Final submissions close" type="datetime-local" min={times.repoDeadline} max={endInput} value={times.submissionDeadline} onChange={setTime("submissionDeadline")} hint="Live demo, video, slides — judging opens then" />
+                    <Input
+                        label="3. Final submissions close"
+                        type="datetime-local"
+                        min={times.repoDeadline}
+                        max={endInput}
+                        value={times.submissionDeadline}
+                        onChange={setTime("submissionDeadline")}
+                        hint="Live demo, video, slides — judging opens then"
+                    />
                 </div>
                 <div className="form-actions">
                     <Button
@@ -599,20 +847,36 @@ const Setup = ({ hack, event, setHack }) => {
                                 <span className="grow">
                                     <strong>{problem.title}</strong>
                                     <span className="subtle small">
-                                        {[problem.track, `${problem.teams} team${problem.teams === 1 ? "" : "s"}`, problem.maxTeams ? `max ${problem.maxTeams}` : null].filter(Boolean).join(" · ")}
+                                        {[
+                                            problem.track,
+                                            `${problem.teams} team${problem.teams === 1 ? "" : "s"}`,
+                                            problem.maxTeams ? `max ${problem.maxTeams}` : null
+                                        ]
+                                            .filter(Boolean)
+                                            .join(" · ")}
                                     </span>
                                 </span>
                                 <Button variant="ghost" size="sm" onClick={() => setEditing(problem)} aria-label={`Edit ${problem.title}`}>
                                     <Pencil size={14} />
                                 </Button>
-                                <Button variant="ghost" size="sm" onClick={() => setDeleting(problem)} aria-label={`Remove ${problem.title}`} disabled={problem.teams > 0}>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setDeleting(problem)}
+                                    aria-label={`Remove ${problem.title}`}
+                                    disabled={problem.teams > 0}
+                                >
                                     <Trash2 size={14} />
                                 </Button>
                             </li>
                         ))}
                     </ul>
                 ) : (
-                    <EmptyState icon={Lightbulb} title="No problem statements yet" description="Add them any time — teams only see them once they're released." />
+                    <EmptyState
+                        icon={Lightbulb}
+                        title="No problem statements yet"
+                        description="Add them any time — teams only see them once they're released."
+                    />
                 )}
             </Card>
 
@@ -623,7 +887,11 @@ const Setup = ({ hack, event, setHack }) => {
                     </h2>
                 }
                 actions={
-                    <Button size="sm" variant="secondary" onClick={() => setAgenda((prev) => [...prev, { title: "", startsAt: prev.at(-1)?.startsAt || startInput, note: "" }])}>
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setAgenda((prev) => [...prev, { title: "", startsAt: prev.at(-1)?.startsAt || startInput, note: "" }])}
+                    >
                         <Plus size={14} /> Add item
                     </Button>
                 }
@@ -631,22 +899,50 @@ const Setup = ({ hack, event, setHack }) => {
                 <div className="stack">
                     {agenda.map((item, index) => (
                         <div key={item._id || `new-${index}`} className="hack-agenda-edit">
-                            <Input label="When" type="datetime-local" value={item.startsAt} onChange={(e) => setAgenda((prev) => prev.map((row, i) => (i === index ? { ...row, startsAt: e.target.value } : row)))} />
-                            <Input label="What" value={item.title} maxLength={120} placeholder="e.g. Mentoring round" onChange={(e) => setAgenda((prev) => prev.map((row, i) => (i === index ? { ...row, title: e.target.value } : row)))} />
-                            <Input label="Note" value={item.note} maxLength={300} onChange={(e) => setAgenda((prev) => prev.map((row, i) => (i === index ? { ...row, note: e.target.value } : row)))} />
-                            <Button variant="ghost" size="sm" onClick={() => setAgenda((prev) => prev.filter((_, i) => i !== index))} aria-label="Remove agenda item">
+                            <Input
+                                label="When"
+                                type="datetime-local"
+                                value={item.startsAt}
+                                onChange={(e) => setAgenda((prev) => prev.map((row, i) => (i === index ? { ...row, startsAt: e.target.value } : row)))}
+                            />
+                            <Input
+                                label="What"
+                                value={item.title}
+                                maxLength={120}
+                                placeholder="e.g. Mentoring round"
+                                onChange={(e) => setAgenda((prev) => prev.map((row, i) => (i === index ? { ...row, title: e.target.value } : row)))}
+                            />
+                            <Input
+                                label="Note"
+                                value={item.note}
+                                maxLength={300}
+                                onChange={(e) => setAgenda((prev) => prev.map((row, i) => (i === index ? { ...row, note: e.target.value } : row)))}
+                            />
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setAgenda((prev) => prev.filter((_, i) => i !== index))}
+                                aria-label="Remove agenda item"
+                            >
                                 <Trash2 size={14} />
                             </Button>
                         </div>
                     ))}
-                    {!agenda.length && <p className="subtle small">Opening ceremony, coding time, mentoring rounds, demos, results… teams see it on the hub.</p>}
+                    {!agenda.length && (
+                        <p className="subtle small">Opening ceremony, coding time, mentoring rounds, demos, results… teams see it on the hub.</p>
+                    )}
                     <div className="form-actions">
-                        <Button loading={saving === "agenda"} onClick={() => save("agenda", { agenda: agenda.map((item) => ({ ...item, startsAt: fromDateTimeInput(item.startsAt) })) })}>
+                        <Button
+                            loading={saving === "agenda"}
+                            onClick={() => save("agenda", { agenda: agenda.map((item) => ({ ...item, startsAt: fromDateTimeInput(item.startsAt) })) })}
+                        >
                             <Save size={16} /> Save agenda
                         </Button>
                     </div>
                 </div>
             </Card>
+
+            <SubmissionFormSetup hack={hack} saving={saving === "form"} onSave={(body) => save("form", body)} />
 
             <Card
                 title={
@@ -658,18 +954,43 @@ const Setup = ({ hack, event, setHack }) => {
                 <div className="stack">
                     {criteria.map((criterion, index) => (
                         <div key={criterion._id || `c-${index}`} className="hack-criterion-edit">
-                            <Input label="Criterion" value={criterion.name} maxLength={60} onChange={(e) => setCriteria((prev) => prev.map((row, i) => (i === index ? { ...row, name: e.target.value } : row)))} />
-                            <Input label="Max score" type="number" min={1} max={100} value={criterion.maxScore} onChange={(e) => setCriteria((prev) => prev.map((row, i) => (i === index ? { ...row, maxScore: e.target.value } : row)))} />
-                            <Button variant="ghost" size="sm" onClick={() => setCriteria((prev) => prev.filter((_, i) => i !== index))} disabled={criteria.length <= 1} aria-label="Remove criterion">
+                            <Input
+                                label="Criterion"
+                                value={criterion.name}
+                                maxLength={60}
+                                onChange={(e) => setCriteria((prev) => prev.map((row, i) => (i === index ? { ...row, name: e.target.value } : row)))}
+                            />
+                            <Input
+                                label="Max score"
+                                type="number"
+                                min={1}
+                                max={100}
+                                value={criterion.maxScore}
+                                onChange={(e) => setCriteria((prev) => prev.map((row, i) => (i === index ? { ...row, maxScore: e.target.value } : row)))}
+                            />
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setCriteria((prev) => prev.filter((_, i) => i !== index))}
+                                disabled={criteria.length <= 1}
+                                aria-label="Remove criterion"
+                            >
                                 <Trash2 size={14} />
                             </Button>
                         </div>
                     ))}
                     <div className="form-actions">
-                        <Button variant="secondary" onClick={() => setCriteria((prev) => [...prev, { name: "", maxScore: 10 }])} disabled={criteria.length >= 10}>
+                        <Button
+                            variant="secondary"
+                            onClick={() => setCriteria((prev) => [...prev, { name: "", maxScore: 10 }])}
+                            disabled={criteria.length >= 10}
+                        >
                             <Plus size={14} /> Add criterion
                         </Button>
-                        <Button loading={saving === "criteria"} onClick={() => save("criteria", { criteria: criteria.map((item) => ({ ...item, maxScore: Number(item.maxScore) })) })}>
+                        <Button
+                            loading={saving === "criteria"}
+                            onClick={() => save("criteria", { criteria: criteria.map((item) => ({ ...item, maxScore: Number(item.maxScore) })) })}
+                        >
                             <Save size={16} /> Save criteria
                         </Button>
                     </div>
@@ -756,19 +1077,30 @@ const Judges = ({ hack, event, setHack }) => {
 
 // ---------------------------------------------------------------- Judging (judges)
 
-const ScoreCard = ({ entry, criteria, maxTotal, eventId, onSaved, index }) => {
+const ScoreCard = ({ entry, criteria, questions = [], maxTotal, eventId, onSaved, index }) => {
     const toast = useToast();
-    const initial = useMemo(() => Object.fromEntries(criteria.map((criterion) => [criterion._id, entry.myScore?.marks.find((mark) => mark.criterion === criterion._id)?.score ?? ""])), [criteria, entry.myScore]);
+    const initial = useMemo(
+        () =>
+            Object.fromEntries(
+                criteria.map((criterion) => [criterion._id, entry.myScore?.marks.find((mark) => mark.criterion === criterion._id)?.score ?? ""])
+            ),
+        [criteria, entry.myScore]
+    );
     const [marks, setMarks] = useState(initial);
     const [comment, setComment] = useState(entry.myScore?.comment || "");
     const [pending, setPending] = useState(false);
     const total = criteria.reduce((sum, criterion) => sum + (Number(marks[criterion._id]) || 0), 0);
-    const complete = criteria.every((criterion) => marks[criterion._id] !== "" && Number(marks[criterion._id]) >= 0 && Number(marks[criterion._id]) <= criterion.maxScore);
+    const complete = criteria.every(
+        (criterion) => marks[criterion._id] !== "" && Number(marks[criterion._id]) >= 0 && Number(marks[criterion._id]) <= criterion.maxScore
+    );
 
     const save = async () => {
         setPending(true);
         try {
-            const response = await hackathonApi.score(eventId, entry._id, { marks: criteria.map((criterion) => ({ criterion: criterion._id, score: Number(marks[criterion._id]) })), comment });
+            const response = await hackathonApi.score(eventId, entry._id, {
+                marks: criteria.map((criterion) => ({ criterion: criterion._id, score: Number(marks[criterion._id]) })),
+                comment
+            });
             onSaved(response.data);
             toast.success(`Score saved for ${entry.name}`);
         } catch (error) {
@@ -797,6 +1129,7 @@ const ScoreCard = ({ entry, criteria, maxTotal, eventId, onSaved, index }) => {
                 </p>
             )}
             <ProjectLinks project={entry.project} />
+            <SubmissionAnswers questions={questions} answers={entry.submissionAnswers} />
             <div className="judge-marks">
                 {criteria.map((criterion) => (
                     <label key={criterion._id} className="judge-mark">
@@ -837,7 +1170,11 @@ const Judging = ({ event }) => {
             {data &&
                 (!data.open ? (
                     <Card>
-                        <EmptyState icon={Gavel} title="Judging hasn't opened yet" description={`Projects are due ${formatDateTime(data.opensAt)}. You'll be notified when they're ready to score.`} />
+                        <EmptyState
+                            icon={Gavel}
+                            title="Judging hasn't opened yet"
+                            description={`Projects are due ${formatDateTime(data.opensAt)}. You'll be notified when they're ready to score.`}
+                        />
                     </Card>
                 ) : (
                     <div className="stack-lg">
@@ -853,7 +1190,16 @@ const Judging = ({ event }) => {
                         {data.entries.length ? (
                             <div className="judge-grid">
                                 {data.entries.map((entry, index) => (
-                                    <ScoreCard key={entry._id} index={index} entry={entry} criteria={data.criteria} maxTotal={data.maxTotal} eventId={event._id} onSaved={setData} />
+                                    <ScoreCard
+                                        key={entry._id}
+                                        index={index}
+                                        entry={entry}
+                                        criteria={data.criteria}
+                                        questions={data.submissionQuestions}
+                                        maxTotal={data.maxTotal}
+                                        eventId={event._id}
+                                        onSaved={setData}
+                                    />
                                 ))}
                             </div>
                         ) : (
@@ -919,7 +1265,12 @@ const Leaderboard = ({ hack, event }) => {
                             <ol className="board">
                                 {data.rows.map((row) => (
                                     <li key={row._id} className={`board-row ${row.rank && row.rank <= 3 ? `is-top is-${row.rank}` : ""}`}>
-                                        <button type="button" className="board-main" onClick={() => setOpen(open === row._id ? null : row._id)} aria-expanded={open === row._id}>
+                                        <button
+                                            type="button"
+                                            className="board-main"
+                                            onClick={() => setOpen(open === row._id ? null : row._id)}
+                                            aria-expanded={open === row._id}
+                                        >
                                             <span className="board-rank">{row.rank ?? "—"}</span>
                                             <span className="board-who">
                                                 <strong>{row.name}</strong>
@@ -945,12 +1296,14 @@ const Leaderboard = ({ hack, event }) => {
                                                         <li key={criterion._id}>
                                                             <span>{criterion.name}</span>
                                                             <strong>
-                                                                {row.byCriterion.find((item) => item.criterion === criterion._id)?.average ?? "—"} / {criterion.maxScore}
+                                                                {row.byCriterion.find((item) => item.criterion === criterion._id)?.average ?? "—"} /{" "}
+                                                                {criterion.maxScore}
                                                             </strong>
                                                         </li>
                                                     ))}
                                                 </ul>
                                                 <ProjectLinks project={row.project} />
+                                                <SubmissionAnswers questions={hack.submissionQuestions} answers={row.submissionAnswers} />
                                                 {row.comments.map((item, index) => (
                                                     <p key={index} className="small board-comment">
                                                         <strong>{item.judge}:</strong> {item.comment}
@@ -975,11 +1328,19 @@ const Leaderboard = ({ hack, event }) => {
                         >
                             <div className="stack">
                                 <p className="small" style={{ margin: 0 }}>
-                                    Turn the leaderboard into the event's results: awards for the top teams and a “Judging” round with every score. The president reviews and publishes it from
-                                    the results page.
+                                    Turn the leaderboard into the event's results: awards for the top teams and a “Judging” round with every score. The
+                                    president reviews and publishes it from the results page.
                                 </p>
                                 <div className="row">
-                                    <Input label="Winners" type="number" min={1} max={10} value={winners} onChange={(e) => setWinners(e.target.value)} style={{ width: 100 }} />
+                                    <Input
+                                        label="Winners"
+                                        type="number"
+                                        min={1}
+                                        max={10}
+                                        value={winners}
+                                        onChange={(e) => setWinners(e.target.value)}
+                                        style={{ width: 100 }}
+                                    />
                                     <Button onClick={draft} loading={pending} style={{ alignSelf: "flex-end" }}>
                                         <Trophy size={16} /> {data.resultsDraftedAt ? "Update results draft" : "Prepare results"}
                                     </Button>

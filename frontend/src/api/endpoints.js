@@ -132,7 +132,7 @@ export const eventApi = {
     teamCandidates: (id, search) => api.get(`/events/${id}/team/candidates`, { search }),
     inviteToTeam: (id, users) => api.post(`/events/${id}/team/invites`, { users }),
     removeTeamMember: (id, userId) => api.delete(`/events/${id}/team/members/${userId}`),
-    acceptTeamInvite: (id, teamId) => api.post(`/events/${id}/teams/${teamId}/accept`),
+    acceptTeamInvite: (id, teamId, body) => (body ? api.post(`/events/${id}/teams/${teamId}/accept`, body) : api.post(`/events/${id}/teams/${teamId}/accept`)),
     declineTeamInvite: (id, teamId) => api.post(`/events/${id}/teams/${teamId}/decline`),
     cancel: (id, reason) => api.post(`/events/${id}/cancel`, { reason }),
     complete: (id) => api.post(`/events/${id}/complete`),
@@ -144,6 +144,9 @@ export const eventApi = {
     register: (id, body) => api.post(`/events/${id}/register`, body),
     unregister: (id) => api.delete(`/events/${id}/register`),
     participants: (id, query) => api.get(`/events/${id}/registrations`, query),
+    updateRegistrationForm: (id, body) => api.put(`/events/${id}/registration-form`, body),
+    updateMyAnswers: (id, body) => api.put(`/events/${id}/register/answers`, body),
+    recordExpenses: (id, body) => api.put(`/events/${id}/expenses`, body),
     removeParticipant: (id, registrationId, reason) => api.delete(`/events/${id}/registrations/${registrationId}`, { reason }),
     result: (id) => api.get(`/events/${id}/results`),
     saveResult: (id, body) => api.put(`/events/${id}/results`, body),
@@ -236,6 +239,12 @@ export const galleryApi = {
     approve: (eventId, ids) => api.post(`/events/${eventId}/gallery/approve`, { ids }),
     reject: (eventId, ids, reason) => api.post(`/events/${eventId}/gallery/reject`, { ids, reason }),
     remove: (eventId, mediaId) => api.delete(`/events/${eventId}/gallery/${mediaId}`)
+};
+
+// Likes on event posts ("event") and gallery photos ("media").
+export const likeApi = {
+    set: (type, id, liked) => api.put(`/likes/${type}/${id}`, { liked }),
+    likers: (type, id) => api.fresh(`/likes/${type}/${id}`)
 };
 
 export const storyApi = {

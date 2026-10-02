@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronLeft, ChevronRight, Download, Trash2, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Download, Heart, Trash2, X } from "lucide-react";
 import { Avatar, Button } from "../ui";
 import { timeAgo } from "../../lib/format";
+import { DoubleTapLike, LikeCount, useLike } from "../social/Likes";
 
 const SWIPE_PX = 50;
 
@@ -37,11 +38,13 @@ const Media = ({ item }) => {
  * Full-screen viewer for gallery photos and videos: arrows, keyboard and swipe to move, a filmstrip to jump.
  * In review mode (president / vice-president) it shows Approve and Decline for the item on screen.
  */
-export const GalleryViewer = ({ items, index, onIndex, onClose, title, review = false, busy = false, onApprove, onDecline, onDelete }) => {
+export const GalleryViewer = ({ items, index, onIndex, onClose, title, review = false, busy = false, onApprove, onDecline, onDelete, onLiked }) => {
     const closeRef = useRef(null);
     const stripRef = useRef(null);
     const swipe = useRef(null);
     const item = items[index];
+    // The heart for the photo on screen; the gallery list is told so counts are right when coming back to it.
+    const like = useLike("media", item?._id, item?.likedByMe, item?.likeCount, (state) => item && onLiked?.(item, state));
     const hasPrev = index > 0;
     const hasNext = index < items.length - 1;
 
@@ -134,6 +137,20 @@ export const GalleryViewer = ({ items, index, onIndex, onClose, title, review = 
                         </button>
                     )}
                     {!review && (
+                        <span className="gv-like">
+                            <button
+                                type="button"
+                                className={`gv-icon like-btn ${like.liked ? "is-liked" : ""}`}
+                                onClick={like.toggle}
+                                aria-pressed={like.liked}
+                                aria-label={like.liked ? "Unlike" : "Like"}
+                            >
+                                <Heart size={19} fill={like.liked ? "currentColor" : "none"} />
+                            </button>
+                            <LikeCount like={like} type="media" id={item._id} canSeeLikers={Boolean(item.canDelete)} />
+                        </span>
+                    )}
+                    {!review && (
                         <a className="gv-icon" href={item.url} target="_blank" rel="noreferrer" aria-label="Open full size">
                             <Download size={18} />
                         </a>
@@ -149,7 +166,13 @@ export const GalleryViewer = ({ items, index, onIndex, onClose, title, review = 
                     <ChevronLeft size={26} />
                 </button>
                 <figure key={item._id} className="gv-frame">
-                    <Media item={item} />
+                    {!review && item.kind !== "VIDEO" ? (
+                        <DoubleTapLike like={like}>
+                            <Media item={item} />
+                        </DoubleTapLike>
+                    ) : (
+                        <Media item={item} />
+                    )}
                 </figure>
                 <button type="button" className="gv-nav is-next" onClick={() => go(1)} disabled={!hasNext} aria-label="Next">
                     <ChevronRight size={26} />

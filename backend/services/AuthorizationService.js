@@ -80,6 +80,16 @@ const canSeeMemberDirectory = async (user) => {
     return Boolean(mentors || member);
 };
 
+/**
+ * Who may see faculty mobile numbers: members of any club, every faculty member and the admin.
+ * (Students' numbers follow canSeeMemberDirectory.)
+ */
+const canSeeFacultyContacts = async (user) => {
+    if (!user) return false;
+    if (isAdmin(user) || isFaculty(user)) return true;
+    return Boolean(await ClubMembership.exists({ user: user._id, status: MEMBERSHIP_STATUS.APPROVED }));
+};
+
 // Resolves everything the backend needs to authorise a user against one club.
 const getClubContext = async (user, clubOrId) => {
     const club = await loadClub(clubOrId);
@@ -147,6 +157,7 @@ module.exports = {
     getMembership,
     getClubContext,
     canSeeMemberDirectory,
+    canSeeFacultyContacts,
     contextHas,
     assertClubPermission,
     assertClubMentor,

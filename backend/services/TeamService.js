@@ -153,7 +153,7 @@ const sendInvites = async (team, event, leader, invitees) => {
 };
 
 // Called by RegistrationService when the leader registers: creates the team before the leader's place is taken.
-const createTeam = async (leader, event, { teamName, invitees = [] }) => {
+const createTeam = async (leader, event, { teamName, invitees = [], answers = [] }) => {
     const name = normalizeTeamName(teamName);
     const users = await checkInvitees(event, leader._id, invitees);
     let team;
@@ -164,7 +164,8 @@ const createTeam = async (leader, event, { teamName, invitees = [] }) => {
             nameKey: name.toLowerCase(),
             leader: leader._id,
             members: [{ user: leader._id, status: LEADER, respondedAt: new Date() }, ...users.map((user) => ({ user: user._id, status: INVITED }))],
-            size: 1
+            size: 1,
+            answers
         });
     } catch (error) {
         if (error.code === 11000) {
@@ -255,7 +256,7 @@ const removeMember = async (actor, eventId, userId) => {
 };
 
 // The invitee's answer. Accepting registers them with the team's status (registered or waitlisted).
-const respondToInvite = async (actor, eventId, teamId, accept) => {
+const respondToInvite = async (actor, eventId, teamId, accept, input = {}) => {
     assertVerified(actor);
     assertStudent(actor, "Only students can join teams");
     const event = await findTeamEvent(eventId);
@@ -291,6 +292,8 @@ const respondToInvite = async (actor, eventId, teamId, accept) => {
         throw new AppError("You're already registered for this event. Cancel that registration first to join this team.", 409, ERROR_CODES.DUPLICATE_REGISTRATION);
     }
 
+    // Every member answers the registration form's per-member questions when joining.
+    const { answers } = require("./RegistrationFormService").answersFor(event, "MEMBER", input);
     const leaderRegistration = await EventRegistration.findOne({ team: team._id, teamRole: "LEADER", status: { $in: ACTIVE } });
     if (!leaderRegistration) {
         throw new AppError("This team is no longer registered", 409, ERROR_CODES.INVALID_STATE);
@@ -313,6 +316,7 @@ const respondToInvite = async (actor, eventId, teamId, accept) => {
             status: leaderRegistration.status,
             team: team._id,
             teamRole: "MEMBER",
+            answers,
             registeredAt: now,
             waitlistedAt: leaderRegistration.status === REGISTRATION_STATUS.WAITLISTED ? leaderRegistration.waitlistedAt : null,
             promotedAt: null

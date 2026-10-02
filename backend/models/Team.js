@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const { TEAM_MEMBER_STATUS, TEAM_STATUS } = require("../constants/Statuses");
+const { formAnswerSchema } = require("./FormSchemas");
 
 // A team entered in a team event. The student who registers is the leader and holds the team's place;
 // the students they invite join by accepting (each gets their own registration linked to the team).
@@ -24,6 +25,8 @@ const teamSchema = new mongoose.Schema(
         // Leader plus accepted members; kept in step atomically so a team can never go over the size limit.
         size: { type: Number, default: 1, min: 0 },
         status: { type: String, enum: Object.values(TEAM_STATUS), default: TEAM_STATUS.ACTIVE },
+        // The leader's answers to the registration form's "once per team" questions.
+        answers: { type: [formAnswerSchema], default: [] },
         disbandedAt: { type: Date, default: null }
     },
     { timestamps: true }

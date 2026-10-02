@@ -4,14 +4,37 @@ import { BadgeCheck, ClipboardList, Crown, Download, Hourglass, ScanLine, UserMi
 import { eventApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useToast } from "../../context/ToastContext";
-import { AsyncContent, Avatar, Badge, Button, CapacityBar, Card, ConfirmDialog, EmptyState, PageHeader, SearchInput, Segmented, StatusBadge } from "../../components/ui";
+import {
+    AsyncContent,
+    Avatar,
+    Badge,
+    Button,
+    CapacityBar,
+    Card,
+    ConfirmDialog,
+    EmptyState,
+    PageHeader,
+    SearchInput,
+    Segmented,
+    StatusBadge
+} from "../../components/ui";
 import { batchLabel, formatDateTime } from "../../lib/format";
 
 const csvCell = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
 // Replaces the spreadsheet clubs used to maintain by hand.
-const downloadCsv = (event, rows, withTeams) => {
-    const header = [...(withTeams ? ["Team", "Role"] : []), "Name", "Email", "Department", "Batch", "Registered at", "Checked in at", "Check-in method"];
+const downloadCsv = (event, rows, withTeams, formColumns = []) => {
+    const header = [
+        ...(withTeams ? ["Team", "Role"] : []),
+        "Name",
+        "Email",
+        "Department",
+        "Batch",
+        "Registered at",
+        "Checked in at",
+        "Check-in method",
+        ...formColumns.map((column) => column.label)
+    ];
     const lines = rows.map((r) => [
         ...(withTeams ? [r.team?.name || "", r.teamRole === "LEADER" ? "Leader" : "Member"] : []),
         r.user.name,
@@ -20,7 +43,8 @@ const downloadCsv = (event, rows, withTeams) => {
         batchLabel(r.user.batchCode),
         formatDateTime(r.registeredAt),
         r.checkedInAt ? formatDateTime(r.checkedInAt) : "",
-        r.checkInMethod || ""
+        r.checkInMethod || "",
+        ...formColumns.map((column) => r.formAnswers?.[column._id] || "")
     ]);
     const csv = [header, ...lines].map((line) => line.map(csvCell).join(",")).join("\r\n");
     // Leading byte-order mark so Excel opens the UTF-8 file with the right encoding.
@@ -75,6 +99,8 @@ const ParticipantsPage = () => {
     const canManage = event?.viewer?.canManageParticipants && event?.status === "PUBLISHED";
     const teams = useMemo(() => participants.meta?.teams || [], [participants.meta]);
     const isTeamEvent = event?.participationMode === "TEAM";
+    // The organiser's registration questions become extra columns.
+    const formColumns = useMemo(() => participants.meta?.formColumns || [], [participants.meta]);
 
     const filtered = useMemo(() => {
         const term = search.trim().toLowerCase();
@@ -82,7 +108,8 @@ const ParticipantsPage = () => {
             return rows;
         }
         return rows.filter(
-            (row) => row.user.name.toLowerCase().includes(term) || row.user.email.toLowerCase().includes(term) || (row.team?.name || "").toLowerCase().includes(term)
+            (row) =>
+                row.user.name.toLowerCase().includes(term) || row.user.email.toLowerCase().includes(term) || (row.team?.name || "").toLowerCase().includes(term)
         );
     }, [rows, search]);
 
@@ -124,7 +151,7 @@ const ParticipantsPage = () => {
                                         <ScanLine size={16} /> Check-in scanner
                                     </Link>
                                 )}
-                                <Button variant="secondary" onClick={() => downloadCsv(event, rows, isTeamEvent)} disabled={!rows.length}>
+                                <Button variant="secondary" onClick={() => downloadCsv(event, rows, isTeamEvent, formColumns)} disabled={!rows.length}>
                                     <Download size={16} /> Export CSV
                                 </Button>
                             </>
@@ -137,7 +164,8 @@ const ParticipantsPage = () => {
                                 <CapacityBar registered={event.registeredCount} max={event.maxParticipants} teams={isTeamEvent} />
                                 {waitlist.length > 0 && (
                                     <span className="subtle row" style={{ gap: 6 }}>
-                                        <Hourglass size={13} /> {waitlist.length} waiting · freed {isTeamEvent ? "places go to the next team" : "seats go to them"} automatically, in order
+                                        <Hourglass size={13} /> {waitlist.length} waiting · freed{" "}
+                                        {isTeamEvent ? "places go to the next team" : "seats go to them"} automatically, in order
                                     </span>
                                 )}
                             </div>
@@ -193,7 +221,13 @@ const ParticipantsPage = () => {
                             <AsyncContent
                                 loading={participants.loading}
                                 isEmpty={!visible.length}
-                                empty={<EmptyState icon={ClipboardList} title={rows.length ? "No matches" : "No registrations yet"} description={rows.length ? "Try a different search." : "Registrations appear here as students sign up."} />}
+                                empty={
+                                    <EmptyState
+                                        icon={ClipboardList}
+                                        title={rows.length ? "No matches" : "No registrations yet"}
+                                        description={rows.length ? "Try a different search." : "Registrations appear here as students sign up."}
+                                    />
+                                }
                             >
                                 <div className="table-wrap">
                                     <table className="table">
@@ -206,6 +240,11 @@ const ParticipantsPage = () => {
                                                 <th>Batch</th>
                                                 <th>Registered</th>
                                                 <th>Attendance</th>
+                                                {formColumns.map((column) => (
+                                                    <th key={column._id} title={column.label} className="answer-col">
+                                                        {column.label}
+                                                    </th>
+                                                ))}
                                                 {canManage && <th />}
                                             </tr>
                                         </thead>
@@ -237,13 +276,22 @@ const ParticipantsPage = () => {
                                                     <td className="nowrap">{formatDateTime(row.registeredAt)}</td>
                                                     <td className="nowrap">
                                                         {row.checkedInAt ? (
-                                                            <span className="attendance-badge" title={row.checkedInBy?.name ? `By ${row.checkedInBy.name}` : undefined}>
-                                                                <BadgeCheck size={13} /> {formatDateTime(row.checkedInAt)} · {row.checkInMethod === "QR" ? "QR" : "manual"}
+                                                            <span
+                                                                className="attendance-badge"
+                                                                title={row.checkedInBy?.name ? `By ${row.checkedInBy.name}` : undefined}
+                                                            >
+                                                                <BadgeCheck size={13} /> {formatDateTime(row.checkedInAt)} ·{" "}
+                                                                {row.checkInMethod === "QR" ? "QR" : "manual"}
                                                             </span>
                                                         ) : (
                                                             <span className="subtle">Not yet</span>
                                                         )}
                                                     </td>
+                                                    {formColumns.map((column) => (
+                                                        <td key={column._id} className="answer-col">
+                                                            {row.formAnswers?.[column._id] || <span className="subtle">—</span>}
+                                                        </td>
+                                                    ))}
                                                     {canManage && (
                                                         <td className="actions">
                                                             <Button variant="ghost" size="sm" onClick={() => setRemoving(row)}>
@@ -260,7 +308,14 @@ const ParticipantsPage = () => {
                         </Card>
 
                         {waitlist.length > 0 && (
-                            <Card padded={false} title={<h2 className="row"><Hourglass size={17} /> Waitlist · {waitlist.length}</h2>}>
+                            <Card
+                                padded={false}
+                                title={
+                                    <h2 className="row">
+                                        <Hourglass size={17} /> Waitlist · {waitlist.length}
+                                    </h2>
+                                }
+                            >
                                 <div className="table-wrap">
                                     <table className="table">
                                         <thead>
@@ -318,10 +373,10 @@ const ParticipantsPage = () => {
                                 : removing?.teamRole === "MEMBER"
                                   ? "They're removed from the team (which keeps its place) and notified by email."
                                   : removing?.status === "WAITLISTED"
-                                ? "They lose their place on the waitlist and are notified by email."
-                                : waitlist.length
-                                  ? "Their seat goes to the first student on the waitlist, and both are notified by email."
-                                  : "Their seat is released and they are notified by email."
+                                    ? "They lose their place on the waitlist and are notified by email."
+                                    : waitlist.length
+                                      ? "Their seat goes to the first student on the waitlist, and both are notified by email."
+                                      : "Their seat is released and they are notified by email."
                         }
                         confirmLabel="Remove"
                         variant="danger"

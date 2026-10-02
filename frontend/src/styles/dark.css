@@ -1,0 +1,155 @@
+/* ================================================================ Dark mode
+ * <html data-theme="dark"> (chosen in Settings or the menu, or following the phone/computer setting).
+ * Almost everything follows the tokens; the rest is the few places that used fixed light colours.
+ */
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+
+    --ink-900: #c9d3ff;
+    --ink-800: #3550c8;
+    --ink-700: #4a66e0;
+    --ink-600: #8da2ff;
+    --ink-500: #9db0ff;
+    --ink-100: #1e2747;
+    --ink-50: #161d36;
+
+    --gold-500: #f5b83d;
+    --gold-600: #f0b030;
+    --gold-100: #33270c;
+
+    --bg: #0b0c10;
+    --surface: #121419;
+    --surface-muted: #181b22;
+    --border: #2a2e38;
+    --border-strong: #3a3f4c;
+    --hairline: #1f222a;
+
+    --text: #eceef3;
+    --text-muted: #a3a8b5;
+    --text-subtle: #7c8291;
+
+    --success-600: #3fcf98;
+    --success-100: #0f2c21;
+    --warning-600: #f0a83a;
+    --warning-100: #33250b;
+    --danger-600: #ff6b76;
+    --danger-100: #3a1519;
+    --info-600: #4bb4ff;
+    --info-100: #0c2537;
+    --neutral-600: #b7bcc8;
+    --neutral-100: #22252d;
+    --violet-600: #b49bff;
+    --violet-100: #241b3f;
+
+    --shadow-lg: 0 10px 34px rgba(0, 0, 0, 0.55);
+    --focus-ring: 0 0 0 3px rgba(141, 162, 255, 0.35);
+}
+
+:root[data-theme="dark"] body {
+    background: var(--bg);
+    color: var(--text);
+}
+
+/* Buttons and controls that used fixed greys */
+:root[data-theme="dark"] .btn-secondary,
+:root[data-theme="dark"] .segmented,
+:root[data-theme="dark"] .club-head-actions .btn-icon,
+:root[data-theme="dark"] .follow.is-light .follow-btn.is-following {
+    background: var(--neutral-100);
+    color: var(--text);
+}
+
+:root[data-theme="dark"] .btn-secondary:hover:not(:disabled) {
+    background: #2c3039;
+}
+
+:root[data-theme="dark"] .btn-ghost:hover:not(:disabled),
+:root[data-theme="dark"] .icon-button:hover {
+    background: rgba(255, 255, 255, 0.07);
+}
+
+:root[data-theme="dark"] .segmented button.active {
+    background: var(--surface-muted);
+    color: var(--text);
+}
+
+:root[data-theme="dark"] .btn-primary,
+:root[data-theme="dark"] .btn-primary:hover:not(:disabled) {
+    color: #fff;
+}
+
+/* Surfaces */
+:root[data-theme="dark"] .sidenav,
+:root[data-theme="dark"] .topbar,
+:root[data-theme="dark"] .tabbar,
+:root[data-theme="dark"] .card,
+:root[data-theme="dark"] .modal,
+:root[data-theme="dark"] .menu,
+:root[data-theme="dark"] .action-menu,
+:root[data-theme="dark"] .toast {
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--text);
+}
+
+:root[data-theme="dark"] .table th {
+    background: var(--surface-muted);
+    color: var(--text-muted);
+}
+
+:root[data-theme="dark"] .table td {
+    border-color: var(--hairline);
+}
+
+:root[data-theme="dark"] .skeleton {
+    background: linear-gradient(90deg, #181b22 25%, #20242d 37%, #181b22 63%);
+    background-size: 400% 100%;
+}
+
+:root[data-theme="dark"] .input:disabled,
+:root[data-theme="dark"] .select:disabled,
+:root[data-theme="dark"] .textarea:disabled {
+    background: var(--surface-muted);
+    color: var(--text-muted);
+}
+
+:root[data-theme="dark"] .modal-backdrop,
+:root[data-theme="dark"] .sheet-backdrop {
+    background: rgba(0, 0, 0, 0.65);
+}
+
+:root[data-theme="dark"] .explore-search,
+:root[data-theme="dark"] .explore-chip {
+    background: var(--surface-muted);
+    color: var(--text);
+}
+
+:root[data-theme="dark"] .badge {
+    border-color: transparent;
+}
+
+:root[data-theme="dark"] .avatar {
+    background: var(--ink-100);
+    color: var(--ink-600);
+}
+
+/* Images keep their own colours; QR tickets stay black-on-white so scanners can read them. */
+:root[data-theme="dark"] .ticket-qr,
+:root[data-theme="dark"] .ticket-qr img {
+    background: #fff;
+}
+
+:root[data-theme="dark"] img {
+    color-scheme: light;
+}
+
+/* Smooth switch between themes. */
+:root.theme-switching *,
+:root.theme-switching *::before,
+:root.theme-switching *::after {
+    transition:
+        background-color 0.25s ease,
+        border-color 0.25s ease,
+        color 0.25s ease !important;
+}

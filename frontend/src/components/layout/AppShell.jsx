@@ -17,17 +17,20 @@ import {
     Settings2,
     ShieldCheck,
     LogOut,
+    Moon,
+    Sun,
     Users,
-    Wrench,
-    Smartphone
+    Wrench
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { useUnreadCount } from "../../hooks/useUnreadCount";
 import { PERMISSIONS } from "../../lib/constants";
+import { useTheme } from "../../lib/theme";
 import { ActionMenu, Avatar } from "../ui";
 import { CreateSheet, useCreateOptions } from "./CreateSheet";
 import { ActivityBubble } from "./ActivityBubble";
+import { PhoneRequired } from "./PhoneRequired";
 
 const Brand = () => (
     <Link to="/feed" className="brand" aria-label="CampusConnect home">
@@ -98,8 +101,11 @@ const useSecondaryNav = () => {
 const useAccountMenu = () => {
     const { logout } = useAuth();
     const navigate = useNavigate();
+    const [theme, changeTheme] = useTheme();
+    const dark = theme === "dark" || (theme === "system" && document.documentElement.dataset.theme === "dark");
     return [
         { label: "Settings", icon: Settings, onClick: () => navigate("/settings") },
+        { label: dark ? "Light mode" : "Dark mode", icon: dark ? Sun : Moon, onClick: () => changeTheme(dark ? "light" : "dark") },
         { label: "Email settings", icon: BellRing, onClick: () => navigate("/settings/notifications") },
         "divider",
         {
@@ -204,28 +210,6 @@ const TabBar = ({ primary, onCreate }) => (
     </nav>
 );
 
-// Club members must have a mobile number on file; until they add one, every page reminds them.
-const PhoneNudge = () => {
-    const { user } = useAuth();
-    const { approvedMemberships } = useWorkspace();
-    const { pathname } = useLocation();
-    if (!approvedMemberships.length || user?.phone || user?.accountType !== "STUDENT" || pathname === "/settings") {
-        return null;
-    }
-    return (
-        <Link to="/settings#mobile" className="phone-nudge">
-            <span className="phone-nudge-icon">
-                <Smartphone size={18} />
-            </span>
-            <span className="phone-nudge-text">
-                <strong>Add your mobile number</strong>
-                <span>Club members need one so mentors and other clubs can reach you.</span>
-            </span>
-            <span className="phone-nudge-go">Add now</span>
-        </Link>
-    );
-};
-
 export const AppShell = () => {
     const location = useLocation();
     const primary = usePrimaryNav();
@@ -242,12 +226,12 @@ export const AppShell = () => {
             <SideNav primary={primary} secondary={secondary} account={account} onCreate={() => setCreating(true)} />
             <TopBar secondary={secondary} account={account} />
             <main className="content">
-                <PhoneNudge />
                 <Outlet />
             </main>
             <TabBar primary={primary} onCreate={() => setCreating(true)} />
             <CreateSheet open={creating} onClose={() => setCreating(false)} />
             <ActivityBubble />
+            <PhoneRequired />
         </div>
     );
 };

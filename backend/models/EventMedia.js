@@ -43,6 +43,7 @@ const eventMediaSchema = new mongoose.Schema(
             enum: Object.values(GALLERY_STATUS),
             default: GALLERY_STATUS.PENDING
         },
+        likeCount: { type: Number, default: 0, min: 0 },
         reviewedBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",

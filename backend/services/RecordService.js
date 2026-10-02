@@ -63,7 +63,7 @@ const collectRecord = async (userId) => {
         .flatMap((result) =>
             result.awards
                 .filter((award) => idOf(award.recipientUser) === idOf(userId) || (award.teamName && award.teamName.toLowerCase() === teamNames.get(idOf(result.event?._id))))
-                .map((award) => ({ title: award.title, position: award.position, team: award.teamName, event: result.event?.title || "", club: result.event?.club?.name || "", date: result.event?.startAt }))
+                .map((award) => ({ title: award.title, position: award.position, team: award.teamName, event: result.event?.title || "", eventId: result.event?._id || null, club: result.event?.club?.name || "", date: result.event?.startAt }))
         )
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 

@@ -90,6 +90,39 @@ describe("Hackathon hub", () => {
         expect(hackathonApi.submitProject.mock.calls[0][1]).not.toHaveProperty("repoUrl");
     });
 
+    test("the final submission asks only what the organisers chose, plus their own questions", async () => {
+        const entry = { name: "Alpha", problemStatement: { _id: "p1", title: "Smart parking" }, project: { repoUrl: "https://github.com/alpha/parkit" }, repoSubmittedAt: at(-30), submittedAt: null, members: 2 };
+        hackathonApi.get.mockResolvedValue({
+            data: hack({
+                phase: "FINAL",
+                selectionDeadline: at(-60),
+                repoDeadline: at(-5),
+                myEntry: entry,
+                submissionFields: { demoUrl: "OFF", videoUrl: "REQUIRED", deckUrl: "OFF", techStack: "OPTIONAL" },
+                submissionQuestions: [{ _id: "sq1", label: "Which APIs did you use?", type: "SHORT", options: [], required: true }],
+                viewer: { ...hack().viewer, canChooseProblem: false, canSubmit: true }
+            })
+        });
+        hackathonApi.submitProject.mockResolvedValue({ data: hack() });
+        renderWithRouter(<HackathonPage />, { route: "/events/e1/hackathon", path: "/events/:id/hackathon" });
+
+        await userEvent.type(await screen.findByLabelText(/Project name/), "ParkIt");
+        expect(screen.queryByLabelText(/Live demo/)).not.toBeInTheDocument();
+        expect(screen.queryByLabelText(/Presentation/)).not.toBeInTheDocument();
+        await userEvent.type(screen.getByLabelText(/What did you build/), "A live map of free parking spots.");
+        const submit = screen.getByRole("button", { name: /Submit project/ });
+        expect(submit).toBeDisabled();
+        await userEvent.type(screen.getByLabelText(/Demo video/), "https://youtu.be/parkit");
+        await userEvent.type(screen.getByLabelText(/Which APIs did you use/), "Maps API");
+        await userEvent.click(submit);
+        await waitFor(() =>
+            expect(hackathonApi.submitProject).toHaveBeenCalledWith(
+                "e1",
+                expect.objectContaining({ videoUrl: "https://youtu.be/parkit", answers: [{ question: "sq1", text: "Maps API", choices: [] }] })
+            )
+        );
+    });
+
     test("before the start, problems are hidden and teams are told when they come out", async () => {
         hackathonApi.get.mockResolvedValue({ data: hack({ phase: "UPCOMING", revealAt: at(60), problemStatements: [], viewer: { ...hack().viewer, canChooseProblem: false, canSubmit: false } }) });
         renderWithRouter(<HackathonPage />, { route: "/events/e1/hackathon", path: "/events/:id/hackathon" });

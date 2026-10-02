@@ -25,15 +25,30 @@ describe("profiles, the activity badge and following from the feed", () => {
     });
 
     describe("someone else's profile", () => {
-        test("shows name, role, department, batch and clubs — never email, mobile number or schedule", async () => {
-            const res = await api(stranger).get(`/api/users/${member._id}/profile`);
+        test("shows name, role, department, batch, clubs and history — never email or upcoming schedule", async () => {
+            const loner = await makeStudent({ name: "Not In A Club" });
+            const res = await api(loner).get(`/api/users/${member._id}/profile`);
             expect(res.status).toBe(200);
-            expect(res.body.data).toMatchObject({ name: "Asha Member", departmentCode: "CE", batchCode: "24", isSelf: false });
+            expect(res.body.data).toMatchObject({ name: "Asha Member", departmentCode: "CE", batchCode: "24", isSelf: false, history: { events: [], awards: [], certificates: [] } });
             expect(res.body.data.clubs).toEqual([expect.objectContaining({ club: expect.objectContaining({ name: "Coding Club" }), roleName: "Member" })]);
             const body = JSON.stringify(res.body.data);
             expect(body).not.toContain(member.email);
-            expect(body).not.toContain("+91");
+            // Students outside every club don't see mobile numbers; club members (the club directory rule) do.
+            expect(res.body.data.phone).toBeNull();
+            expect((await api(stranger).get(`/api/users/${member._id}/profile`)).body.data.phone).toMatch(/^\+91/);
             expect(res.body.data).not.toHaveProperty("registrations");
+        });
+
+        test("a faculty member's number is shown to club members, faculty and the admin — not other students", async () => {
+            const loner = await makeStudent({ name: "Another Loner" });
+            expect((await api(loner).get(`/api/users/${mentor._id}/profile`)).body.data.phone).toBeNull();
+            const facultyPhone = "+919811112222";
+            await require("../../models/User").updateOne({ _id: mentor._id }, { $set: { phone: facultyPhone } });
+            expect((await api(member).get(`/api/users/${mentor._id}/profile`)).body.data.phone).toBe(facultyPhone);
+            const clubView = async (viewer) => (await api(viewer).get(`/api/clubs/${club._id}`)).body.data.mentor;
+            expect((await clubView(member)).phone).toBe(facultyPhone);
+            expect((await clubView(loner)).phone).toBeUndefined();
+            expect((await api(loner).get("/api/clubs")).body.data.every((item) => !item.mentor?.phone)).toBe(true);
         });
 
         test("a faculty profile lists the clubs they mentor; your own profile is marked as yours", async () => {

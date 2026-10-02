@@ -8,6 +8,18 @@ const listEvents = asyncHandler(async (req, res) => {
     sendSuccess(res, 200, "Events fetched", items, { meta });
 });
 
+const recordExpenses = asyncHandler(async (req, res) => {
+    sendSuccess(res, 200, "Spending saved", await eventService.recordExpenses(req.user, req.params.id, req.body));
+});
+
+const updateRegistrationForm = asyncHandler(async (req, res) => {
+    sendSuccess(res, 200, "Registration form saved", await require("../services/RegistrationFormService").updateRegistrationForm(req.user, req.params.id, req.body));
+});
+
+const updateMyAnswers = asyncHandler(async (req, res) => {
+    sendSuccess(res, 200, "Your answers were updated", await require("../services/RegistrationFormService").updateMyAnswers(req.user, req.params.id, req.body));
+});
+
 const sendReminder = asyncHandler(async (req, res) => {
     const result = await require("../services/EventReminderService").sendManualReminder(req.user, req.params.id, req.body);
     sendSuccess(res, 200, result.recipients ? `Reminder sent to ${result.recipients} student${result.recipients === 1 ? "" : "s"}` : "No one to remind right now", result);
@@ -117,6 +129,9 @@ module.exports = {
     listManaged,
     schedule,
     sendReminder,
+    updateRegistrationForm,
+    updateMyAnswers,
+    recordExpenses,
     getFeedback,
     giveFeedback,
     listClubEvents,

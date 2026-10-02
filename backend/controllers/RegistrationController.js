@@ -29,8 +29,8 @@ const unregister = asyncHandler(async (req, res) => {
 });
 
 const list = asyncHandler(async (req, res) => {
-    const { items, waitlist, teams, event } = await registrationService.listParticipants(req.user, req.params.id, req.query);
-    sendSuccess(res, 200, "Participants fetched", items, { meta: { total: items.length, event, waitlist, teams } });
+    const { items, waitlist, teams, event, formColumns } = await registrationService.listParticipants(req.user, req.params.id, req.query);
+    sendSuccess(res, 200, "Participants fetched", items, { meta: { total: items.length, event, waitlist, teams, formColumns } });
 });
 
 const removeParticipant = asyncHandler(async (req, res) => {

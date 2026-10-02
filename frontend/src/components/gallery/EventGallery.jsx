@@ -30,7 +30,12 @@ const newestFirst = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
 // One square in the grid. Thumbnails fade in as they load; videos carry a play badge and their length.
 const Tile = ({ item, index = 0, onOpen, selectable = false, selected = false, onToggle, leaving = false }) => (
     <div className={`gallery-tile ${selected ? "is-selected" : ""} ${leaving ? "is-leaving" : ""}`} style={{ "--i": Math.min(index, 12) }}>
-        <button type="button" className="gallery-tile-open" onClick={onOpen} aria-label={`Open ${item.kind === "VIDEO" ? "video" : "photo"} by ${item.uploader.name}`}>
+        <button
+            type="button"
+            className="gallery-tile-open"
+            onClick={onOpen}
+            aria-label={`Open ${item.kind === "VIDEO" ? "video" : "photo"} by ${item.uploader.name}`}
+        >
             {item.thumb ? (
                 <MediaFill src={item.thumb} />
             ) : (
@@ -262,7 +267,9 @@ export const EventGallery = ({ event }) => {
             items: current.items.filter((entry) => entry._id !== item._id),
             mine: current.mine.filter((entry) => entry._id !== item._id),
             pending: current.pending.filter((entry) => entry._id !== item._id),
-            counts: access.canModerate ? response.data.counts : { ...response.data.counts, pending: current.mine.filter((entry) => entry._id !== item._id).length }
+            counts: access.canModerate
+                ? response.data.counts
+                : { ...response.data.counts, pending: current.mine.filter((entry) => entry._id !== item._id).length }
         }));
         setViewer((current) => {
             if (!current) {
@@ -396,8 +403,15 @@ export const EventGallery = ({ event }) => {
                                 >
                                     <Check size={14} strokeWidth={3} />
                                 </button>
-                                <span className="subtle small grow">{selection.length ? `${selection.length} selected` : `${plural(pending.length, "upload")} waiting`}</span>
-                                <Button variant="secondary" size="sm" disabled={busy} onClick={() => setConfirm({ type: "decline", items: selection.length ? selection : pending })}>
+                                <span className="subtle small grow">
+                                    {selection.length ? `${selection.length} selected` : `${plural(pending.length, "upload")} waiting`}
+                                </span>
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    disabled={busy}
+                                    onClick={() => setConfirm({ type: "decline", items: selection.length ? selection : pending })}
+                                >
                                     <X size={15} /> {selection.length ? "Decline" : "Decline all"}
                                 </Button>
                                 <Button size="sm" loading={busy} onClick={() => review("approve", selection.length ? selection : pending)}>
@@ -457,7 +471,6 @@ export const EventGallery = ({ event }) => {
                 )}
             </Card>
 
-
             {viewer && viewerItems.length > 0 && (
                 <GalleryViewer
                     items={viewerItems}
@@ -470,6 +483,14 @@ export const EventGallery = ({ event }) => {
                     onApprove={(item) => reviewFromViewer("approve", item)}
                     onDecline={(item) => setConfirm({ type: "decline", items: [item], fromViewer: true })}
                     onDelete={(item) => setConfirm({ type: "delete", items: [item] })}
+                    onLiked={(item, state) =>
+                        setData((current) => ({
+                            ...current,
+                            items: current.items.map((entry) =>
+                                entry._id === item._id ? { ...entry, likedByMe: state.liked, likeCount: state.likeCount } : entry
+                            )
+                        }))
+                    }
                 />
             )}
 

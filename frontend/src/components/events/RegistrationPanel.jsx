@@ -10,6 +10,7 @@ import { eligibilityProblem } from "../../lib/eligibility";
 import { TeamRegisterDialog } from "../teams/TeamRegisterDialog";
 import { TeamCard, TeamInvites } from "../teams/TeamCard";
 import { TicketButton } from "./TicketButton";
+import { MyAnswersButton, RegistrationFormDialog, formQuestions } from "./RegistrationFormDialog";
 
 const STATE_MESSAGES = {
     NOT_OPEN: (event) => `Registration opens ${formatDateTime(event.registrationStart)}.`,
@@ -38,11 +39,12 @@ export const RegistrationPanel = ({ event, onChange }) => {
     const canSignUp = ["OPEN", "FULL"].includes(state) && !problem;
     const [params, setParams] = useSearchParams();
 
-    // The feed's "Register team" button links here with ?register=team to open the team form straight away.
+    const hasForm = formQuestions(event, null).member.length > 0;
+    // The feed links here with ?register=team (or ?register=form) to open the registration form straight away.
     useEffect(() => {
-        if (params.get("register") === "team") {
-            if (isTeamEvent && isStudent && canSignUp && !registered && !waitlisted) {
-                setDialog("team");
+        if (["team", "form"].includes(params.get("register"))) {
+            if (isStudent && canSignUp && !registered && !waitlisted) {
+                setDialog(isTeamEvent ? "team" : "form");
             }
             params.delete("register");
             setParams(params, { replace: true });
@@ -53,6 +55,10 @@ export const RegistrationPanel = ({ event, onChange }) => {
     const register = async () => {
         if (isTeamEvent) {
             setDialog("team");
+            return;
+        }
+        if (hasForm) {
+            setDialog("form");
             return;
         }
         setPending(true);
@@ -89,7 +95,8 @@ export const RegistrationPanel = ({ event, onChange }) => {
             <div className="stack">
                 {isTeamEvent && (
                     <div className="team-rule">
-                        <Users size={15} /> Team event · {event.minTeamSize === event.maxTeamSize ? event.maxTeamSize : `${event.minTeamSize}–${event.maxTeamSize}`} members per team
+                        <Users size={15} /> Team event ·{" "}
+                        {event.minTeamSize === event.maxTeamSize ? event.maxTeamSize : `${event.minTeamSize}–${event.maxTeamSize}`} members per team
                     </div>
                 )}
                 <CapacityBar registered={event.registeredCount} max={event.maxParticipants} teams={isTeamEvent} />
@@ -110,10 +117,24 @@ export const RegistrationPanel = ({ event, onChange }) => {
 
                 {event.status === "PUBLISHED" && isStudent && registered && (
                     <>
-                        <Alert type="success" title={registration.checkedInAt ? "You're checked in" : registration.promotedAt ? "You got a seat from the waitlist" : team ? "Your team is registered" : "You're registered"}>
-                            {registration.checkedInAt ? "Enjoy the event! Your ticket stays available below." : "Tap View ticket and show the QR code at the entrance. It was emailed to you too."}
+                        <Alert
+                            type="success"
+                            title={
+                                registration.checkedInAt
+                                    ? "You're checked in"
+                                    : registration.promotedAt
+                                      ? "You got a seat from the waitlist"
+                                      : team
+                                        ? "Your team is registered"
+                                        : "You're registered"
+                            }
+                        >
+                            {registration.checkedInAt
+                                ? "Enjoy the event! Your ticket stays available below."
+                                : "Tap View ticket and show the QR code at the entrance. It was emailed to you too."}
                         </Alert>
                         <TicketButton event={event} registration={registration} />
+                        <MyAnswersButton event={event} onChange={onChange} />
                         {team && <TeamCard event={event} team={team} isLeader={isLeader} onChange={onChange} />}
                         {beforeStart && (
                             <Button variant="secondary" block onClick={() => setDialog("cancel")}>
@@ -130,8 +151,8 @@ export const RegistrationPanel = ({ event, onChange }) => {
                             <div>
                                 <strong>{team ? "Your team is on the waitlist" : "You're on the waitlist"}</strong>
                                 <p className="muted small" style={{ margin: 0 }}>
-                                    {registration.waitlistPosition === 1 ? "You're next in line." : `${registration.waitlistPosition - 1} ahead of you.`} If a seat opens up before the event
-                                    starts, you'll be registered automatically and we'll email you.
+                                    {registration.waitlistPosition === 1 ? "You're next in line." : `${registration.waitlistPosition - 1} ahead of you.`} If a
+                                    seat opens up before the event starts, you'll be registered automatically and we'll email you.
                                 </p>
                             </div>
                         </div>
@@ -151,8 +172,8 @@ export const RegistrationPanel = ({ event, onChange }) => {
                         {["OPEN", "FULL"].includes(state) && problem && <Alert type="warning">{problem}</Alert>}
                         {full && !problem && (
                             <Alert type="info" title="All seats are taken">
-                                Join the waitlist{waiting ? ` (${plural(waiting, "student")} ahead of you)` : ""}. If someone cancels, the first person waiting is registered
-                                automatically and emailed.
+                                Join the waitlist{waiting ? ` (${plural(waiting, "student")} ahead of you)` : ""}. If someone cancels, the first person waiting
+                                is registered automatically and emailed.
                             </Alert>
                         )}
                         <Button
@@ -164,7 +185,15 @@ export const RegistrationPanel = ({ event, onChange }) => {
                             onClick={register}
                         >
                             {isTeamEvent ? <Users size={17} /> : full ? <ListPlus size={17} /> : <CalendarCheck2 size={17} />}{" "}
-                            {isTeamEvent ? (invites.length ? "Register your own team instead" : full ? "Join waitlist as a team" : "Register a team") : full ? "Join waitlist" : "Register now"}
+                            {isTeamEvent
+                                ? invites.length
+                                    ? "Register your own team instead"
+                                    : full
+                                      ? "Join waitlist as a team"
+                                      : "Register a team"
+                                : full
+                                  ? "Join waitlist"
+                                  : "Register now"}
                         </Button>
                         {isTeamEvent && !invites.length && (
                             <p className="subtle small" style={{ margin: 0 }}>
@@ -191,6 +220,7 @@ export const RegistrationPanel = ({ event, onChange }) => {
                 confirmLabel={team ? (isLeader ? "Cancel team registration" : "Leave team") : "Cancel registration"}
                 variant="danger"
             />
+            {!isTeamEvent && <RegistrationFormDialog open={dialog === "form"} onClose={() => setDialog(null)} event={event} onDone={onChange} />}
             {isTeamEvent && <TeamRegisterDialog open={dialog === "team"} onClose={() => setDialog(null)} event={event} onRegistered={onChange} />}
             <ConfirmDialog
                 open={dialog === "leave"}

@@ -149,7 +149,14 @@ const Schedule = ({ upcoming: all, waitlisted, past, now, pinnedId }) => {
         >
             <div className="pill-tabs" role="tablist" aria-label="Schedule">
                 {tabs.map(([value, label, Icon, count]) => (
-                    <button key={value} type="button" role="tab" aria-selected={tab === value} className={`pill-tab ${tab === value ? "active" : ""}`} onClick={() => setTab(value)}>
+                    <button
+                        key={value}
+                        type="button"
+                        role="tab"
+                        aria-selected={tab === value}
+                        className={`pill-tab ${tab === value ? "active" : ""}`}
+                        onClick={() => setTab(value)}
+                    >
                         <Icon size={14} /> {label} <span className="count">{count}</span>
                     </button>
                 ))}
@@ -350,7 +357,9 @@ export const StudentProfile = ({ data }) => {
                 }}
             />
             {tab === "hq" && <ClubHQ workspaces={workspaces} />}
-            {tab === "schedule" && <Schedule upcoming={schedule} waitlisted={waitlisted} past={student.pastRegistrations} now={now} pinnedId={next?.event._id} />}
+            {tab === "schedule" && (
+                <Schedule upcoming={schedule} waitlisted={waitlisted} past={student.pastRegistrations} now={now} pinnedId={next?.event._id} />
+            )}
             {tab === "applications" &&
                 (student.applications?.length ? (
                     <MyApplications applications={student.applications} />

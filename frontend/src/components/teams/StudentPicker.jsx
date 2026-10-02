@@ -47,7 +47,10 @@ export const StudentPicker = ({ eventId, selected, onChange, max, exclude = [] }
     return (
         <div className="student-picker">
             <label className="field-label" htmlFor={inputId}>
-                Invite teammates <span className="subtle">({selected.length}/{max})</span>
+                Invite teammates{" "}
+                <span className="subtle">
+                    ({selected.length}/{max})
+                </span>
             </label>
 
             {selected.length > 0 && (

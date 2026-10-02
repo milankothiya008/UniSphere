@@ -1,11 +1,29 @@
 import { useParams, Link } from "react-router-dom";
-import { Check, AlertTriangle, CalendarDays, ChevronRight, Clock, Hourglass, Images, Mail, MapPin, Megaphone, Phone, ShieldCheck, Trophy, User, Users } from "lucide-react";
+import {
+    Check,
+    AlertTriangle,
+    CalendarDays,
+    ChevronRight,
+    Clock,
+    Hourglass,
+    Images,
+    Mail,
+    MapPin,
+    Megaphone,
+    Phone,
+    ShieldCheck,
+    Trophy,
+    User,
+    Users
+} from "lucide-react";
 import { eventApi, feedApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { Alert, AsyncContent, Badge, ButtonLink, Card, PageHeader, StatusBadge, ZoomableMedia } from "../../components/ui";
 import { EventActions } from "../../components/events/EventActions";
 import { EventChanges } from "../../components/events/EventChanges";
 import { RegistrationPanel } from "../../components/events/RegistrationPanel";
+import { BudgetCard } from "../../components/events/BudgetCard";
+import { LikeButton, LikeCount, useLike } from "../../components/social/Likes";
 import { ScheduleCheck } from "../../components/events/ScheduleCheck";
 import { CertificatesCard, FeedbackCard, HackathonSummary } from "../../components/events/EventExtras";
 import { Podium } from "../../components/feed/FeedCard";
@@ -35,7 +53,9 @@ const Workflow = ({ status }) => {
 
 // Before an event goes live, its club and the reviewing mentor see what else is on at that time.
 const showsSchedule = (event) =>
-    (event.viewer?.canManage || event.viewer?.canReview) && ["DRAFT", "NEEDS_CHANGES", "PENDING_APPROVAL", "APPROVED"].includes(event.status) && new Date(event.startAt) > new Date();
+    (event.viewer?.canManage || event.viewer?.canReview) &&
+    ["DRAFT", "NEEDS_CHANGES", "PENDING_APPROVAL", "APPROVED"].includes(event.status) &&
+    new Date(event.startAt) > new Date();
 
 // Organiser updates and cancellation notices for this event (everyone is also notified when they're posted).
 const UpdatesSection = ({ event }) => {
@@ -48,7 +68,13 @@ const UpdatesSection = ({ event }) => {
     }
 
     return (
-        <Card title={<h2 className="row"><Megaphone size={18} /> Updates from the organisers</h2>}>
+        <Card
+            title={
+                <h2 className="row">
+                    <Megaphone size={18} /> Updates from the organisers
+                </h2>
+            }
+        >
             <ul className="timeline">
                 {data.map((update) => (
                     <li key={update._id}>
@@ -77,7 +103,13 @@ const ResultsSection = ({ event }) => {
 
     if (error || !result) {
         return canManage ? (
-            <Card title={<h2 className="row"><Trophy size={18} color="var(--gold-600)" /> Results</h2>}>
+            <Card
+                title={
+                    <h2 className="row">
+                        <Trophy size={18} color="var(--gold-600)" /> Results
+                    </h2>
+                }
+            >
                 <p className="subtle" style={{ margin: 0 }}>
                     No results yet. <Link to={`/events/${event._id}/results/edit`}>Add round standings or final results</Link> to share them with the campus.
                 </p>
@@ -91,7 +123,11 @@ const ResultsSection = ({ event }) => {
 
     return (
         <Card
-            title={<h2 className="row"><Trophy size={18} color="var(--gold-600)" /> Results</h2>}
+            title={
+                <h2 className="row">
+                    <Trophy size={18} color="var(--gold-600)" /> Results
+                </h2>
+            }
             actions={
                 <div className="row">
                     {canManage && (
@@ -109,7 +145,9 @@ const ResultsSection = ({ event }) => {
                 {final ? (
                     <>
                         {result.awards.length > 0 && <Podium awards={result.awards} limit={3} />}
-                        <p className="pre-line muted" style={{ margin: 0 }}>{result.summary}</p>
+                        <p className="pre-line muted" style={{ margin: 0 }}>
+                            {result.summary}
+                        </p>
                     </>
                 ) : (
                     <p style={{ margin: 0 }}>
@@ -123,9 +161,23 @@ const ResultsSection = ({ event }) => {
                         )}
                     </p>
                 )}
-                {published.length > 0 && <span className="subtle small">{published.length === 1 ? "1 round published" : `${published.length} rounds published`}</span>}
+                {published.length > 0 && (
+                    <span className="subtle small">{published.length === 1 ? "1 round published" : `${published.length} rounds published`}</span>
+                )}
             </div>
         </Card>
+    );
+};
+
+// Likes on a published event; the organisers and the mentor can see who liked it.
+const EventLikes = ({ event }) => {
+    const like = useLike("event", event._id, event.likedByMe, event.likeCount);
+    if (!["PUBLISHED", "COMPLETED"].includes(event.status) || !event.viewer) return null;
+    return (
+        <div className="event-likes">
+            <LikeButton like={like} label={event.title} />
+            <LikeCount like={like} type="event" id={event._id} canSeeLikers={Boolean(event.viewer.canManage || event.viewer.isMentor)} />
+        </div>
     );
 };
 
@@ -162,6 +214,8 @@ const EventDetailPage = () => {
                                 </div>
                             )}
 
+                            <EventLikes event={event} />
+
                             {(event.viewer?.canManage || event.viewer?.isMentor) && <Workflow status={event.status} />}
 
                             {event.status === "NEEDS_CHANGES" && event.reviewComment && (
@@ -176,7 +230,8 @@ const EventDetailPage = () => {
                             )}
                             {event.status === "APPROVED" && (
                                 <Alert type="info" title="Approved — not yet public">
-                                    {event.reviewComment ? `Mentor note: ${event.reviewComment}. ` : ""}Publish the event to open registration and post it to the feed.
+                                    {event.reviewComment ? `Mentor note: ${event.reviewComment}. ` : ""}Publish the event to open registration and post it to
+                                    the feed.
                                 </Alert>
                             )}
                             {event.status === "PENDING_APPROVAL" && !event.viewer?.canReview && (
@@ -186,7 +241,8 @@ const EventDetailPage = () => {
                             )}
                             {event.onHold && event.status === "PUBLISHED" && (
                                 <Alert type="warning" title="This event is on hold">
-                                    {event.club.name} has been {String(event.club.status).toLowerCase()} by the university. Registrations are kept but closed; if the club is reactivated before the event, it goes ahead and registered students are emailed.
+                                    {event.club.name} has been {String(event.club.status).toLowerCase()} by the university. Registrations are kept but closed;
+                                    if the club is reactivated before the event, it goes ahead and registered students are emailed.
                                 </Alert>
                             )}
                             {event.status === "CANCELLED" && (
@@ -282,7 +338,9 @@ const EventDetailPage = () => {
                                             <dd>
                                                 {event.eligibility?.departments?.length ? event.eligibility.departments.join(", ") : "All departments"}
                                                 {" · "}
-                                                {event.eligibility?.batches?.length ? event.eligibility.batches.map((b) => `Batch ${batchLabel(b)}`).join(", ") : "All batches"}
+                                                {event.eligibility?.batches?.length
+                                                    ? event.eligibility.batches.map((b) => `Batch ${batchLabel(b)}`).join(", ")
+                                                    : "All batches"}
                                                 {event.eligibility?.notes && (
                                                     <span className="subtle" style={{ display: "block" }}>
                                                         {event.eligibility.notes}
@@ -304,6 +362,7 @@ const EventDetailPage = () => {
                             )}
                             <EventActions event={event} onChange={(updated) => setData(updated)} />
                             <CertificatesCard event={event} onChange={(updated) => setData(updated)} />
+                            <BudgetCard event={event} onChange={(updated) => setData(updated)} />
 
                             {(event.contact?.name || event.contact?.email || event.contact?.phone || event.organizer) && (
                                 <Card title="Contact">
@@ -318,7 +377,9 @@ const EventDetailPage = () => {
                                             <div>
                                                 <Mail size={16} />
                                                 <dd>
-                                                    <a href={`mailto:${event.contact?.email || event.organizer.email}`}>{event.contact?.email || event.organizer.email}</a>
+                                                    <a href={`mailto:${event.contact?.email || event.organizer.email}`}>
+                                                        {event.contact?.email || event.organizer.email}
+                                                    </a>
                                                 </dd>
                                             </div>
                                         )}

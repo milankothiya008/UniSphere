@@ -27,6 +27,7 @@ const registerRules = [
     body("name").isString().trim().isLength({ min: 2, max: 80 }).withMessage("Name must be 2-80 characters"),
     body("email").isEmail().withMessage("Valid email is required"),
     body("accountType").isIn(["STUDENT", "FACULTY"]).withMessage("Choose whether you are registering as a student or faculty"),
+    body("phone").isString().isLength({ min: 10, max: 20 }).withMessage("Enter a valid 10-digit Indian mobile number"),
     passwordRule("password")
 ];
 
@@ -152,6 +153,11 @@ const eventFields = (optional = false) => {
         f("eventDate").matches(DATE_PATTERN).withMessage("Event date must be YYYY-MM-DD"),
         body("endDate").optional({ values: "null" }).matches(DATE_PATTERN).withMessage("End date must be YYYY-MM-DD"),
         body("certificatesEnabled").optional().isBoolean(),
+        body("registrationForm.enabled").optional().isBoolean(),
+        body("registrationForm.questions").optional().isArray({ max: 25 }),
+        body("budgetItems").optional().isArray({ max: 40 }),
+        body("equipment").optional().isArray({ max: 40 }),
+        body("budgetNote").optional().isString().isLength({ max: 1000 }),
         f("startTime").matches(TIME_PATTERN).withMessage("Start time must be HH:mm"),
         f("endTime").matches(TIME_PATTERN).withMessage("End time must be HH:mm"),
         f("registrationEnd").isISO8601().withMessage("Registration deadline is required"),

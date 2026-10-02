@@ -10,6 +10,32 @@ import { batchLabel, formatDate } from "../lib/format";
 import { passwordProblems } from "../lib/validation";
 import { AvatarUpload } from "../components/profile/AvatarUpload";
 import { PushSetting } from "../components/layout/PushPrompt";
+import { useTheme } from "../lib/theme";
+import { Monitor, Moon, Sun } from "lucide-react";
+
+// Light, dark, or the same as the phone/computer.
+const ThemeSetting = () => {
+    const [theme, setTheme] = useTheme();
+    return (
+        <div className="theme-choices" role="radiogroup" aria-label="Theme">
+            {[
+                ["light", "Light", Sun],
+                ["dark", "Dark", Moon],
+                ["system", "Same as device", Monitor]
+            ].map(([value, label, Icon]) => (
+                <button key={value} type="button" role="radio" aria-checked={theme === value} className={`theme-choice is-${value} ${theme === value ? "is-on" : ""}`} onClick={() => setTheme(value)}>
+                    <span className="theme-preview" aria-hidden="true">
+                        <span />
+                        <span />
+                    </span>
+                    <span className="theme-choice-label">
+                        <Icon size={15} /> {label}
+                    </span>
+                </button>
+            ))}
+        </div>
+    );
+};
 import { formatPhone, normalizePhone, phoneInputValue } from "../lib/phone";
 import { useWorkspace } from "../context/WorkspaceContext";
 
@@ -28,8 +54,9 @@ const SettingsPage = () => {
 
     const phoneValue = phone.trim() ? normalizePhone(phone) : null;
     const phoneInvalid = Boolean(phone.trim()) && !phoneValue;
-    const isMember = approvedMemberships.length > 0;
-    const phoneMissing = isMember && !phone.trim();
+    // Required for students and faculty: given at sign-up, so it can be changed but not removed.
+    const phoneRequired = ["STUDENT", "FACULTY"].includes(user.accountType) || approvedMemberships.length > 0;
+    const phoneMissing = phoneRequired && !phone.trim();
     const changed = name.trim() !== user.name || phoneValue !== (user.phone || null);
 
     const saveName = async (event) => {
@@ -85,12 +112,14 @@ const SettingsPage = () => {
                                     placeholder="98765 43210"
                                     value={phone}
                                     onChange={(e) => setPhone(e.target.value)}
-                                    required={isMember}
-                                    error={phoneInvalid ? "Enter a 10-digit Indian mobile number" : phoneMissing && user.phone ? "Club members need a mobile number, so it can be changed but not removed" : null}
+                                    required={phoneRequired}
+                                    error={phoneInvalid ? "Enter a 10-digit Indian mobile number" : phoneMissing && user.phone ? "Your mobile number can be changed but not removed" : null}
                                     hint={
                                         user.accountType === "STUDENT"
-                                            ? "Shown in club member lists to members of every club, club mentors and the admin — never to other students."
-                                            : "Optional. Only the university admin can see it."
+                                            ? "Shown to members of clubs, club mentors and the admin — never to other students."
+                                            : user.accountType === "FACULTY"
+                                              ? "Shown to club members, other faculty and the admin — not to students outside clubs."
+                                              : "Optional. Only the university admin can see it."
                                     }
                                 />
                             </div>
@@ -101,6 +130,9 @@ const SettingsPage = () => {
                                 </Button>
                             </div>
                         </form>
+                    </Card>
+                    <Card title="Appearance">
+                        <ThemeSetting />
                     </Card>
                     <Card title="Notifications">
                         <PushSetting />

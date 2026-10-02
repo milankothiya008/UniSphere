@@ -5,6 +5,7 @@ import { useToast } from "../../context/ToastContext";
 import { batchLabel, timeAgo } from "../../lib/format";
 import { Avatar, Badge, Button, ConfirmDialog, Modal } from "../ui";
 import { StudentPicker } from "./StudentPicker";
+import { RegistrationFormDialog, formQuestions } from "../events/RegistrationFormDialog";
 
 const detail = (user) => [user.departmentCode, user.batchCode && `Batch ${batchLabel(user.batchCode)}`].filter(Boolean).join(" · ");
 
@@ -31,7 +32,10 @@ export const TeamCard = ({ event, team, isLeader, onChange }) => {
     const sendInvites = async () => {
         setSending(true);
         try {
-            await eventApi.inviteToTeam(event._id, picked.map((user) => user._id));
+            await eventApi.inviteToTeam(
+                event._id,
+                picked.map((user) => user._id)
+            );
             toast.success(`Invite${picked.length === 1 ? "" : "s"} sent`);
             setInviting(false);
             setPicked([]);
@@ -82,7 +86,13 @@ export const TeamCard = ({ event, team, isLeader, onChange }) => {
                         ) : (
                             isLeader &&
                             open && (
-                                <button type="button" className="icon-button" onClick={() => setRemoving(member)} aria-label={`Remove ${member.user.name}`} title="Remove from team">
+                                <button
+                                    type="button"
+                                    className="icon-button"
+                                    onClick={() => setRemoving(member)}
+                                    aria-label={`Remove ${member.user.name}`}
+                                    title="Remove from team"
+                                >
                                     <UserMinus size={16} />
                                 </button>
                             )
@@ -99,7 +109,13 @@ export const TeamCard = ({ event, team, isLeader, onChange }) => {
                             </small>
                         </span>
                         {isLeader && open && (
-                            <button type="button" className="icon-button" onClick={() => setRemoving(invite)} aria-label={`Withdraw invite to ${invite.user.name}`} title="Withdraw invite">
+                            <button
+                                type="button"
+                                className="icon-button"
+                                onClick={() => setRemoving(invite)}
+                                aria-label={`Withdraw invite to ${invite.user.name}`}
+                                title="Withdraw invite"
+                            >
                                 <X size={16} />
                             </button>
                         )}
@@ -151,7 +167,11 @@ export const TeamCard = ({ event, team, isLeader, onChange }) => {
                 onClose={() => setRemoving(null)}
                 onConfirm={remove}
                 title={removing?.status === "INVITED" ? "Withdraw this invite?" : `Remove ${removing?.user.name} from the team?`}
-                description={removing?.status === "INVITED" ? "They won't be able to join with this invite." : "Their registration through the team is cancelled and they're notified."}
+                description={
+                    removing?.status === "INVITED"
+                        ? "They won't be able to join with this invite."
+                        : "Their registration through the team is cancelled and they're notified."
+                }
                 confirmLabel={removing?.status === "INVITED" ? "Withdraw invite" : "Remove"}
                 variant="danger"
             />
@@ -164,10 +184,18 @@ export const TeamInvites = ({ event, invites, onChange }) => {
     const toast = useToast();
     const [busy, setBusy] = useState(null);
 
-    const respond = async (invite, accept) => {
+    const [answering, setAnswering] = useState(null);
+    const memberQuestions = formQuestions(event, "MEMBER").member;
+    const respond = async (invite, accept, body) => {
+        if (accept && memberQuestions.length && !body) {
+            setAnswering(invite);
+            return;
+        }
         setBusy(`${invite.team._id}-${accept}`);
         try {
-            const response = accept ? await eventApi.acceptTeamInvite(event._id, invite.team._id) : await eventApi.declineTeamInvite(event._id, invite.team._id);
+            const response = accept
+                ? await (body ? eventApi.acceptTeamInvite(event._id, invite.team._id, body) : eventApi.acceptTeamInvite(event._id, invite.team._id))
+                : await eventApi.declineTeamInvite(event._id, invite.team._id);
             if (accept && response.data?.waitlisted) {
                 toast.info(response.message);
             } else {
@@ -190,7 +218,9 @@ export const TeamInvites = ({ event, invites, onChange }) => {
                         <MailPlus size={17} />
                     </span>
                     <div className="grow">
-                        <strong>{invite.team.leader?.name} invited you to join "{invite.team.name}"</strong>
+                        <strong>
+                            {invite.team.leader?.name} invited you to join "{invite.team.name}"
+                        </strong>
                         <span className="subtle small">
                             {invite.team.size} member{invite.team.size === 1 ? "" : "s"} so far · invited {timeAgo(invite.invitedAt)}
                         </span>
@@ -199,12 +229,29 @@ export const TeamInvites = ({ event, invites, onChange }) => {
                         <Button size="sm" onClick={() => respond(invite, true)} loading={busy === `${invite.team._id}-true`} disabled={Boolean(busy)}>
                             Accept
                         </Button>
-                        <Button size="sm" variant="secondary" onClick={() => respond(invite, false)} loading={busy === `${invite.team._id}-false`} disabled={Boolean(busy)}>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => respond(invite, false)}
+                            loading={busy === `${invite.team._id}-false`}
+                            disabled={Boolean(busy)}
+                        >
                             Decline
                         </Button>
                     </div>
                 </div>
             ))}
+            <RegistrationFormDialog
+                open={Boolean(answering)}
+                onClose={() => setAnswering(null)}
+                event={event}
+                role="MEMBER"
+                title={answering ? `Join "${answering.team.name}"` : ""}
+                onSubmit={async (body) => {
+                    const invite = answering;
+                    await respond(invite, true, body);
+                }}
+            />
         </div>
     );
 };

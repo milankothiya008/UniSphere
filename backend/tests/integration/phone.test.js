@@ -48,8 +48,10 @@ describe("club members' mobile numbers", () => {
         expect((await api(noPhone).put(`/api/users/${noPhone._id}`, { phone: "555-0100" })).status).toBe(400);
         expect((await api(outsider).put(`/api/users/${noPhone._id}`, { phone: "9876543210" })).status).toBe(403);
 
-        // Not in a club yet, so the number can be removed again.
-        expect((await api(noPhone).put(`/api/users/${noPhone._id}`, { phone: "" })).body.data.phone).toBeNull();
+        // Once on file it can be changed but never removed (it's required at sign-up for everyone).
+        const removed = await api(noPhone).put(`/api/users/${noPhone._id}`, { phone: "" });
+        expect(removed.status).toBe(400);
+        expect(removed.body.errorCode).toBe("PHONE_REQUIRED");
     });
 
     test("club members can change their number but not remove it", async () => {

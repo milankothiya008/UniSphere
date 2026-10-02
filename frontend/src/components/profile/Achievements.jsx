@@ -36,7 +36,9 @@ export const Achievements = () => {
                     </span>
                     <span className="grow">
                         <strong>Participation record</strong>
-                        <span className="subtle small">Your clubs and roles, events you took part in, awards and certificates — one PDF for placement and scholarship forms.</span>
+                        <span className="subtle small">
+                            Your clubs and roles, events you took part in, awards and certificates — one PDF for placement and scholarship forms.
+                        </span>
                     </span>
                     <Button onClick={() => run("record", () => userApi.downloadRecord())} loading={busy === "record"}>
                         <Download size={16} /> Download PDF
@@ -69,14 +71,23 @@ export const Achievements = () => {
                                             {item.clubName} · {formatDate(item.eventStartAt)} · {item.code}
                                         </span>
                                     </span>
-                                    <Button size="sm" variant="secondary" onClick={() => run(item.code, () => certificateApi.download(item.code))} loading={busy === item.code}>
+                                    <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={() => run(item.code, () => certificateApi.download(item.code))}
+                                        loading={busy === item.code}
+                                    >
                                         <Download size={15} /> PDF
                                     </Button>
                                 </div>
                             ))}
                         </div>
                     ) : (
-                        <EmptyState icon={Award} title="No certificates yet" description="Events that give certificates list them here after you attend — and when you win." />
+                        <EmptyState
+                            icon={Award}
+                            title="No certificates yet"
+                            description="Events that give certificates list them here after you attend — and when you win."
+                        />
                     )}
                 </AsyncContent>
             </Card>

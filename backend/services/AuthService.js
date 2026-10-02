@@ -216,9 +216,14 @@ const assertEmailMatchesRole = (email, accountType) => {
     }
 };
 
-const register = async ({ name, email, password, accountType }) => {
+const register = async ({ name, email, password, accountType, phone }) => {
     if (!name || !email || !password) {
         throw new AppError("Name, email and password are required", 400, ERROR_CODES.VALIDATION_ERROR);
+    }
+    // Everyone gives a mobile number when signing up (club contacts, team coordination).
+    const mobile = require("../utils/Phone").normalizePhone(phone);
+    if (!mobile) {
+        throw new AppError("Enter a valid 10-digit Indian mobile number", 400, ERROR_CODES.VALIDATION_ERROR);
     }
 
     if (!Object.values(ACCOUNT_TYPES).includes(accountType)) {
@@ -253,6 +258,7 @@ const register = async ({ name, email, password, accountType }) => {
         globalRole: classified.accountType === ACCOUNT_TYPES.FACULTY ? GLOBAL_ROLES.FACULTY : GLOBAL_ROLES.STUDENT,
         departmentCode: classified.departmentCode,
         batchCode: classified.batchCode,
+        phone: mobile,
         isEmailVerified: false
     });
     const code = issueOtp(user, "verification");

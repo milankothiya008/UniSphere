@@ -1032,3 +1032,23 @@ img.gv-media.is-loaded {
         transition: none;
     }
 }
+
+/* Like in the viewer's top bar */
+.gv-like {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.gv-like .like-count {
+    color: #fff;
+    font-size: 0.85rem;
+}
+
+.gv-frame .double-tap {
+    display: contents;
+}
+
+.gv-frame > .double-tap > * {
+    grid-area: 1 / 1;
+}

@@ -787,3 +787,124 @@
         transition: none;
     }
 }
+
+/* ---------------------------------------------------------------- Likes */
+.double-tap {
+    position: relative;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
+.like-burst {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 3;
+    color: #fff;
+    filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.35));
+    pointer-events: none;
+    animation: like-burst 0.9s var(--ease-spring, ease-out) forwards;
+}
+
+@keyframes like-burst {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.3);
+    }
+    18% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.15);
+    }
+    32% {
+        transform: translate(-50%, -50%) scale(0.95);
+    }
+    70% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -60%) scale(0.9);
+    }
+}
+
+.like-btn.is-liked,
+.like-btn.is-liked:hover {
+    color: #ed4956;
+}
+
+.like-btn.is-liked svg {
+    animation: like-pop 0.35s var(--ease-spring, ease-out);
+}
+
+@keyframes like-pop {
+    40% {
+        transform: scale(1.25);
+    }
+}
+
+.like-count {
+    display: block;
+    padding: 0;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text);
+    background: none;
+    border: 0;
+}
+
+.like-count.is-button {
+    cursor: pointer;
+}
+
+.like-count.is-button:hover {
+    text-decoration: underline;
+}
+
+.likers {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.likers li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.likers a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 6px 0;
+    color: inherit;
+    text-decoration: none;
+}
+
+.likers a > span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .like-burst,
+    .like-btn.is-liked svg {
+        animation-duration: 0.01ms;
+    }
+}
+
+.event-likes {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: -12px;
+}

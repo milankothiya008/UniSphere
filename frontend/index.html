@@ -15,6 +15,14 @@
         <link rel="preconnect" href="https://res.cloudinary.com" />
         <link rel="dns-prefetch" href="https://res.cloudinary.com" />
         <title>CampusConnect</title>
+        <script>
+            // Apply the saved theme before the first paint, so dark mode never flashes white.
+            try {
+                var t = localStorage.getItem("cc.theme") || "system";
+                var dark = t === "dark" || (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+                document.documentElement.dataset.theme = dark ? "dark" : "light";
+            } catch (e) {}
+        </script>
     </head>
     <body>
         <div id="root"></div>

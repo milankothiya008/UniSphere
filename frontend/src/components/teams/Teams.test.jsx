@@ -45,7 +45,11 @@ const teamEvent = {
     viewer: { registration: null, team: null, teamRole: null, invites: [] }
 };
 
-const member = (id, name, status) => ({ user: { _id: id, name, email: `${id}@ddu.ac.in`, departmentCode: "CE", batchCode: "24" }, status, invitedAt: future(-0.1) });
+const member = (id, name, status) => ({
+    user: { _id: id, name, email: `${id}@ddu.ac.in`, departmentCode: "CE", batchCode: "24" },
+    status,
+    invitedAt: future(-0.1)
+});
 
 describe("team registration", () => {
     beforeEach(() => {
@@ -89,7 +93,10 @@ describe("team registration", () => {
         eventApi.acceptTeamInvite.mockResolvedValue({ message: "You joined the team and are registered", data: { waitlisted: false } });
         const invited = {
             ...teamEvent,
-            viewer: { ...teamEvent.viewer, invites: [{ team: { _id: "t1", name: "Byte Busters", size: 1, leader: { name: "Asha Patel" } }, invitedAt: future(-0.05) }] }
+            viewer: {
+                ...teamEvent.viewer,
+                invites: [{ team: { _id: "t1", name: "Byte Busters", size: 1, leader: { name: "Asha Patel" } }, invitedAt: future(-0.05) }]
+            }
         };
         renderWithRouter(<RegistrationPanel event={invited} onChange={vi.fn()} />);
 

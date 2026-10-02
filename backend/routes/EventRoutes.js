@@ -84,7 +84,7 @@ router.get("/:id/certificates", ...auth, id, validate, certificates.forEvent);
 // Hackathon mode (HACKATHON events).
 const problemId = mongoIdParam("problemId");
 router.get("/:id/hackathon", ...auth, id, validate, hackathon.get);
-router.put("/:id/hackathon", ...auth, id, body("agenda").optional().isArray({ max: 40 }), body("criteria").optional().isArray({ max: 10 }), validate, hackathon.updateSettings);
+router.put("/:id/hackathon", ...auth, id, body("agenda").optional().isArray({ max: 40 }), body("criteria").optional().isArray({ max: 10 }), body("submissionQuestions").optional().isArray({ max: 25 }), validate, hackathon.updateSettings);
 router.post("/:id/hackathon/problems", ...auth, id, validate, hackathon.addProblem);
 router.put("/:id/hackathon/problems/:problemId", ...auth, id, problemId, validate, hackathon.updateProblem);
 router.delete("/:id/hackathon/problems/:problemId", ...auth, id, problemId, validate, hackathon.deleteProblem);
@@ -113,9 +113,15 @@ router.post(
     body("teamName").optional().isString().isLength({ max: 60 }),
     body("invitees").optional().isArray({ max: 19 }).withMessage("Too many invites"),
     body("invitees.*").isMongoId().withMessage("Invalid student"),
+    body("answers").optional().isArray({ max: 25 }),
+    body("teamAnswers").optional().isArray({ max: 25 }),
     validate,
     registration.register
 );
+// The registration form: the club edits it; registrants change their answers until the event starts.
+router.put("/:id/registration-form", ...auth, id, body("enabled").isBoolean(), body("questions").optional().isArray({ max: 25 }), validate, e.updateRegistrationForm);
+router.put("/:id/expenses", ...auth, id, body("items").isArray({ max: 60 }), body("note").optional().isString().isLength({ max: 1000 }), validate, e.recordExpenses);
+router.put("/:id/register/answers", ...auth, id, body("answers").optional().isArray({ max: 25 }), body("teamAnswers").optional().isArray({ max: 25 }), validate, e.updateMyAnswers);
 
 // Teams (team events): the leader invites and manages members; invitees accept or decline.
 router.get("/:id/team/candidates", ...auth, id, validate, team.candidates);

@@ -207,9 +207,15 @@
     flex-direction: column;
     justify-content: center;
     min-width: 6px;
-    height: 50px;
+    height: 62px;
     padding: 4px 8px;
     overflow: hidden;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    border-top: 0;
+    border-right: 0;
+    border-bottom: 0;
     color: var(--ink-900);
     background: var(--ink-100);
     border-left: 3px solid var(--ink-600);
@@ -223,21 +229,98 @@
         opacity 0.2s ease;
 }
 
-a.tl-event:hover {
+.tl-event:hover,
+.tl-event.is-selected {
     z-index: 2;
     transform: translateY(-1px);
     box-shadow: var(--shadow-sm);
 }
 
-.tl-event strong,
 .tl-event span {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
 }
 
+/* Names wrap onto two lines instead of being cut after a few letters. */
 .tl-event strong {
-    font-size: 12.5px;
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 12px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+}
+
+.tl-event.is-selected {
+    outline: 2px solid var(--ink-600);
+    outline-offset: 1px;
+}
+
+.tl-event:focus-visible {
+    outline: 2px solid var(--ink-600);
+    outline-offset: 2px;
+}
+
+/* Full details of the event pointed at, under the timeline. */
+.tl-detail {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 52px;
+    margin: 0 0 10px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+}
+
+.tl-detail.is-on {
+    border-style: solid;
+    border-color: var(--border-strong);
+    animation: tl-in 0.2s var(--ease-out, ease-out) both;
+}
+
+.tl-detail-main {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.tl-detail-main strong {
+    overflow-wrap: anywhere;
+}
+
+.tl-detail-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.tl-detail-meta > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tl-detail-flag {
+    color: var(--violet-600);
+    font-weight: 600;
+}
+
+.tl-detail-open {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.85rem;
+    font-weight: 600;
 }
 
 .tl-event span {

@@ -27,6 +27,8 @@ const nowInput = () => toDateTimeInput(new Date());
 const dayOffset = (days) => toDateTimeInput(new Date(Date.now() + days * 86400000)).slice(0, 10);
 
 const renderForm = () => renderWithRouter(<EventFormPage />, { route: "/events/new", path: "/events/new" });
+// The form is step by step; the stepper jumps straight to a step.
+const goToStep = (label) => fireEvent.click(screen.getByRole("button", { name: new RegExp(`Go to step \\d: ${label}`) }));
 
 describe("EventFormPage schedule rules", () => {
     beforeEach(() => {
@@ -36,27 +38,35 @@ describe("EventFormPage schedule rules", () => {
 
     test("date and deadline pickers start from today", () => {
         renderForm();
+        goToStep("When & where");
         expect(screen.getByLabelText(/^date/i)).toHaveAttribute("min", nowInput().slice(0, 10));
+        goToStep("Registration");
         expect(screen.getByLabelText(/registration deadline/i)).toHaveAttribute("min", nowInput());
         expect(screen.getByLabelText(/registration opens/i)).toHaveAttribute("min", nowInput());
     });
 
     test("flags a past date and a past deadline, and does not save", async () => {
         renderForm();
+        goToStep("When & where");
         fireEvent.change(screen.getByLabelText(/^date/i), { target: { value: dayOffset(-1) } });
-        fireEvent.change(screen.getByLabelText(/registration deadline/i), { target: { value: `${dayOffset(-2)}T10:00` } });
-
         expect(screen.getByText("Pick today or a future date")).toBeInTheDocument();
+        goToStep("Registration");
+        fireEvent.change(screen.getByLabelText(/registration deadline/i), { target: { value: `${dayOffset(-2)}T10:00` } });
         expect(screen.getByText("The deadline must be in the future")).toBeInTheDocument();
 
+        goToStep("Review");
         await userEvent.click(screen.getByRole("button", { name: /save draft/i }));
         expect(eventApi.create).not.toHaveBeenCalled();
+        // Saving with mistakes takes you back to the first step that has one.
+        expect(screen.getByRole("heading", { name: "Event details" })).toBeInTheDocument();
     });
 
     test("the deadline cannot be set after the event starts", () => {
         renderForm();
         const date = dayOffset(5);
+        goToStep("When & where");
         fireEvent.change(screen.getByLabelText(/^date/i), { target: { value: date } });
+        goToStep("Registration");
         expect(screen.getByLabelText(/registration deadline/i)).toHaveAttribute("max", `${date}T10:00`);
     });
 
@@ -68,6 +78,7 @@ describe("EventFormPage schedule rules", () => {
             ]
         });
         renderForm();
+        goToStep("When & where");
         fireEvent.change(screen.getByLabelText(/^date/i), { target: { value: dayOffset(5) } });
 
         const booked = await screen.findByRole("option", { name: /Auditorium .* unavailable \(09:00–11:00 Drama Showcase, pending\)/ });
@@ -118,15 +129,17 @@ describe("EventFormPage editing a published event", () => {
         const title = await screen.findByDisplayValue("Hack Night");
         expect(title).toBe(screen.getByLabelText(/^title/i));
         expect(title).not.toBeDisabled();
-        expect(screen.getByLabelText(/^date/i)).not.toBeDisabled();
-        expect(screen.getByLabelText(/^venue/i)).not.toBeDisabled();
         expect(screen.getByText(/Your faculty mentor reviews the changes first/)).toBeInTheDocument();
-        // Students have registered, so the team settings stay as they are.
-        expect(screen.getByText("Can't be changed once students have registered.")).toBeInTheDocument();
-
         await userEvent.clear(title);
         await userEvent.type(title, "Hack Night 2.0");
+
+        goToStep("When & where");
+        expect(screen.getByLabelText(/^date/i)).not.toBeDisabled();
         await userEvent.selectOptions(screen.getByLabelText(/^venue/i), "v2");
+        goToStep("Registration");
+        // Students have registered, so the team settings stay as they are.
+        expect(screen.getByText("Can't be changed once students have registered.")).toBeInTheDocument();
+        goToStep("Review");
         await userEvent.type(screen.getByLabelText(/^message/i), "New hall!");
         await userEvent.click(screen.getByRole("button", { name: /send changes for approval/i }));
 
@@ -135,5 +148,48 @@ describe("EventFormPage editing a published event", () => {
         expect(id).toBe("e1");
         expect(body).toMatchObject({ title: "Hack Night 2.0", venue: "v2", updateNote: "New hall!", eventDate: dayOffset(10) });
         expect(body.participationMode).toBeUndefined();
+    });
+});
+
+describe("EventFormPage steps: registration form and budget", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        referenceApi.availableVenues.mockResolvedValue({ data: venues.map((venue) => ({ ...venue, available: true, bookedBy: [] })) });
+    });
+
+    test("the club adds registration questions and a budget, and both are sent with the event", async () => {
+        eventApi.create.mockResolvedValue({ data: { _id: "new1" } });
+        renderForm();
+        expect(screen.getByText("Create event")).toBeInTheDocument();
+        await userEvent.type(screen.getByLabelText(/^title/i), "Design Sprint");
+        await userEvent.type(screen.getByLabelText(/^short description/i), "Two hours of rapid design.");
+        await userEvent.type(screen.getByLabelText(/^full description/i), "Learn to sketch, test and present ideas fast.");
+        await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+        expect(screen.getByRole("heading", { name: "When & where" })).toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText(/^date/i), { target: { value: dayOffset(6) } });
+        await screen.findByRole("option", { name: /Auditorium/ });
+        await userEvent.selectOptions(screen.getByLabelText(/^venue/i), "v1");
+        await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+
+        fireEvent.change(screen.getByLabelText(/registration deadline/i), { target: { value: `${dayOffset(4)}T18:00` } });
+        await userEvent.click(screen.getByRole("switch", { name: /Ask extra questions/ }));
+        await userEvent.click(screen.getByRole("button", { name: /Add question/ }));
+        await userEvent.click(screen.getByRole("menuitem", { name: "Short answer" }));
+        await userEvent.type(screen.getByPlaceholderText("Ask something"), "T-shirt size");
+        await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+
+        await userEvent.click(screen.getByRole("button", { name: /Add budget line/ }));
+        await userEvent.type(screen.getByLabelText(/^item/i), "Prizes");
+        await userEvent.type(screen.getByLabelText(/^cost each/i), "1500");
+        expect(screen.getAllByText("₹1,500").length).toBeGreaterThan(0);
+        await userEvent.click(screen.getByRole("button", { name: /^Review$/ }));
+
+        expect(screen.getByText("1 question")).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: /save draft/i }));
+        await waitFor(() => expect(eventApi.create).toHaveBeenCalled());
+        const body = eventApi.create.mock.calls[0][0];
+        expect(body.registrationForm).toEqual({ enabled: true, questions: [expect.objectContaining({ type: "SHORT", label: "T-shirt size", required: false })] });
+        expect(body.budgetItems).toEqual([{ item: "Prizes", quantity: 1, unitCost: 1500, note: "" }]);
     });
 });

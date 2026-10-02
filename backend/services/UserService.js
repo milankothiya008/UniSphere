@@ -14,11 +14,13 @@ const getAllUsers = async (actor, query) => adminService.listUsers(actor, query)
 
 const getUserById = async (actor, id) => adminService.getUserById(actor, id);
 
-// Club members must keep a mobile number on file, so they can change it but not remove it.
+// Every student and faculty account has a mobile number (asked for at sign-up), so it can be changed but not
+// removed. Only accounts without one from before that (and the admin) may leave it empty.
 const phoneUpdate = async (userId, value) => {
     if (value === null || String(value).trim() === "") {
-        if (await ClubMembership.exists({ user: userId, status: MEMBERSHIP_STATUS.APPROVED })) {
-            throw new AppError("Club members need a mobile number, so it can be changed but not removed", 400, ERROR_CODES.PHONE_REQUIRED);
+        const owner = await User.findById(userId).select("phone").lean();
+        if (owner?.phone || (await ClubMembership.exists({ user: userId, status: MEMBERSHIP_STATUS.APPROVED }))) {
+            throw new AppError("Your mobile number can be changed but not removed", 400, ERROR_CODES.PHONE_REQUIRED);
         }
         return null;
     }
@@ -67,6 +69,22 @@ const updateUser = async (actor, id, data) => {
     return user;
 };
 
+// A profile's phone: faculty numbers for club members, faculty and the admin; students' for the club directory.
+const canSeePhone = async (actor, user) => {
+    if (String(actor._id) === String(user._id)) return true;
+    const auth = require("./AuthorizationService");
+    return user.globalRole === GLOBAL_ROLES.FACULTY ? auth.canSeeFacultyContacts(actor) : auth.canSeeMemberDirectory(actor);
+};
+
+const publicHistory = async (userId) => {
+    const { events, awards, certificates } = await require("./RecordService").collectRecord(userId);
+    return {
+        events: events.slice(0, 30).map((row) => ({ _id: row.eventId, title: row.title, club: row.club, category: row.category, startAt: row.startAt, endAt: row.endAt, team: row.team, attendance: row.attendance })),
+        awards: awards.slice(0, 30),
+        certificates: certificates.slice(0, 30).map((row) => ({ code: row.code, kind: row.kind, awardTitle: row.awardTitle, eventTitle: row.eventTitle, clubName: row.clubName, event: row.event, eventStartAt: row.eventStartAt }))
+    };
+};
+
 /**
  * What anyone signed in sees on someone's profile page: name, role, department and batch, and the
  * active clubs they belong to or mentor. Personal details (email, mobile number) and their event
@@ -74,7 +92,7 @@ const updateUser = async (actor, id, data) => {
  * their own profile.
  */
 const getPublicProfile = async (actor, id) => {
-    const user = await User.findOne({ _id: id, isActive: true, isEmailVerified: true }).select("name accountType globalRole departmentCode batchCode avatar createdAt").lean();
+    const user = await User.findOne({ _id: id, isActive: true, isEmailVerified: true }).select("name accountType globalRole departmentCode batchCode avatar phone createdAt").lean();
     if (!user) {
         throw new AppError("Profile not found", 404, ERROR_CODES.NOT_FOUND);
     }
@@ -94,6 +112,7 @@ const getPublicProfile = async (actor, id) => {
         _id: user._id,
         name: user.name,
         avatar: user.avatar || null,
+        phone: (await canSeePhone(actor, user)) ? user.phone || null : null,
         accountType: user.accountType,
         globalRole: user.globalRole,
         departmentCode: user.departmentCode,
@@ -101,7 +120,9 @@ const getPublicProfile = async (actor, id) => {
         joinedAt: user.createdAt,
         isSelf: String(actor._id) === String(user._id),
         clubs,
-        mentoredClubs: mentored
+        mentoredClubs: mentored,
+        // What they've done: past events, awards and certificates (never their upcoming schedule).
+        history: user.accountType === ACCOUNT_TYPES.STUDENT ? await publicHistory(user._id) : null
     };
 };
 

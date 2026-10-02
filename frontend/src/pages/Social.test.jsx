@@ -131,9 +131,40 @@ describe("Someone's profile", () => {
         renderWithRouter(<PersonPage />, { route: "/people/u7", path: "/people/:id" });
 
         expect(await screen.findByRole("heading", { name: "Meera Iyer" })).toBeInTheDocument();
-        expect(screen.getByText("Contact details and event schedule are private")).toBeInTheDocument();
+        expect(screen.getByText("Contact details and upcoming schedule are private")).toBeInTheDocument();
         expect(screen.getByRole("link", { name: /Coding Club/ })).toHaveAttribute("href", "/clubs/c1");
         expect(screen.queryByText(/@/)).not.toBeInTheDocument();
+    });
+
+    test("shows past events, achievements and certificates, and the number to those allowed", async () => {
+        userApi.profile.mockResolvedValue({
+            data: {
+                _id: "u8",
+                name: "Rohan Das",
+                globalRole: "STUDENT",
+                accountType: "STUDENT",
+                departmentCode: "EC",
+                batchCode: "24",
+                phone: "+919876543210",
+                isSelf: false,
+                clubs: [],
+                mentoredClubs: [],
+                history: {
+                    events: [{ _id: "e1", title: "Code Sprint", club: "Coding Club", category: "Hackathon", startAt: "2026-02-01T09:00:00Z", attendance: "Attended" }],
+                    awards: [{ title: "Winner", position: 1, event: "Code Sprint", eventId: "e1", club: "Coding Club", date: "2026-02-01T09:00:00Z" }],
+                    certificates: [{ code: "ABCD-1234", kind: "MERIT", awardTitle: "Winner", eventTitle: "Code Sprint", clubName: "Coding Club" }]
+                }
+            }
+        });
+        renderWithRouter(<PersonPage />, { route: "/people/u8", path: "/people/:id" });
+
+        expect(await screen.findByRole("link", { name: /98765 43210/ })).toHaveAttribute("href", "tel:+919876543210");
+        await userEvent.click(screen.getByRole("tab", { name: /Events/ }));
+        expect(screen.getByRole("link", { name: /Code Sprint/ })).toHaveAttribute("href", "/events/e1");
+        await userEvent.click(screen.getByRole("tab", { name: /Achievements/ }));
+        expect(screen.getByRole("link", { name: /Winner/ })).toHaveAttribute("href", "/results/e1");
+        await userEvent.click(screen.getByRole("tab", { name: /Certificates/ }));
+        expect(screen.getByRole("link", { name: /Winner — Code Sprint/ })).toHaveAttribute("href", "/verify/ABCD-1234");
     });
 
     test("your own id goes to your full profile", async () => {

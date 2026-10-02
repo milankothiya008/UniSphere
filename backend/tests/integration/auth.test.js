@@ -15,7 +15,7 @@ beforeEach(async () => {
 });
 
 // Registrations default to the student role unless a test chooses otherwise.
-const register = (body) => request(app).post("/api/auth/register").send({ accountType: "STUDENT", ...body });
+const register = (body) => request(app).post("/api/auth/register").send({ accountType: "STUDENT", phone: "98765 43210", ...body });
 
 describe("registration", () => {
     test("derives a student account from the university email and emails a code it never returns", async () => {

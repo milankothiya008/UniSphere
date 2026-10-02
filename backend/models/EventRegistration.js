@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const { REGISTRATION_STATUS, CHECK_IN_METHODS } = require("../constants/Statuses");
+const { formAnswerSchema } = require("./FormSchemas");
 
 const eventRegistrationSchema = new mongoose.Schema(
     {
@@ -43,6 +44,11 @@ const eventRegistrationSchema = new mongoose.Schema(
             type: String,
             enum: ["LEADER", "MEMBER", null],
             default: null
+        },
+        // Answers to the event's registration form (the questions every member answers).
+        answers: {
+            type: [formAnswerSchema],
+            default: []
         },
         // The ticket: a short code shown on the QR ticket (see utils/TicketToken). Issued whenever the
         // registration gets a place, and reissued on re-registration so an old QR stops working. Left unset

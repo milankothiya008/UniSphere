@@ -4,7 +4,8 @@ import { AlignLeft, ArrowDown, ArrowUp, CircleDot, Copy, FileText, Layers, Link2
 import { clubApi, recruitmentApi, referenceApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useToast } from "../../context/ToastContext";
-import { ActionMenu, Alert, AsyncContent, Button, Card, Checkbox, Field, Input, PageHeader, Segmented, Select, Switch, Textarea } from "../../components/ui";
+import { ActionMenu, Alert, AsyncContent, Button, Checkbox, Field, Input, PageHeader, Segmented, Select, Switch, Textarea } from "../../components/ui";
+import { FormSection, WizardHeader } from "../../components/forms/Wizard";
 import { QUESTION_TYPES } from "../../lib/constants";
 import { batchLabel, fromDateTimeInput, plural, toDateTimeInput } from "../../lib/format";
 import { QuestionPreview } from "../../components/recruitment/QuestionPreview";
@@ -552,10 +553,10 @@ const DriveFormPage = () => {
 
     return (
         <AsyncContent loading={(isEdit && existing.loading) || clubRoles.loading} error={existing.error || clubRoles.error} onRetry={existing.error ? existing.reload : clubRoles.reload}>
-            <PageHeader
-                back={{ to: isEdit ? `/recruitment/${driveId}` : `/clubs/${routeClubId}/recruitment`, label: isEdit ? "Back to the drive" : "Recruitment" }}
-                club={club?._id ? club : undefined}
+            <WizardHeader
+                eyebrow={club?.name ? `${club.name} · Recruitment` : "Recruitment"}
                 title={isEdit ? "Edit recruitment drive" : "New recruitment drive"}
+                back={<PageHeader back={{ to: isEdit ? `/recruitment/${driveId}` : `/clubs/${routeClubId}/recruitment`, label: isEdit ? "Back to the drive" : "Recruitment" }} title="" />}
             />
             {locked ? (
                 <Alert type="warning" title="This drive can't be edited now">
@@ -564,7 +565,7 @@ const DriveFormPage = () => {
             ) : (
                 <div className="recruit-form">
                     <div className="stack-lg">
-                        <Card title="About the drive">
+                        <FormSection title="1 · About the drive" description="What you're recruiting for and when applications close. Your faculty mentor approves the drive before it opens.">
                             <div className="form-grid">
                                 <Input className="span-2" label="Title" value={form.title} onChange={set("title")} placeholder="e.g. Core team recruitment 2026–27" maxLength={120} error={shown.title} required />
                                 <Textarea
@@ -588,14 +589,12 @@ const DriveFormPage = () => {
                                     </div>
                                 </Field>
                             </div>
-                        </Card>
+                        </FormSection>
 
-                        <Card
-                            title={
-                                <h2 className="row">
-                                    <Layers size={18} /> Roles & application forms
-                                </h2>
-                            }
+                        <FormSection
+                            title="2 · Roles & application forms"
+                            description="Each role gets its own page-wise form, selection rounds and results."
+                            aside={<Layers size={22} className="subtle" aria-hidden="true" />}
                         >
                             <div className="stack-lg">
                                 <div className="stack-sm">
@@ -648,7 +647,7 @@ const DriveFormPage = () => {
                                     </>
                                 )}
                             </div>
-                        </Card>
+                        </FormSection>
 
                         <div className="form-actions">
                             <Button variant="secondary" onClick={() => save(false)} loading={saving === "save"} disabled={Boolean(saving)}>

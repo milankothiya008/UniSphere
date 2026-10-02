@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { ChevronRight, Clock, MapPin, Users } from "lucide-react";
 import { audiencesOverlap, layoutLanes, shortClock, visibleRange } from "../../lib/schedule";
 import { campusDayStart } from "../../lib/format";
 
-const LANE = 58;
+const LANE = 70;
 
 // Events the viewer may open: live ones, and anything of their own clubs. Other clubs' unpublished
 // events are shown (they hold the slot) but stay private.
@@ -30,6 +31,9 @@ const useNowMinutes = (dateKey) => {
  */
 export const DayTimeline = ({ dateKey, events, audience = "ALL", proposed, clashIds, label }) => {
     const { placed, lanes } = layoutLanes(events);
+    // Short events are narrow blocks, so the full details of the one pointed at or tapped show underneath.
+    const [selectedId, setSelectedId] = useState(null);
+    const selected = placed.find((event) => String(event._id) === String(selectedId)) || null;
     const range = visibleRange(events, proposed ? [proposed] : []);
     const span = range.end - range.start;
     const pct = (minutes) => `${((Math.min(Math.max(minutes, range.start), range.end) - range.start) / span) * 100}%`;
@@ -90,28 +94,64 @@ export const DayTimeline = ({ dateKey, events, audience = "ALL", proposed, clash
                                 top: 8 + event.lane * LANE,
                                 "--i": Math.min(index, 10)
                             };
-                            const body = (
-                                <>
+                            const on = selected && String(selected._id) === String(event._id);
+                            return (
+                                <button
+                                    key={event._id}
+                                    type="button"
+                                    className={`${classes} ${on ? "is-selected" : ""}`}
+                                    style={style}
+                                    title={title}
+                                    aria-label={title}
+                                    aria-pressed={Boolean(on)}
+                                    onClick={() => setSelectedId(on ? null : event._id)}
+                                    onMouseEnter={() => setSelectedId(event._id)}
+                                    onFocus={() => setSelectedId(event._id)}
+                                >
                                     <strong>{event.title}</strong>
                                     <span>
                                         {shortClock(event.start)}–{shortClock(event.end)} · {event.club.name}
                                     </span>
-                                </>
-                            );
-                            return canOpen(event) ? (
-                                <Link key={event._id} to={`/events/${event._id}`} className={classes} style={style} title={title}>
-                                    {body}
-                                </Link>
-                            ) : (
-                                <div key={event._id} className={classes} style={style} title={title}>
-                                    {body}
-                                </div>
+                                </button>
                             );
                         })}
                         {showNow && <span className="tl-now" style={{ left: pct(now) }} aria-label={`Now, ${shortClock(now)}`} />}
                     </div>
                 </div>
             </div>
+            {placed.length > 0 && (
+                <div className={`tl-detail ${selected ? "is-on" : ""}`} aria-live="polite">
+                    {selected ? (
+                        <>
+                            <div className="tl-detail-main">
+                                <strong>{selected.title}</strong>
+                                <span className="tl-detail-meta">
+                                    <span>
+                                        <Clock size={12} /> {shortClock(selected.start)}–{shortClock(selected.end)}
+                                    </span>
+                                    <span>{selected.club.name}</span>
+                                    {selected.venue?.name && (
+                                        <span>
+                                            <MapPin size={12} /> {selected.venue.name}
+                                        </span>
+                                    )}
+                                    <span>
+                                        <Users size={12} /> {audienceText(selected.audience)}
+                                    </span>
+                                    {selected.tentative && <span className="tl-detail-flag">Awaiting approval</span>}
+                                </span>
+                            </div>
+                            {canOpen(selected) && (
+                                <Link to={`/events/${selected._id}`} className="tl-detail-open">
+                                    Open <ChevronRight size={14} />
+                                </Link>
+                            )}
+                        </>
+                    ) : (
+                        <span className="subtle small">Point at or tap an event to see its full name and details.</span>
+                    )}
+                </div>
+            )}
             <ul className="tl-legend" aria-label="Legend">
                 <li>
                     <span className="tl-key" /> Confirmed

@@ -103,7 +103,7 @@ const assertPendingRoom = async (actor, event, access, adding = 1) => {
     }
 };
 
-const itemView = (item, { viewerId = null, canModerate = false } = {}) => {
+const itemView = (item, { viewerId = null, canModerate = false, liked = new Set() } = {}) => {
     const uploader = item.uploader || {};
     const mine = Boolean(viewerId && String(uploader._id || item.uploader) === String(viewerId));
     return {
@@ -117,6 +117,8 @@ const itemView = (item, { viewerId = null, canModerate = false } = {}) => {
         uploader: { _id: uploader._id || item.uploader, name: uploader.name || "CampusConnect user" },
         uploaderRole: item.uploaderRole,
         createdAt: item.createdAt,
+        likeCount: item.likeCount || 0,
+        likedByMe: liked.has(String(item._id)),
         mine,
         canDelete: mine || canModerate
     };
@@ -154,8 +156,9 @@ const getGallery = async (actor, eventId, query = {}) => {
         access.canModerate ? EventMedia.countDocuments({ event: event._id, status: PENDING }) : 0
     ]);
 
+    const liked = await require("./LikeService").likedAmong(actor, "MEDIA", items.map((item) => item._id));
     return {
-        items: items.map((item) => itemView(item, viewer)),
+        items: items.map((item) => itemView(item, { ...viewer, liked })),
         meta: paginationMeta(pagination, approvedCount),
         mine: mine.map((item) => itemView(item, viewer)),
         pending: pending.map((item) => itemView(item, viewer)),

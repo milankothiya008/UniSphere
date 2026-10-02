@@ -11,6 +11,7 @@ const { CLUB_PERMISSIONS } = require("../constants/Permissions");
 const { EMAIL_CATEGORIES } = require("../constants/EmailCategories");
 const { formatDate, formatTime } = require("../utils/CampusTime");
 const { getClubContext, contextHas } = require("./AuthorizationService");
+const { normalizeQuestions, readAnswers } = require("../utils/Forms");
 const { notify } = require("./NotificationService");
 const { recordAudit } = require("./AuditService");
 
@@ -61,6 +62,14 @@ const timesFit = (event, times) =>
     times.selectionDeadline <= times.repoDeadline &&
     times.repoDeadline < times.submissionDeadline &&
     times.submissionDeadline <= event.endAt;
+
+// Standard fields of the final submission (name and description are always asked).
+const SUBMISSION_FIELDS = ["demoUrl", "videoUrl", "deckUrl", "techStack"];
+const FIELD_LABELS = { demoUrl: "live demo link", videoUrl: "demo video link", deckUrl: "presentation link", techStack: "tech stack" };
+const fieldsOf = (hackathon) => {
+    const stored = hackathon.submissionFields?.toObject?.() || hackathon.submissionFields || {};
+    return Object.fromEntries(SUBMISSION_FIELDS.map((field) => [field, stored[field] || "OPTIONAL"]));
+};
 
 const loadEvent = async (eventId) => {
     const event = await Event.findById(eventId);
@@ -149,6 +158,7 @@ const entryView = (entry, hackathon) => {
         problemStatement: problem ? { _id: problem._id, title: problem.title } : null,
         problemChosenAt: entry.problemChosenAt,
         project: entry.project,
+        submissionAnswers: entry.submissionAnswers || [],
         repoSubmittedAt: entry.repoSubmittedAt,
         submittedAt: entry.submittedAt,
         updatedAt: entry.updatedAt
@@ -185,6 +195,8 @@ const getHackathon = async (actor, eventId) => {
         submissionDeadline: hackathon.submissionDeadline,
         agenda: [...hackathon.agenda].sort((a, b) => a.startsAt - b.startsAt),
         criteria: hackathon.criteria,
+        submissionFields: fieldsOf(hackathon),
+        submissionQuestions: hackathon.submissionQuestions || [],
         maxTotal: maxTotal(hackathon),
         problemCount: hackathon.problemStatements.length,
         problemStatements: showProblems ? hackathon.problemStatements.map((problem) => problemView(problem, counts)) : [],
@@ -255,6 +267,19 @@ const updateSettings = async (actor, eventId, payload = {}) => {
             if (startsAt < new Date(event.startAt.getTime() - 24 * HOUR) || startsAt > event.endAt) throw fail(`Agenda item ${index + 1} must be during the event`);
             return { ...(item._id ? { _id: item._id } : {}), title, startsAt, note: String(item.note || "").trim().slice(0, 300) };
         });
+    }
+
+    // The final submission form: which standard fields are asked, and any extra questions.
+    if (payload.submissionFields !== undefined) {
+        const next = {};
+        for (const field of SUBMISSION_FIELDS) {
+            const value = payload.submissionFields?.[field];
+            next[field] = ["REQUIRED", "OPTIONAL", "OFF"].includes(value) ? value : fieldsOf(hackathon)[field];
+        }
+        hackathon.submissionFields = next;
+    }
+    if (payload.submissionQuestions !== undefined) {
+        hackathon.submissionQuestions = normalizeQuestions(payload.submissionQuestions, { what: "submission form" });
     }
 
     if (payload.criteria !== undefined) {
@@ -468,20 +493,31 @@ const submitProject = async (actor, eventId, payload = {}) => {
     const summary = String(payload.summary || "").trim();
     if (title.length < 2) throw fail("Give your project a name");
     if (summary.length < 20) throw fail("Describe what you built (at least 20 characters)");
+    // Fields follow the organisers' form: REQUIRED must be filled, OFF is ignored.
+    const fields = fieldsOf(hackathon);
+    const value = (field) => {
+        if (fields[field] === "OFF") return "";
+        const out = field === "techStack" ? String(payload.techStack || "").trim().slice(0, 300) : cleanUrl(payload[field], FIELD_LABELS[field]);
+        if (fields[field] === "REQUIRED" && !out) throw fail(`Add the ${FIELD_LABELS[field]}`);
+        return out;
+    };
     const project = {
         title: title.slice(0, 120),
         summary: summary.slice(0, 3000),
         // The repository is locked from the repository deadline.
         repoUrl: entry.project?.repoUrl || "",
-        demoUrl: cleanUrl(payload.demoUrl, "live demo link"),
-        videoUrl: cleanUrl(payload.videoUrl, "demo video link"),
-        deckUrl: cleanUrl(payload.deckUrl, "presentation link"),
-        techStack: String(payload.techStack || "").trim().slice(0, 300)
+        demoUrl: value("demoUrl"),
+        videoUrl: value("videoUrl"),
+        deckUrl: value("deckUrl"),
+        techStack: value("techStack")
     };
-    if (!project.demoUrl && !project.videoUrl) throw fail("Add a live demo link or a demo video");
+    // With the default form (both optional), a project still needs something to look at.
+    if (fields.demoUrl === "OPTIONAL" && fields.videoUrl === "OPTIONAL" && !project.demoUrl && !project.videoUrl) throw fail("Add a live demo link or a demo video");
+    const submissionAnswers = readAnswers(hackathon.submissionQuestions || [], payload.answers);
 
     const first = !entry.submittedAt;
     entry.project = project;
+    entry.submissionAnswers = submissionAnswers;
     entry.submittedAt = now;
     entry.submittedBy = actor._id;
     await entry.save();
@@ -513,6 +549,7 @@ const listForJudging = async (actor, eventId) => {
         open,
         opensAt: hackathon.submissionDeadline,
         criteria: hackathon.criteria,
+        submissionQuestions: hackathon.submissionQuestions || [],
         maxTotal: maxTotal(hackathon),
         entries: entries.map((entry) => {
             const mine = entry.scores.find((score) => idOf(score.judge) === idOf(actor._id));

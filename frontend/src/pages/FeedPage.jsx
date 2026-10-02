@@ -32,14 +32,28 @@ const FeedTabs = ({ tab, counts, onChange, filtersOpen, onFilters, filtered }) =
     <div className="feed-bar">
         <div className="feed-tabs" role="tablist">
             {TABS.map(({ value, label }) => (
-                <button key={value} type="button" role="tab" aria-selected={tab === value} className={`feed-tab ${tab === value ? "active" : ""}`} onClick={() => onChange(value)}>
+                <button
+                    key={value}
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === value}
+                    className={`feed-tab ${tab === value ? "active" : ""}`}
+                    onClick={() => onChange(value)}
+                >
                     {value === "ongoing" && counts.ongoing ? <span className="live-dot" /> : null}
                     {label}
                     {counts[value] ? <span className="count">{counts[value]}</span> : null}
                 </button>
             ))}
         </div>
-        <button type="button" className={`icon-button ${filtersOpen || filtered ? "is-on" : ""}`} onClick={onFilters} aria-expanded={filtersOpen} aria-label="Filters" title="Filters">
+        <button
+            type="button"
+            className={`icon-button ${filtersOpen || filtered ? "is-on" : ""}`}
+            onClick={onFilters}
+            aria-expanded={filtersOpen}
+            aria-label="Filters"
+            title="Filters"
+        >
             <SlidersHorizontal size={20} />
         </button>
     </div>
@@ -129,7 +143,17 @@ const NextEvent = ({ registrations }) => {
 
     return (
         <div className="side-card next-card">
-            <span className="side-eyebrow">{live ? <><span className="live-dot" /> Happening now</> : <><CalendarCheck2 size={14} /> Your next event</>}</span>
+            <span className="side-eyebrow">
+                {live ? (
+                    <>
+                        <span className="live-dot" /> Happening now
+                    </>
+                ) : (
+                    <>
+                        <CalendarCheck2 size={14} /> Your next event
+                    </>
+                )}
+            </span>
             <Link to={`/events/${event._id}`} className="next-card-title">
                 {event.title}
             </Link>
@@ -223,7 +247,10 @@ const Sidebar = ({ clubs, refreshKey }) => {
 // ---------------------------------------------------------------- page
 
 const FeedPage = () => {
-    const [filters, setFilters] = useQueryState({ tab: "upcoming", category: "", club: "", search: "" });
+    const [filters, setFilters] = useQueryState({ tab: "", category: "", club: "", search: "" });
+    // Opening the app shows what's live right now first; with nothing live it falls back to upcoming.
+    const [autoTab, setAutoTab] = useState("ongoing");
+    const tab = filters.tab || autoTab;
     const [clubs, setClubs] = useState(null);
     const [state, setState] = useState({ items: [], page: 0, totalPages: 1, counts: null, loading: true, error: null });
     const [filtersOpen, setFiltersOpen] = useState(Boolean(filters.category || filters.club));
@@ -241,7 +268,7 @@ const FeedPage = () => {
             setState((prev) => ({ ...prev, loading: true, error: null, ...(page === 1 ? { items: [] } : {}) }));
             try {
                 const response = await eventApi.list({
-                    timeframe: filters.tab,
+                    timeframe: tab,
                     category: filters.category,
                     club: filters.club,
                     search: filters.search,
@@ -249,6 +276,10 @@ const FeedPage = () => {
                     limit: PAGE_SIZE,
                     withCounts: page === 1 ? "true" : undefined
                 });
+                if (!filters.tab && tab === "ongoing" && page === 1 && !response.data.length) {
+                    setAutoTab("upcoming");
+                    return;
+                }
                 setState((prev) => ({
                     items: page === 1 ? response.data : [...prev.items, ...response.data],
                     page,
@@ -261,7 +292,7 @@ const FeedPage = () => {
                 setState((prev) => ({ ...prev, loading: false, error }));
             }
         },
-        [filters.tab, filters.category, filters.club, filters.search]
+        [tab, filters.tab, filters.category, filters.club, filters.search]
     );
 
     useEffect(() => {
@@ -280,7 +311,7 @@ const FeedPage = () => {
                 <StoryTray clubs={clubs} />
                 <PushPrompt />
                 <FeedTabs
-                    tab={filters.tab}
+                    tab={tab}
                     counts={counts}
                     onChange={(tab) => setFilters({ tab })}
                     filtersOpen={filtersOpen}
@@ -288,12 +319,18 @@ const FeedPage = () => {
                     filtered={filtered}
                 />
                 {filtersOpen && (
-                    <CategoryChips value={filters.category} onChange={(category) => setFilters({ category })} clubs={clubs || []} club={filters.club} onClub={(club) => setFilters({ club })} />
+                    <CategoryChips
+                        value={filters.category}
+                        onChange={(category) => setFilters({ category })}
+                        clubs={clubs || []}
+                        club={filters.club}
+                        onClub={(club) => setFilters({ club })}
+                    />
                 )}
 
                 {filtered && (
                     <div className="active-filters">
-                        <span className="subtle">{state.loading ? "Searching…" : plural(counts[filters.tab] ?? state.items.length, "event")}</span>
+                        <span className="subtle">{state.loading ? "Searching…" : plural(counts[tab] ?? state.items.length, "event")}</span>
                         <button type="button" className="link-button" onClick={() => setFilters({ search: "", category: "", club: "" })}>
                             Clear filters
                         </button>
@@ -316,7 +353,10 @@ const FeedPage = () => {
                         )}
 
                         {!state.loading && state.items.length === 0 && (
-                            <EmptyState icon={filters.tab === "ongoing" ? Radio : CalendarDays} title={filtered ? "No events match your filters" : EMPTY[filters.tab] || EMPTY.upcoming} />
+                            <EmptyState
+                                icon={tab === "ongoing" ? Radio : CalendarDays}
+                                title={filtered ? "No events match your filters" : EMPTY[tab] || EMPTY.upcoming}
+                            />
                         )}
 
                         {hasMore && <div ref={sentinel} className="feed-sentinel" />}

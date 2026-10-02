@@ -161,6 +161,28 @@ const normalizeEligibility = (eligibility = {}) => ({
     notes: String(eligibility.notes || "").trim()
 });
 
+// The budget and equipment the club asks for (approved by the mentor with the event).
+const normalizeBudget = (payload = {}) => {
+    const fail = (message) => new AppError(message, 400, ERROR_CODES.VALIDATION_ERROR);
+    const items = (Array.isArray(payload.budgetItems) ? payload.budgetItems : []).slice(0, 40).map((row, index) => {
+        const item = String(row?.item || "").trim();
+        const quantity = Number(row?.quantity ?? 1);
+        const unitCost = Number(row?.unitCost ?? 0);
+        if (!item) throw fail(`Budget line ${index + 1}: say what it's for`);
+        if (!Number.isFinite(quantity) || quantity < 1) throw fail(`Budget line ${index + 1}: quantity must be at least 1`);
+        if (!Number.isFinite(unitCost) || unitCost < 0) throw fail(`Budget line ${index + 1}: cost can't be negative`);
+        return { item: item.slice(0, 120), quantity: Math.round(quantity), unitCost: Math.round(unitCost * 100) / 100, note: String(row.note || "").trim().slice(0, 200) };
+    });
+    const equipment = (Array.isArray(payload.equipment) ? payload.equipment : []).slice(0, 40).map((row, index) => {
+        const name = String(row?.name || "").trim();
+        const quantity = Number(row?.quantity ?? 1);
+        if (!name) throw fail(`Equipment line ${index + 1}: name the item`);
+        if (!Number.isFinite(quantity) || quantity < 1) throw fail(`Equipment line ${index + 1}: quantity must be at least 1`);
+        return { name: name.slice(0, 120), quantity: Math.round(quantity), note: String(row.note || "").trim().slice(0, 200) };
+    });
+    return { budgetItems: items, equipment, budgetNote: String(payload.budgetNote || "").trim().slice(0, 1000) };
+};
+
 const normalizeContact = (contact = {}) => ({
     name: String(contact.name || "").trim(),
     email: String(contact.email || "").trim().toLowerCase(),
@@ -272,7 +294,8 @@ const registrationWindowState = (event, now = new Date()) => {
 
 const serialize = (event, extra = {}) => {
     // The reminder log stays with the organisers (see getEventDetail).
-    const { revision, remindersSent, ...obj } = event.toObject ? event.toObject() : event;
+    // Budget, equipment and spending are shown to the club, the mentor and the admin only (getEventDetail).
+    const { revision, remindersSent, budgetItems, equipment, budgetNote, expenses, ...obj } = event.toObject ? event.toObject() : event;
     return { ...obj, registrationState: registrationWindowState(obj), ...extra };
 };
 
@@ -343,8 +366,24 @@ const getEventDetail = async (actor, eventId) => {
 
     const galleryCount = PUBLIC_EVENT_STATUSES.includes(event.status) ? await EventMedia.countDocuments({ event: event._id, status: "APPROVED" }) : 0;
 
+    const budget =
+        isStaff || context.isAdmin
+            ? {
+                  budgetItems: event.budgetItems,
+                  equipment: event.equipment,
+                  budgetNote: event.budgetNote,
+                  budgetTotal: event.budgetItems.reduce((sum, row) => sum + row.quantity * row.unitCost, 0),
+                  expenses: event.expenses,
+                  expensesTotal: (event.expenses?.items || []).reduce((sum, row) => sum + row.amount, 0)
+              }
+            : {};
+    const myAnswers = found && [REGISTRATION_STATUS.REGISTERED, REGISTRATION_STATUS.WAITLISTED].includes(found.status) ? await require("./RegistrationFormService").myAnswers(event, found) : null;
+
     return serialize(event, {
         galleryCount,
+        ...budget,
+        myAnswers,
+        likedByMe: actor ? (await require("./LikeService").likedAmong(actor, "EVENT", [event._id])).has(String(event._id)) : false,
         // On hold while the club is suspended or archived: visible to those involved, closed to registration.
         onHold: event.club.status !== CLUB_STATUS.ACTIVE,
         ...(event.club.status !== CLUB_STATUS.ACTIVE && event.status === EVENT_STATUS.PUBLISHED ? { registrationState: "ON_HOLD" } : {}),
@@ -383,6 +422,8 @@ const createDraft = async (actor, payload) => {
         maxParticipants: assertCapacityFits(payload.maxParticipants, venue, 0, team.maxTeamSize),
         eligibility: normalizeEligibility(payload.eligibility),
         certificatesEnabled: Boolean(payload.certificatesEnabled),
+        registrationForm: require("./RegistrationFormService").normalizeRegistrationForm(payload.registrationForm || {}, { team: team.participationMode === PARTICIPATION_MODES.TEAM }),
+        ...normalizeBudget(payload),
         rules: payload.rules || "",
         contact: normalizeContact(payload.contact),
         organizer: await resolveOrganizer(club._id, payload.organizer, actor),
@@ -422,7 +463,10 @@ const EDIT_FIELDS = [
     "organizer",
     "participationMode",
     "minTeamSize",
-    "maxTeamSize"
+    "maxTeamSize",
+    "budgetItems",
+    "equipment",
+    "budgetNote"
 ];
 
 const TEAM_FIELDS = ["participationMode", "minTeamSize", "maxTeamSize"];
@@ -449,7 +493,10 @@ const FIELD_LABELS = {
     organizer: "organizer",
     participationMode: "team or individual entry",
     minTeamSize: "minimum team size",
-    maxTeamSize: "maximum team size"
+    maxTeamSize: "maximum team size",
+    budgetItems: "budget",
+    equipment: "equipment",
+    budgetNote: "budget note"
 };
 
 const labelList = (fields) => {
@@ -553,6 +600,14 @@ const proposeChanges = async (event, payload, actor) => {
     }
     if (payload.organizer !== undefined) {
         proposed.organizer = await resolveOrganizer(event.club, payload.organizer, actor);
+    }
+    if (payload.budgetItems !== undefined || payload.equipment !== undefined || payload.budgetNote !== undefined) {
+        const budget = normalizeBudget({
+            budgetItems: payload.budgetItems !== undefined ? payload.budgetItems : event.budgetItems,
+            equipment: payload.equipment !== undefined ? payload.equipment : event.equipment,
+            budgetNote: payload.budgetNote !== undefined ? payload.budgetNote : event.budgetNote
+        });
+        Object.assign(proposed, budget);
     }
     if (venueChanged) {
         proposed.venue = venue._id;
@@ -1147,6 +1202,37 @@ const cancelEvent = async (actor, eventId, reason = null) => {
     return getEventDetail(actor, event._id);
 };
 
+/** After the event starts, the club records what it actually spent; the mentor sees it next to the budget. */
+const recordExpenses = async (actor, eventId, payload = {}) => {
+    const event = await findEvent(eventId);
+    await assertClubPermission(actor, event.club, CLUB_PERMISSIONS.MANAGE_EVENTS, "You cannot manage this club's events");
+    if (![EVENT_STATUS.PUBLISHED, EVENT_STATUS.COMPLETED].includes(event.status) || event.startAt > new Date()) {
+        throw new AppError("Spending can be recorded once the event has started", 409, ERROR_CODES.INVALID_STATE);
+    }
+    const fail = (message) => new AppError(message, 400, ERROR_CODES.VALIDATION_ERROR);
+    const items = (Array.isArray(payload.items) ? payload.items : []).slice(0, 60).map((row, index) => {
+        const item = String(row?.item || "").trim();
+        const amount = Number(row?.amount);
+        if (!item) throw fail(`Line ${index + 1}: say what the money was spent on`);
+        if (!Number.isFinite(amount) || amount < 0) throw fail(`Line ${index + 1}: enter the amount`);
+        return { item: item.slice(0, 120), amount: Math.round(amount * 100) / 100, note: String(row.note || "").trim().slice(0, 200) };
+    });
+    event.expenses = { items, note: String(payload.note || "").trim().slice(0, 1000), submittedAt: new Date(), submittedBy: actor._id };
+    await event.save();
+    await audit(event, AUDIT_ACTIONS.EVENT_UPDATED, actor, event.status, null, { fields: ["expenses"] });
+    const club = await Club.findById(event.club).select("mentor");
+    if (club?.mentor) {
+        const total = items.reduce((sum, row) => sum + row.amount, 0);
+        await notify([club.mentor], {
+            type: NOTIFICATION_TYPES.EVENT_UPDATED,
+            title: `Spending recorded for ${event.title}`,
+            message: `₹${total.toLocaleString("en-IN")} spent against an approved budget of ₹${event.budgetItems.reduce((sum, row) => sum + row.quantity * row.unitCost, 0).toLocaleString("en-IN")}.`,
+            link: EVENT_LINK(event)
+        });
+    }
+    return getEventDetail(actor, event._id);
+};
+
 const completeEvent = async (actor, eventId) => {
     const event = await findEvent(eventId);
     await assertClubPermission(actor, event.club, CLUB_PERMISSIONS.MANAGE_EVENTS, "You cannot complete this club's events");
@@ -1209,10 +1295,11 @@ const attachRegistrations = async (actor, events) => {
     const serialized = events.map((event) => serialize(event));
     // Results and the viewer's own registrations are looked up at the same time.
     const clubIds = [...new Set(serialized.map((event) => String(event.club?._id || event.club)).filter(Boolean))];
-    const [items, registrations, followed] = await Promise.all([
+    const [items, registrations, followed, liked] = await Promise.all([
         attachResults(serialized),
         actor && serialized.length ? EventRegistration.find({ user: actor._id, event: { $in: serialized.map((event) => event._id) } }).select("event status").lean() : [],
-        actor ? followedAmong(actor._id, clubIds) : new Set()
+        actor ? followedAmong(actor._id, clubIds) : new Set(),
+        require("./LikeService").likedAmong(actor, "EVENT", serialized.map((event) => event._id))
     ]);
 
     if (!actor || !items.length) {
@@ -1222,7 +1309,12 @@ const attachRegistrations = async (actor, events) => {
     const byEvent = new Map(registrations.map((registration) => [String(registration.event), registration.status]));
 
     // followingClub lets the feed offer "Follow" on posts from clubs the viewer doesn't follow yet.
-    return items.map((event) => ({ ...event, myRegistration: byEvent.get(String(event._id)) || null, followingClub: followed.has(String(event.club?._id || event.club)) }));
+    return items.map((event) => ({
+        ...event,
+        myRegistration: byEvent.get(String(event._id)) || null,
+        followingClub: followed.has(String(event.club?._id || event.club)),
+        likedByMe: liked.has(String(event._id))
+    }));
 };
 
 const TIMEFRAMES = {
@@ -1366,6 +1458,7 @@ const listClubEvents = async (actor, clubId, query = {}) => {
 };
 
 module.exports = {
+    recordExpenses,
     createDraft,
     getEventDetail,
     listEvents,

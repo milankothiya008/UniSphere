@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { formAnswerSchema } = require("./FormSchemas");
 
 // One hackathon entry: a team (team events) or a single student (individual events). It holds the chosen
 // problem statement, the submitted project and every judge's scores.
@@ -47,6 +48,8 @@ const hackathonEntrySchema = new mongoose.Schema(
         repoSubmittedAt: { type: Date, default: null },
         repoSubmittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
         // Stage 3: the final submission (name, description, demo, video, slides). Only these are judged.
+        // Answers to the organisers' extra submission questions.
+        submissionAnswers: { type: [formAnswerSchema], default: [] },
         submittedAt: { type: Date, default: null },
         submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
         scores: { type: [scoreSchema], default: [] }

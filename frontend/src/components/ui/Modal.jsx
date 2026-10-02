@@ -48,9 +48,11 @@ export const Modal = ({ open, onClose, title, description, size, footer, childre
                         <h2 id={titleId}>{title}</h2>
                         {description && <p className="muted small" style={{ marginTop: 4 }}>{description}</p>}
                     </div>
-                    <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
-                        <X size={18} />
-                    </button>
+                    {onClose && (
+                        <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
+                            <X size={18} />
+                        </button>
+                    )}
                 </div>
                 <div className="modal-body">{children}</div>
                 {footer && <div className="modal-footer">{footer}</div>}

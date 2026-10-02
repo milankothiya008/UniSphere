@@ -171,14 +171,17 @@ const registerForEvent = async (actor, eventId, body = {}) => {
         throw new AppError(`You are already on the waitlist (#${position})`, 409, ERROR_CODES.DUPLICATE_REGISTRATION);
     }
 
+    const forms = require("./RegistrationFormService");
     if (event.participationMode !== PARTICIPATION_MODES.TEAM) {
-        return takePlace(actor, event, existing, { team: null, teamRole: null });
+        const { answers } = forms.answersFor(event, null, body);
+        return takePlace(actor, event, existing, { team: null, teamRole: null, answers });
     }
 
-    const { team, invitees } = await teams.createTeam(actor, event, { teamName: body.teamName, invitees: body.invitees });
+    const { answers, teamAnswers } = forms.answersFor(event, "LEADER", body);
+    const { team, invitees } = await teams.createTeam(actor, event, { teamName: body.teamName, invitees: body.invitees, answers: teamAnswers });
     let result;
     try {
-        result = await takePlace(actor, event, existing, { team: team._id, teamRole: "LEADER" }, team);
+        result = await takePlace(actor, event, existing, { team: team._id, teamRole: "LEADER", answers }, team);
     } catch (error) {
         await teams.discardTeam(team);
         throw error;
@@ -333,7 +336,7 @@ const listParticipants = async (actor, eventId, query = {}) => {
 
     const registrations = await EventRegistration.find({ event: event._id, status: REGISTRATION_STATUS.REGISTERED })
         .populate("user", "name email departmentCode batchCode avatar")
-        .populate("team", "name size")
+        .populate("team", "name size answers")
         .populate("checkedInBy", "name")
         .sort({ registeredAt: 1 });
 
@@ -343,7 +346,15 @@ const listParticipants = async (actor, eventId, query = {}) => {
         .populate("team", "name size")
         .sort({ waitlistedAt: 1, _id: 1 });
 
-    let items = registrations.filter((registration) => registration.user);
+    const forms = require("./RegistrationFormService");
+    let items = registrations
+        .filter((registration) => registration.user)
+        .map((registration) => {
+            const plain = registration.toObject();
+            delete plain.answers;
+            if (plain.team) delete plain.team.answers;
+            return { ...plain, formAnswers: forms.answerCells(event, registration, registration.team) };
+        });
     let waitlist = queued.filter((registration) => registration.user).map((registration, index) => ({ ...registration.toObject(), position: index + 1 }));
 
     if (query.search) {
@@ -362,6 +373,7 @@ const listParticipants = async (actor, eventId, query = {}) => {
         items,
         waitlist,
         teams: teamList,
+        formColumns: forms.answerColumns(event),
         event: {
             _id: event._id,
             title: event.title,

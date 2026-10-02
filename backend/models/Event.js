@@ -1,6 +1,26 @@
 const mongoose = require("mongoose");
 const { EVENT_STATUS, REVISION_STATUS, PARTICIPATION_MODES, CHECK_IN_STATUS } = require("../constants/Statuses");
 const { EVENT_CATEGORIES } = require("../constants/Categories");
+const { formQuestionSchema } = require("./FormSchemas");
+
+const budgetItemSchema = new mongoose.Schema({
+    item: { type: String, trim: true, required: true, maxlength: 120 },
+    quantity: { type: Number, min: 1, max: 100000, default: 1 },
+    unitCost: { type: Number, min: 0, max: 10000000, default: 0 },
+    note: { type: String, trim: true, maxlength: 200, default: "" }
+});
+
+const equipmentSchema = new mongoose.Schema({
+    name: { type: String, trim: true, required: true, maxlength: 120 },
+    quantity: { type: Number, min: 1, max: 10000, default: 1 },
+    note: { type: String, trim: true, maxlength: 200, default: "" }
+});
+
+const expenseSchema = new mongoose.Schema({
+    item: { type: String, trim: true, required: true, maxlength: 120 },
+    amount: { type: Number, min: 0, max: 10000000, required: true },
+    note: { type: String, trim: true, maxlength: 200, default: "" }
+});
 
 const eventSchema = new mongoose.Schema(
     {
@@ -124,6 +144,24 @@ const eventSchema = new mongoose.Schema(
             maxlength: 8000,
             default: ""
         },
+        // Optional registration form: extra questions the club needs answered to register (the student's
+        // name, email, department and batch come from their account).
+        registrationForm: {
+            enabled: { type: Boolean, default: false },
+            questions: { type: [formQuestionSchema(true)], default: [] }
+        },
+        // Budget and equipment the club asks for; the faculty mentor approves them with the event.
+        budgetItems: { type: [budgetItemSchema], default: [] },
+        equipment: { type: [equipmentSchema], default: [] },
+        budgetNote: { type: String, trim: true, maxlength: 1000, default: "" },
+        // What was actually spent, recorded by the club once the event has started.
+        expenses: {
+            items: { type: [expenseSchema], default: [] },
+            note: { type: String, trim: true, maxlength: 1000, default: "" },
+            submittedAt: { type: Date, default: null },
+            submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null }
+        },
+        likeCount: { type: Number, default: 0, min: 0 },
         // The president switches certificates on per event: participation for checked-in students,
         // merit for winners in the published results (see CertificateService).
         certificatesEnabled: {

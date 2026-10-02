@@ -17,7 +17,7 @@ const removeMember = asyncHandler(async (req, res) => {
 });
 
 const accept = asyncHandler(async (req, res) => {
-    const result = await teamService.respondToInvite(req.user, req.params.id, req.params.teamId, true);
+    const result = await teamService.respondToInvite(req.user, req.params.id, req.params.teamId, true, req.body);
     sendSuccess(res, 200, result.waitlisted ? "You joined the team. The team is on the waitlist." : "You joined the team and are registered", result);
 });
 

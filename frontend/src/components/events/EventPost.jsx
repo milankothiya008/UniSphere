@@ -12,6 +12,7 @@ import { eligibilityProblem, isLive, isPast } from "../../lib/eligibility";
 import { categoryStyle, categoryVars, startsInLabel } from "../../lib/eventVisuals";
 import { downloadIcs } from "../../lib/calendar";
 import { useClubFollow } from "../../hooks/useClubFollow";
+import { DoubleTapLike, LikeButton, LikeCount, useLike } from "../social/Likes";
 
 // "Follow" beside the club's name, like Instagram's post header: shown only while the viewer doesn't
 // follow the club, and gone as soon as they do (on every post from that club).
@@ -126,8 +127,14 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
     // A full event still takes sign-ups: they go on the waitlist.
     const canRegister = isStudent && !registered && !waitlisted && !past && !live && ["OPEN", "FULL"].includes(event.registrationState) && !problem;
     const CategoryIcon = categoryStyle(event.category).icon;
-    
+    const like = useLike("event", event._id, initial.likedByMe, initial.likeCount);
+
+    const hasForm = Boolean(event.registrationForm?.enabled && event.registrationForm.questions?.length);
     const register = async () => {
+        if (hasForm) {
+            navigate(`${link}?register=form`);
+            return;
+        }
         setPending(true);
         try {
             const response = await eventApi.register(event._id);
@@ -176,7 +183,8 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
     if (past || (live && hasResults)) {
         action = (
             <Button variant={hasResults ? "accent" : "secondary"} size="sm" onClick={() => navigate(hasResults ? `/results/${event._id}` : link)}>
-                {hasResults ? <Trophy size={15} /> : <ChevronRight size={15} />} {hasResults ? (event.result ? "View results" : "Live standings") : "View event"}
+                {hasResults ? <Trophy size={15} /> : <ChevronRight size={15} />}{" "}
+                {hasResults ? (event.result ? "View results" : "Live standings") : "View event"}
             </Button>
         );
     } else if (registered) {
@@ -229,11 +237,19 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
     const menu = [
         { label: "View event", icon: ChevronRight, onClick: () => navigate(link) },
         event.club?._id && { label: "Go to club", icon: Users, onClick: () => navigate(`/clubs/${event.club._id}`) },
-        { label: "Copy link", icon: Link2, onClick: () => navigator.clipboard?.writeText(`${window.location.origin}${link}`).then(() => toast.success("Link copied")) }
+        {
+            label: "Copy link",
+            icon: Link2,
+            onClick: () => navigator.clipboard?.writeText(`${window.location.origin}${link}`).then(() => toast.success("Link copied"))
+        }
     ].filter(Boolean);
 
     return (
-        <article ref={ref} className={`event-post ${live ? "is-live" : ""} ${revealed ? "is-revealed" : ""}`} style={{ ...categoryVars(event.category), "--reveal-delay": `${Math.min(index % 4, 3) * 70}ms` }}>
+        <article
+            ref={ref}
+            className={`event-post ${live ? "is-live" : ""} ${revealed ? "is-revealed" : ""}`}
+            style={{ ...categoryVars(event.category), "--reveal-delay": `${Math.min(index % 4, 3) * 70}ms` }}
+        >
             <header className="event-post-head">
                 <Link to={`/clubs/${event.club?._id}`} className="event-post-club">
                     <span className="post-avatar-ring">
@@ -251,27 +267,30 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
                 <ActionMenu items={menu} label="Post options" />
             </header>
 
-            <Link to={link} className="event-post-media" aria-label={`Open ${event.title}`}>
-                {event.poster ? (
-                    <MediaFill src={event.poster} alt={`${event.title} poster`} />
-                ) : (
-                    <div className="event-post-fallback">
-                        <CategoryIcon className="fallback-art" size={200} strokeWidth={1} aria-hidden="true" />
-                        <span>{humanize(event.category)}</span>
-                        <strong>{event.title}</strong>
-                        <span>
-                            {formatDate(event.startAt)} · {formatTimeRange(event.startAt, event.endAt)}
-                        </span>
-                    </div>
-                )}
-                <span className="poster-status">
-                    <PosterStatus event={event} live={live} past={past} />
-                </span>
-            </Link>
+            <DoubleTapLike like={like} to={link}>
+                <Link to={link} className="event-post-media" aria-label={`Open ${event.title}`} draggable={false}>
+                    {event.poster ? (
+                        <MediaFill src={event.poster} alt={`${event.title} poster`} />
+                    ) : (
+                        <div className="event-post-fallback">
+                            <CategoryIcon className="fallback-art" size={200} strokeWidth={1} aria-hidden="true" />
+                            <span>{humanize(event.category)}</span>
+                            <strong>{event.title}</strong>
+                            <span>
+                                {formatDate(event.startAt)} · {formatTimeRange(event.startAt, event.endAt)}
+                            </span>
+                        </div>
+                    )}
+                    <span className="poster-status">
+                        <PosterStatus event={event} live={live} past={past} />
+                    </span>
+                </Link>
+            </DoubleTapLike>
 
             <div className="event-post-actions">
                 <div className="post-primary">{action}</div>
                 <div className="post-tools">
+                    <LikeButton like={like} label={event.title} />
                     {!past && (
                         <button type="button" className="tool-btn" onClick={() => downloadIcs(event)} aria-label="Add to calendar" title="Add to calendar">
                             <CalendarPlus size={24} strokeWidth={1.8} />
@@ -284,6 +303,7 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
             </div>
 
             <div className="event-post-body">
+                <LikeCount like={like} type="event" id={event._id} />
                 {!past && <Capacity event={event} />}
                 <p className={`post-caption ${expanded || !longDescription ? "" : "is-clamped"}`}>
                     <Link to={link} className="event-post-title">
@@ -300,7 +320,9 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
                     <span>
                         {formatDate(event.startAt)} · {formatTimeRange(event.startAt, event.endAt)}
                     </span>
-                    {event.participationMode === "TEAM" && <span>Teams of {event.minTeamSize === event.maxTeamSize ? event.maxTeamSize : `${event.minTeamSize}–${event.maxTeamSize}`}</span>}
+                    {event.participationMode === "TEAM" && (
+                        <span>Teams of {event.minTeamSize === event.maxTeamSize ? event.maxTeamSize : `${event.minTeamSize}–${event.maxTeamSize}`}</span>
+                    )}
                     {!past && !live && event.registrationState === "OPEN" && <span>Register by {formatDateTime(event.registrationEnd)}</span>}
                 </div>
                 {note && <span className="event-post-note">{note}</span>}

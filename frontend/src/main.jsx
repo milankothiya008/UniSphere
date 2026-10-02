@@ -24,7 +24,12 @@ import "./styles/planner.css";
 import "./styles/insta.css";
 import "./styles/social.css";
 import "./styles/extras.css";
+import "./styles/forms.css";
+import "./styles/dark.css";
 import { registerServiceWorker } from "./lib/push";
+import { initTheme } from "./lib/theme";
+
+initTheme();
 import { refreshUnread } from "./hooks/useUnreadCount";
 
 // Installable app + push notifications. A push arriving while the app is open updates the red dot at once.

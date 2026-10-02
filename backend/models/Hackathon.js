@@ -1,4 +1,8 @@
 const mongoose = require("mongoose");
+const { formQuestionSchema } = require("./FormSchemas");
+
+// Which standard fields the final submission asks for: REQUIRED, OPTIONAL or OFF.
+const fieldSetting = { type: String, enum: ["REQUIRED", "OPTIONAL", "OFF"] };
 
 // The hackathon side of a HACKATHON event: agenda, problem statements (hidden until revealAt), the
 // deadlines for choosing a problem and submitting a project, judging criteria and the judges.
@@ -57,6 +61,15 @@ const hackathonSchema = new mongoose.Schema(
         repoDeadline: { type: Date, default: null },
         submissionDeadline: { type: Date, required: true },
         criteria: { type: [criterionSchema], default: [] },
+        // The final submission form, decided by the organisers. Name and description are always asked.
+        submissionFields: {
+            demoUrl: { ...fieldSetting, default: "OPTIONAL" },
+            videoUrl: { ...fieldSetting, default: "OPTIONAL" },
+            deckUrl: { ...fieldSetting, default: "OPTIONAL" },
+            techStack: { ...fieldSetting, default: "OPTIONAL" }
+        },
+        // Extra questions for the final submission (e.g. "Which APIs did you use?").
+        submissionQuestions: { type: [formQuestionSchema(false)], default: [] },
         judges: { type: [judgeSchema], default: [] },
         // Time-based notifications already sent: REVEAL, SELECTION_1H, SUBMISSION_1H, JUDGING_OPEN.
         notified: { type: [String], default: [] },
