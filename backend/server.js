@@ -127,6 +127,8 @@ const start = async () => {
     startStorySweeper();
     startInterviewReminderSweeper();
     startEventSweeper();
+    // Demo databases only: add the hackathon demo once (no effect on real data).
+    require("./services/DemoHackathonSeeder").ensureHackathonDemo();
 
     app.listen(env.port, () => {
         logger.info(`Server running on port ${env.port}`);
