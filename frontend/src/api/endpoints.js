@@ -80,6 +80,7 @@ export const hackathonApi = {
     addJudge: (id, userId) => api.post(`/events/${id}/hackathon/judges`, { userId }),
     removeJudge: (id, userId) => api.delete(`/events/${id}/hackathon/judges/${userId}`),
     chooseProblem: (id, problemId) => api.put(`/events/${id}/hackathon/entry/problem`, { problemId }),
+    submitRepo: (id, body) => api.put(`/events/${id}/hackathon/entry/repo`, body),
     submitProject: (id, body) => api.put(`/events/${id}/hackathon/entry/project`, body),
     judging: (id) => api.fresh(`/events/${id}/hackathon/judging`),
     score: (id, entryId, body) => api.put(`/events/${id}/hackathon/judging/${entryId}`, body),

@@ -7,7 +7,7 @@ import { certificateApi, eventApi, hackathonApi } from "../../api/endpoints";
 
 vi.mock("../../api/endpoints", () => ({
     eventApi: { get: vi.fn(), feedback: vi.fn(), giveFeedback: vi.fn(), certificates: vi.fn(), update: vi.fn(), sendReminder: vi.fn() },
-    hackathonApi: { get: vi.fn(), chooseProblem: vi.fn(), submitProject: vi.fn(), judging: vi.fn(), score: vi.fn(), leaderboard: vi.fn(), draftResults: vi.fn() },
+    hackathonApi: { get: vi.fn(), chooseProblem: vi.fn(), submitRepo: vi.fn(), submitProject: vi.fn(), judging: vi.fn(), score: vi.fn(), leaderboard: vi.fn(), draftResults: vi.fn() },
     certificateApi: { download: vi.fn() },
     userApi: { search: vi.fn(() => Promise.resolve({ data: [] })) }
 }));
@@ -23,7 +23,8 @@ const hack = (overrides = {}) => ({
     phase: "SELECTION",
     revealAt: at(-60),
     selectionDeadline: at(30),
-    submissionDeadline: at(120),
+    repoDeadline: at(90),
+    submissionDeadline: at(180),
     agenda: [{ _id: "a1", title: "Opening", startsAt: at(-60), note: "" }],
     criteria,
     maxTotal: 20,
@@ -34,8 +35,8 @@ const hack = (overrides = {}) => ({
     ],
     judgeCount: 2,
     judges: [],
-    myEntry: { name: "Alpha", problemStatement: null, project: null, submittedAt: null, members: 2 },
-    viewer: { isParticipant: true, canManage: false, canJudge: false, canSeeLeaderboard: false, canDraftResults: false, canChooseProblem: true, canSubmit: true },
+    myEntry: { name: "Alpha", problemStatement: null, project: null, repoSubmittedAt: null, submittedAt: null, members: 2 },
+    viewer: { isParticipant: true, canManage: false, canJudge: false, canSeeLeaderboard: false, canDraftResults: false, canChooseProblem: true, canSubmitRepo: false, canSubmit: false },
     ...overrides
 });
 
@@ -45,25 +46,48 @@ describe("Hackathon hub", () => {
         eventApi.get.mockResolvedValue({ data: event });
     });
 
-    test("a team sees the problem statements, picks one, then submits its project", async () => {
+    test("stage 1 and 2: a team picks a problem, then adds its code repository", async () => {
+        const chosen = { name: "Alpha", problemStatement: { _id: "p1", title: "Smart parking" }, project: null, repoSubmittedAt: null, submittedAt: null, members: 2 };
         hackathonApi.get.mockResolvedValue({ data: hack() });
-        hackathonApi.chooseProblem.mockResolvedValue({ data: hack({ myEntry: { name: "Alpha", problemStatement: { _id: "p1", title: "Smart parking" }, project: null, submittedAt: null, members: 2 } }) });
-        hackathonApi.submitProject.mockResolvedValue({ data: hack() });
+        hackathonApi.chooseProblem.mockResolvedValue({ data: hack({ myEntry: chosen, viewer: { ...hack().viewer, canSubmitRepo: true } }) });
+        hackathonApi.submitRepo.mockResolvedValue({
+            data: hack({ myEntry: { ...chosen, project: { repoUrl: "https://github.com/alpha/parkit" }, repoSubmittedAt: at(0) }, viewer: { ...hack().viewer, canSubmitRepo: true } })
+        });
         renderWithRouter(<HackathonPage />, { route: "/events/e1/hackathon", path: "/events/:id/hackathon" });
 
         expect(await screen.findByText(/Problem selection closes in/)).toBeInTheDocument();
         // "Canteen queue" already has its one team.
         const canteen = screen.getByText("Canteen queue").closest("article");
         expect(within(canteen).getByRole("button", { name: "Full" })).toBeDisabled();
+        expect(screen.queryByLabelText(/Code repository/)).not.toBeInTheDocument();
         await userEvent.click(within(screen.getByText("Smart parking").closest("article")).getByRole("button", { name: "Choose this problem" }));
         await waitFor(() => expect(hackathonApi.chooseProblem).toHaveBeenCalledWith("e1", "p1"));
-        expect(await screen.findByText("Your team's problem")).toBeInTheDocument();
 
+        await userEvent.type(await screen.findByLabelText(/Code repository/), "https://github.com/alpha/parkit");
+        await userEvent.click(screen.getByRole("button", { name: /Save repository/ }));
+        await waitFor(() => expect(hackathonApi.submitRepo).toHaveBeenCalledWith("e1", { repoUrl: "https://github.com/alpha/parkit" }));
+        expect(await screen.findByRole("button", { name: "Change" })).toBeInTheDocument();
+        // The final submission isn't open until the repository deadline.
+        expect(screen.queryByLabelText(/Project name/)).not.toBeInTheDocument();
+        expect(screen.getByText(/Opens .* · due .* — live demo, video and slides/)).toBeInTheDocument();
+    });
+
+    test("stage 3: after the repository deadline, the team makes its final submission", async () => {
+        const entry = { name: "Alpha", problemStatement: { _id: "p1", title: "Smart parking" }, project: { repoUrl: "https://github.com/alpha/parkit" }, repoSubmittedAt: at(-30), submittedAt: null, members: 2 };
+        hackathonApi.get.mockResolvedValue({ data: hack({ phase: "FINAL", selectionDeadline: at(-60), repoDeadline: at(-5), myEntry: entry, viewer: { ...hack().viewer, canChooseProblem: false, canSubmit: true } }) });
+        hackathonApi.submitProject.mockResolvedValue({ data: hack() });
+        renderWithRouter(<HackathonPage />, { route: "/events/e1/hackathon", path: "/events/:id/hackathon" });
+
+        expect(await screen.findByText(/Final submissions close in/)).toBeInTheDocument();
+        expect(screen.queryByLabelText(/Code repository/)).not.toBeInTheDocument();
         await userEvent.type(screen.getByLabelText(/Project name/), "ParkIt");
         await userEvent.type(screen.getByLabelText(/What did you build/), "A live map of free parking spots.");
-        await userEvent.type(screen.getByLabelText(/Code repository/), "https://github.com/alpha/parkit");
+        await userEvent.type(screen.getByLabelText(/Live demo/), "https://parkit.example.com");
         await userEvent.click(screen.getByRole("button", { name: /Submit project/ }));
-        await waitFor(() => expect(hackathonApi.submitProject).toHaveBeenCalledWith("e1", expect.objectContaining({ title: "ParkIt", repoUrl: "https://github.com/alpha/parkit" })));
+        await waitFor(() =>
+            expect(hackathonApi.submitProject).toHaveBeenCalledWith("e1", expect.objectContaining({ title: "ParkIt", demoUrl: "https://parkit.example.com" }))
+        );
+        expect(hackathonApi.submitProject.mock.calls[0][1]).not.toHaveProperty("repoUrl");
     });
 
     test("before the start, problems are hidden and teams are told when they come out", async () => {

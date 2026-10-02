@@ -86,10 +86,17 @@ describe("hackathon mode", () => {
 
     test("once the problems are out, each team picks one before the selection deadline", async () => {
         await Event.updateOne({ _id: eventId }, { $set: { startAt: minutesFromNow(-60), endAt: minutesFromNow(11 * 60), registrationEnd: minutesFromNow(-120), registrationStart: minutesFromNow(-24 * 60) } });
-        const settings = await api(president).put(url(), { revealAt: minutesFromNow(-60).toISOString(), selectionDeadline: minutesFromNow(30).toISOString(), submissionDeadline: minutesFromNow(120).toISOString() });
+        const settings = await api(president).put(url(), {
+            revealAt: minutesFromNow(-60).toISOString(),
+            selectionDeadline: minutesFromNow(30).toISOString(),
+            repoDeadline: minutesFromNow(90).toISOString(),
+            submissionDeadline: minutesFromNow(180).toISOString()
+        });
         expect(settings.status).toBe(200);
         expect(settings.body.data.phase).toBe("SELECTION");
-        expect((await api(president).put(url(), { selectionDeadline: minutesFromNow(200).toISOString() })).status).toBe(400);
+        // Each stage's deadline must come after the one before.
+        expect((await api(president).put(url(), { selectionDeadline: minutesFromNow(100).toISOString() })).status).toBe(400);
+        expect((await api(president).put(url(), { repoDeadline: minutesFromNow(200).toISOString() })).status).toBe(400);
 
         const view = (await api(alpha2).get(url())).body.data;
         expect(view.problemStatements.map((problem) => problem.title)).toEqual(["Smart campus parking", "Canteen queue"]);
@@ -106,25 +113,42 @@ describe("hackathon mode", () => {
         expect((await api(outsider).put(url("/entry/problem"), { problemId: problems[0]._id })).status).toBe(403);
     });
 
-    test("teams submit their project (with a problem chosen) until the submission deadline", async () => {
-        const early = await api(beta).put(url("/entry/project"), { title: "ParkIt", summary: "Live map of free parking spots using cameras." });
+    test("stage 2: teams add their code repository (after choosing a problem) before the repository deadline", async () => {
+        const early = await api(beta).put(url("/entry/repo"), { repoUrl: "https://github.com/beta/parkit" });
         expect(early.status).toBe(409);
         expect(early.body.message).toMatch(/Choose your problem/);
         await api(beta).put(url("/entry/problem"), { problemId: problems[0]._id });
 
-        expect((await api(beta).put(url("/entry/project"), { title: "ParkIt", summary: "Live map of free parking spots using cameras.", repoUrl: "ftp://nope" })).status).toBe(400);
-        expect((await api(beta).put(url("/entry/project"), { title: "ParkIt", summary: "Live map of free parking spots using cameras." })).status).toBe(400);
-        const submitted = await api(beta).put(url("/entry/project"), { title: "ParkIt", summary: "Live map of free parking spots using cameras.", repoUrl: "https://github.com/beta/parkit" });
-        expect(submitted.status).toBe(200);
-        expect(submitted.body.data.myEntry).toMatchObject({ project: { title: "ParkIt", repoUrl: "https://github.com/beta/parkit" } });
+        expect((await api(beta).put(url("/entry/repo"), { repoUrl: "ftp://nope.example" })).status).toBe(400);
+        const saved = await api(beta).put(url("/entry/repo"), { repoUrl: "https://github.com/beta/parkit" });
+        expect(saved.status).toBe(200);
+        expect(saved.body.data.myEntry).toMatchObject({ project: { repoUrl: "https://github.com/beta/parkit" } });
+        expect(saved.body.data.viewer).toMatchObject({ canSubmitRepo: true, canSubmit: false });
+        expect((await api(alpha).put(url("/entry/repo"), { repoUrl: "https://github.com/alpha/quickbite" })).status).toBe(200);
 
+        // The final submission isn't open yet.
+        const tooSoon = await api(alpha).put(url("/entry/project"), { title: "QuickBite", summary: "Pre-order canteen food and pick it up without queuing.", demoUrl: "https://quickbite.example.com" });
+        expect(tooSoon.status).toBe(409);
+        expect(tooSoon.body.message).toMatch(/opens at/);
+    });
+
+    test("stage 3: after the repository deadline, teams make their final submission (demo, video, slides)", async () => {
+        await Hackathon.updateOne({ event: eventId }, { $set: { selectionDeadline: minutesFromNow(-20), repoDeadline: minutesFromNow(-10) } });
+        expect((await api(beta).put(url("/entry/repo"), { repoUrl: "https://github.com/beta/other" })).status).toBe(409);
+        expect((await api(beta).get(url())).body.data).toMatchObject({ phase: "FINAL", viewer: { canSubmitRepo: false, canSubmit: true } });
+
+        expect((await api(beta).put(url("/entry/project"), { title: "ParkIt", summary: "Live map of free parking spots using cameras." })).status).toBe(400);
+        const submitted = await api(beta).put(url("/entry/project"), { title: "ParkIt", summary: "Live map of free parking spots using cameras.", videoUrl: "https://youtu.be/parkit", repoUrl: "https://github.com/sneaky/change" });
+        expect(submitted.status).toBe(200);
+        // The repository stays as it was at the repository deadline.
+        expect(submitted.body.data.myEntry).toMatchObject({ project: { title: "ParkIt", repoUrl: "https://github.com/beta/parkit", videoUrl: "https://youtu.be/parkit" } });
         expect((await api(alpha).put(url("/entry/project"), { title: "QuickBite", summary: "Pre-order canteen food and pick it up without queuing.", demoUrl: "https://quickbite.example.com" })).status).toBe(200);
     });
 
     test("judging opens at the submission deadline; late submissions are refused", async () => {
         const closed = (await api(facultyJudge).get(url("/judging"))).body.data;
         expect(closed).toMatchObject({ open: false, entries: [] });
-        await Hackathon.updateOne({ event: eventId }, { $set: { selectionDeadline: minutesFromNow(-30), submissionDeadline: minutesFromNow(-1) } });
+        await Hackathon.updateOne({ event: eventId }, { $set: { selectionDeadline: minutesFromNow(-30), repoDeadline: minutesFromNow(-20), submissionDeadline: minutesFromNow(-1) } });
         expect((await api(alpha).put(url("/entry/project"), { title: "Late", summary: "Trying to change after the deadline.", repoUrl: "https://github.com/a/b" })).status).toBe(409);
 
         const panel = (await api(facultyJudge).get(url("/judging"))).body.data;

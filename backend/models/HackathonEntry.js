@@ -43,6 +43,10 @@ const hackathonEntrySchema = new mongoose.Schema(
             deckUrl: { type: String, trim: true, maxlength: 500, default: "" },
             techStack: { type: String, trim: true, maxlength: 300, default: "" }
         },
+        // Stage 2: the code repository (project.repoUrl), due by the repository deadline.
+        repoSubmittedAt: { type: Date, default: null },
+        repoSubmittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+        // Stage 3: the final submission (name, description, demo, video, slides). Only these are judged.
         submittedAt: { type: Date, default: null },
         submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
         scores: { type: [scoreSchema], default: [] }

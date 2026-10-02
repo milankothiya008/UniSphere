@@ -13,7 +13,8 @@ const ended = (event) => new Date(event.endAt) <= new Date();
 const PHASES = {
     UPCOMING: "Starts soon",
     SELECTION: "Choosing problems",
-    BUILDING: "Building",
+    REPOSITORY: "Building · repo due",
+    FINAL: "Final submissions",
     JUDGING: "Judging",
     CANCELLED: "Cancelled"
 };
@@ -26,7 +27,8 @@ export const HackathonSummary = ({ event }) => {
     const steps = [
         ["Problem statements out", data.revealAt],
         ["Choose a problem by", data.selectionDeadline],
-        ["Submit your project by", data.submissionDeadline]
+        ["Add your code repository by", data.repoDeadline],
+        ["Final submission by", data.submissionDeadline]
     ];
     const cta = viewer.canManage ? "Manage hackathon" : viewer.canJudge ? "Open judging panel" : viewer.isParticipant ? "Open your team's hub" : "Hackathon details";
     return (
@@ -67,7 +69,13 @@ export const HackathonSummary = ({ event }) => {
                 {viewer.isParticipant && data.myEntry && (
                     <p className="small" style={{ margin: 0 }}>
                         <strong>{data.myEntry.name}:</strong>{" "}
-                        {data.myEntry.submittedAt ? `submitted “${data.myEntry.project?.title}”` : data.myEntry.problemStatement ? `working on “${data.myEntry.problemStatement.title}”` : "no problem chosen yet"}
+                        {data.myEntry.submittedAt
+                            ? `submitted “${data.myEntry.project?.title}”`
+                            : data.myEntry.repoSubmittedAt
+                              ? `repository added · final submission ${new Date(data.repoDeadline) <= new Date() ? "open now" : `opens ${formatDateTime(data.repoDeadline)}`}`
+                              : data.myEntry.problemStatement
+                                ? `working on “${data.myEntry.problemStatement.title}” · repository due ${formatDateTime(data.repoDeadline)}`
+                                : "no problem chosen yet"}
                     </p>
                 )}
                 <ButtonLink to={`/events/${event._id}/hackathon${viewer.canJudge && !viewer.canManage ? "?tab=judging" : ""}`} variant={viewer.isParticipant || viewer.canManage || viewer.canJudge ? "primary" : "secondary"} block>

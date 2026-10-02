@@ -18,7 +18,9 @@ const { recordAudit } = require("./AuditService");
 //   1. Students register (alone or as a team) like any event — no problem statement is needed to register.
 //   2. Problem statements are revealed once the event has started (revealAt).
 //   3. Each team picks one before selectionDeadline (they can change their mind until then).
-//   4. Each team submits its project (links, summary) before submissionDeadline; edits allowed until then.
+//   4. Each team registers its code repository before repoDeadline (it can be changed until then).
+//   5. Once the repository deadline passes, the final submission opens: project name, description, live demo,
+//      video and slides, until submissionDeadline. Teams that missed the repository deadline can't submit.
 //   5. Judges (faculty or invited students not taking part) score every project on the criteria.
 //   6. The leaderboard (average of the judges' totals) is turned into the event's results draft, which the
 //      president publishes like any other results.
@@ -41,17 +43,24 @@ const fail = (message, status = 400, code = ERROR_CODES.VALIDATION_ERROR) => new
 const idOf = (value) => String(value?._id || value || "");
 
 // Deadlines that fit inside the event: problems out at the start, a quarter of the time (max 2 h) to choose,
-// projects due shortly before the end.
+// the repository a little later, final projects due shortly before the end.
 const defaultTimes = (event) => {
     const start = event.startAt.getTime();
-    const span = event.endAt.getTime() - start;
-    const selection = start + Math.min(2 * HOUR, Math.round(span * 0.25));
-    const submission = Math.max(selection + 60 * 1000, event.endAt.getTime() - Math.min(HOUR, Math.round(span * 0.1)));
-    return { revealAt: new Date(start), selectionDeadline: new Date(selection), submissionDeadline: new Date(Math.min(submission, event.endAt.getTime())) };
+    const end = event.endAt.getTime();
+    const span = end - start;
+    const selection = start + Math.min(2 * HOUR, Math.round(span * 0.2));
+    const submission = Math.max(selection + 2 * 60 * 1000, end - Math.min(HOUR, Math.round(span * 0.1)));
+    const repo = Math.min(selection + Math.min(2 * HOUR, Math.round(span * 0.15)), submission - 60 * 1000);
+    return { revealAt: new Date(start), selectionDeadline: new Date(selection), repoDeadline: new Date(repo), submissionDeadline: new Date(Math.min(submission, end)) };
 };
 
 const timesFit = (event, times) =>
-    times.revealAt >= event.startAt && times.revealAt < times.selectionDeadline && times.selectionDeadline < times.submissionDeadline && times.submissionDeadline <= event.endAt;
+    Boolean(times.repoDeadline) &&
+    times.revealAt >= event.startAt &&
+    times.revealAt < times.selectionDeadline &&
+    times.selectionDeadline <= times.repoDeadline &&
+    times.repoDeadline < times.submissionDeadline &&
+    times.submissionDeadline <= event.endAt;
 
 const loadEvent = async (eventId) => {
     const event = await Event.findById(eventId);
@@ -66,8 +75,14 @@ const ensureHackathon = async (event) => {
     if (!hackathon) {
         hackathon = await Hackathon.create({ event: event._id, club: event.club, ...defaultTimes(event), criteria: DEFAULT_CRITERIA });
     } else if (!timesFit(event, hackathon)) {
-        // The event was rescheduled: put the deadlines back inside it.
-        Object.assign(hackathon, defaultTimes(event));
+        const defaults = defaultTimes(event);
+        const keep = { ...hackathon.toObject(), repoDeadline: hackathon.repoDeadline || null };
+        // Older setups had no repository deadline: slot one in between the two they have, if they still fit.
+        if (!keep.repoDeadline && keep.selectionDeadline && keep.submissionDeadline) {
+            keep.repoDeadline = new Date(keep.selectionDeadline.getTime() + Math.round((keep.submissionDeadline - keep.selectionDeadline) / 2));
+        }
+        // The event was rescheduled (or the times no longer fit): put the deadlines back inside it.
+        Object.assign(hackathon, timesFit(event, keep) ? { repoDeadline: keep.repoDeadline } : defaults);
         await hackathon.save();
     }
     return hackathon;
@@ -109,7 +124,8 @@ const phaseOf = (event, hackathon, now = new Date()) => {
     if (event.status === EVENT_STATUS.CANCELLED) return "CANCELLED";
     if (now < hackathon.revealAt) return "UPCOMING";
     if (now < hackathon.selectionDeadline) return "SELECTION";
-    if (now < hackathon.submissionDeadline) return "BUILDING";
+    if (now < hackathon.repoDeadline) return "REPOSITORY";
+    if (now < hackathon.submissionDeadline) return "FINAL";
     return "JUDGING";
 };
 
@@ -133,6 +149,7 @@ const entryView = (entry, hackathon) => {
         problemStatement: problem ? { _id: problem._id, title: problem.title } : null,
         problemChosenAt: entry.problemChosenAt,
         project: entry.project,
+        repoSubmittedAt: entry.repoSubmittedAt,
         submittedAt: entry.submittedAt,
         updatedAt: entry.updatedAt
     };
@@ -164,6 +181,7 @@ const getHackathon = async (actor, eventId) => {
         phase: phaseOf(event, hackathon, now),
         revealAt: hackathon.revealAt,
         selectionDeadline: hackathon.selectionDeadline,
+        repoDeadline: hackathon.repoDeadline,
         submissionDeadline: hackathon.submissionDeadline,
         agenda: [...hackathon.agenda].sort((a, b) => a.startsAt - b.startsAt),
         criteria: hackathon.criteria,
@@ -173,7 +191,7 @@ const getHackathon = async (actor, eventId) => {
         judgeCount: hackathon.judges.length,
         judges: judges.map((judge) => ({ _id: judge._id, name: judge.name, accountType: judge.accountType, departmentCode: judge.departmentCode, avatar: judge.avatar || null })),
         resultsDraftedAt: hackathon.resultsDraftedAt,
-        myEntry: participant ? { ...(entryView(entry, hackathon) || { name: participant.name, problemStatement: null, project: null, submittedAt: null }), members: participant.members.length } : null,
+        myEntry: participant ? { ...(entryView(entry, hackathon) || { name: participant.name, problemStatement: null, project: null, repoSubmittedAt: null, submittedAt: null }), members: participant.members.length } : null,
         viewer: {
             isParticipant: Boolean(participant),
             canManage: access.staff,
@@ -181,7 +199,9 @@ const getHackathon = async (actor, eventId) => {
             canSeeLeaderboard: access.staff || access.mentor || access.resultsManager,
             canDraftResults: access.resultsManager,
             canChooseProblem: Boolean(participant) && revealed && now < hackathon.selectionDeadline && event.status === EVENT_STATUS.PUBLISHED,
-            canSubmit: Boolean(participant) && revealed && now < hackathon.submissionDeadline && [EVENT_STATUS.PUBLISHED].includes(event.status)
+            canSubmitRepo: Boolean(participant) && revealed && now < hackathon.repoDeadline && event.status === EVENT_STATUS.PUBLISHED && (!hackathon.problemStatements.length || Boolean(entry?.problemStatement)),
+            canSubmit:
+                Boolean(participant) && now >= hackathon.repoDeadline && now < hackathon.submissionDeadline && event.status === EVENT_STATUS.PUBLISHED && Boolean(entry?.repoSubmittedAt)
         }
     };
 };
@@ -216,11 +236,13 @@ const updateSettings = async (actor, eventId, payload = {}) => {
     const times = {
         revealAt: payload.revealAt !== undefined ? dateOrThrow(payload.revealAt, "Problem statement release") : hackathon.revealAt,
         selectionDeadline: payload.selectionDeadline !== undefined ? dateOrThrow(payload.selectionDeadline, "Problem selection deadline") : hackathon.selectionDeadline,
+        repoDeadline: payload.repoDeadline !== undefined ? dateOrThrow(payload.repoDeadline, "Repository deadline") : hackathon.repoDeadline,
         submissionDeadline: payload.submissionDeadline !== undefined ? dateOrThrow(payload.submissionDeadline, "Submission deadline") : hackathon.submissionDeadline
     };
     if (times.revealAt < event.startAt) throw fail("Problem statements can be released once the event has started, not before");
     if (times.selectionDeadline <= times.revealAt) throw fail("The problem selection deadline must be after the problem statements are released");
-    if (times.submissionDeadline <= times.selectionDeadline) throw fail("The submission deadline must be after the problem selection deadline");
+    if (times.repoDeadline < times.selectionDeadline) throw fail("The repository deadline can't be before the problem selection deadline");
+    if (times.submissionDeadline <= times.repoDeadline) throw fail("The final submission deadline must be after the repository deadline");
     if (times.submissionDeadline > event.endAt) throw fail("The submission deadline must be before the event ends");
     Object.assign(hackathon, times);
 
@@ -405,15 +427,42 @@ const cleanUrl = (value, label, { required = false } = {}) => {
     return url.toString().slice(0, 500);
 };
 
+/** Stage 2: the team registers its code repository (GitHub, GitLab…) before the repository deadline. */
+const submitRepo = async (actor, eventId, payload = {}) => {
+    const event = await loadEvent(eventId);
+    const hackathon = await ensureHackathon(event);
+    const now = new Date();
+    if (event.status !== EVENT_STATUS.PUBLISHED) throw fail("This hackathon isn't running", 409, ERROR_CODES.INVALID_STATE);
+    if (now < hackathon.revealAt) throw fail("Repositories can be added once the problem statements are released", 409, ERROR_CODES.INVALID_STATE);
+    if (now >= hackathon.repoDeadline) throw fail("The repository deadline has passed", 409, ERROR_CODES.INVALID_STATE);
+    const { entry, participant } = await loadEntryFor(actor, event);
+    if (hackathon.problemStatements.length && !entry.problemStatement) throw fail("Choose your problem statement first", 409, ERROR_CODES.INVALID_STATE);
+
+    const repoUrl = cleanUrl(payload.repoUrl, "repository link", { required: true });
+    const first = !entry.repoSubmittedAt;
+    entry.project = { ...(entry.project?.toObject?.() || entry.project || {}), repoUrl };
+    entry.repoSubmittedAt = now;
+    entry.repoSubmittedBy = actor._id;
+    await entry.save();
+    await audit(event, AUDIT_ACTIONS.HACKATHON_SUBMITTED, actor, { entry: entry._id, stage: "repository", first });
+    await notifyTeam(participant, actor, {
+        title: first ? `${entry.name} added its code repository` : `${entry.name}'s repository link was changed`,
+        message: `By ${actor.name}. It can be changed until ${formatTime(hackathon.repoDeadline)}; the final submission opens then.`,
+        link: `/events/${event._id}/hackathon`
+    });
+    return getHackathon(actor, event._id);
+};
+
+/** Stage 3: the final submission, open from the repository deadline until the submission deadline. */
 const submitProject = async (actor, eventId, payload = {}) => {
     const event = await loadEvent(eventId);
     const hackathon = await ensureHackathon(event);
     const now = new Date();
     if (event.status !== EVENT_STATUS.PUBLISHED) throw fail("This hackathon isn't running", 409, ERROR_CODES.INVALID_STATE);
-    if (now < hackathon.revealAt) throw fail("Submissions open once the problem statements are released", 409, ERROR_CODES.INVALID_STATE);
+    if (now < hackathon.repoDeadline) throw fail(`The final submission opens at ${formatTime(hackathon.repoDeadline)}, after the repository deadline`, 409, ERROR_CODES.INVALID_STATE);
     if (now >= hackathon.submissionDeadline) throw fail("The submission deadline has passed", 409, ERROR_CODES.INVALID_STATE);
     const { entry, participant } = await loadEntryFor(actor, event);
-    if (hackathon.problemStatements.length && !entry.problemStatement) throw fail("Choose your problem statement before submitting", 409, ERROR_CODES.INVALID_STATE);
+    if (!entry.repoSubmittedAt) throw fail("Your team didn't add a code repository before the repository deadline, so it can't make a final submission", 409, ERROR_CODES.INVALID_STATE);
 
     const title = String(payload.title || "").trim();
     const summary = String(payload.summary || "").trim();
@@ -422,13 +471,14 @@ const submitProject = async (actor, eventId, payload = {}) => {
     const project = {
         title: title.slice(0, 120),
         summary: summary.slice(0, 3000),
-        repoUrl: cleanUrl(payload.repoUrl, "code repository link"),
-        demoUrl: cleanUrl(payload.demoUrl, "demo link"),
-        videoUrl: cleanUrl(payload.videoUrl, "video link"),
+        // The repository is locked from the repository deadline.
+        repoUrl: entry.project?.repoUrl || "",
+        demoUrl: cleanUrl(payload.demoUrl, "live demo link"),
+        videoUrl: cleanUrl(payload.videoUrl, "demo video link"),
         deckUrl: cleanUrl(payload.deckUrl, "presentation link"),
         techStack: String(payload.techStack || "").trim().slice(0, 300)
     };
-    if (!project.repoUrl && !project.demoUrl) throw fail("Add at least a code repository link or a demo link");
+    if (!project.demoUrl && !project.videoUrl) throw fail("Add a live demo link or a demo video");
 
     const first = !entry.submittedAt;
     entry.project = project;
@@ -531,6 +581,7 @@ const getLeaderboard = async (actor, eventId) => {
         stats: {
             entries: registeredEntries,
             chosen: entries.filter((entry) => entry.problemStatement).length,
+            repos: entries.filter((entry) => entry.repoSubmittedAt).length,
             submitted: submitted.length,
             fullyScored: submitted.filter((entry) => entry.scores.length >= hackathon.judges.length && hackathon.judges.length > 0).length
         },
@@ -597,12 +648,15 @@ const draftResults = async (actor, eventId, { winners = 3, titles = [] } = {}) =
 const participantIds = async (eventId) =>
     (await EventRegistration.find({ event: eventId, status: REGISTRATION_STATUS.REGISTERED }).select("user").lean()).map((row) => row.user);
 
-// Members of entries that haven't done something yet (chosen a problem / submitted).
+// Members of entries at a stage: missing "problem" / "repo" / "submission" (haven't done it yet), or "repoDone"
+// (have a repository, so their final submission is open).
 const laggingMemberIds = async (event, missing) => {
     const entries = await HackathonEntry.find({ event: event._id }).lean();
-    const done = new Set(entries.filter((entry) => (missing === "problem" ? entry.problemStatement : entry.submittedAt)).map((entry) => entry.entryKey));
+    const field = { problem: "problemStatement", repo: "repoSubmittedAt", submission: "submittedAt", repoDone: "repoSubmittedAt" }[missing];
+    const done = new Set(entries.filter((entry) => entry[field]).map((entry) => entry.entryKey));
     const registrations = await EventRegistration.find({ event: event._id, status: REGISTRATION_STATUS.REGISTERED }).select("user team").lean();
-    return registrations.filter((row) => !done.has(row.team ? `team:${row.team}` : `user:${row.user}`)).map((row) => row.user);
+    const keyOf = (row) => (row.team ? `team:${row.team}` : `user:${row.user}`);
+    return registrations.filter((row) => (missing === "repoDone" ? done.has(keyOf(row)) : !done.has(keyOf(row)))).map((row) => row.user);
 };
 
 const markNotified = async (hackathon, kind) => (await Hackathon.updateOne({ _id: hackathon._id, notified: { $ne: kind } }, { $push: { notified: kind } })).modifiedCount === 1;
@@ -628,6 +682,20 @@ const sweepHackathons = async ({ now = new Date() } = {}) => {
                 to: () => laggingMemberIds(event, "problem"),
                 title: `Choose a problem statement by ${formatTime(hackathon.selectionDeadline)}`,
                 message: `Your team hasn't picked a problem for ${event.title} yet.`
+            },
+            {
+                kind: "REPO_1H",
+                due: now >= new Date(hackathon.repoDeadline - HOUR) && now < hackathon.repoDeadline,
+                to: () => laggingMemberIds(event, "repo"),
+                title: `Add your code repository by ${formatTime(hackathon.repoDeadline)}`,
+                message: `${event.title}: teams without a repository link by then can't make a final submission.`
+            },
+            {
+                kind: "FINAL_OPEN",
+                due: now >= hackathon.repoDeadline && now < hackathon.submissionDeadline,
+                to: () => laggingMemberIds(event, "repoDone"),
+                title: `Final submissions are open: ${event.title}`,
+                message: `Add your live demo, video and slides by ${formatTime(hackathon.submissionDeadline)}.`
             },
             {
                 kind: "SUBMISSION_1H",
@@ -665,6 +733,7 @@ module.exports = {
     addJudge,
     removeJudge,
     chooseProblem,
+    submitRepo,
     submitProject,
     listForJudging,
     scoreEntry,

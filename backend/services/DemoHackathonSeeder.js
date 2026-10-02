@@ -171,15 +171,17 @@ const seedHackathonDemo = async ({ log = (message) => logger.info(message) } = {
         await hackathons.ensureHackathon(event);
         await hackathons.updateSettings(diya, event._id, {
             revealAt: new Date(start.getTime() + 15 * MIN).toISOString(),
-            selectionDeadline: new Date(now.getTime() + 4 * HOUR).toISOString(),
+            selectionDeadline: new Date(now.getTime() + 3 * HOUR).toISOString(),
+            repoDeadline: new Date(now.getTime() + 6 * HOUR).toISOString(),
             submissionDeadline: new Date(end.getTime() - 2 * HOUR).toISOString(),
             agenda: [
                 ["Opening ceremony", 0, "Auditorium stage"],
                 ["Problem statements released", 15, ""],
                 ["Mentoring round 1", 180, "Mentors visit every team"],
+                ["Repository deadline", Math.round((now.getTime() + 6 * HOUR - start.getTime()) / MIN), "Share your GitHub repository link"],
                 ["Dinner", 420, "Cafeteria"],
                 ["Mentoring round 2", 720, ""],
-                ["Submissions close", 22 * 60, "Late projects can't be judged"],
+                ["Final submissions close", 22 * 60, "Demo link, video and slides — late projects can't be judged"],
                 ["Demos and judging", 22 * 60 + 15, "3 minutes per team"],
                 ["Results and prizes", 23 * 60 + 30, ""]
             ].map(([title, minutes, note]) => ({ title, startsAt: new Date(start.getTime() + minutes * MIN).toISOString(), note }))
@@ -189,15 +191,10 @@ const seedHackathonDemo = async ({ log = (message) => logger.info(message) } = {
 
         const view = await hackathons.getHackathon(rohan, event._id);
         await hackathons.chooseProblem(rohan, event._id, view.problemStatements[1]._id);
-        await hackathons.submitProject(meera, event._id, {
-            title: "QueueLess",
-            summary: "Pre-order canteen food from your phone, pay with UPI and collect it with a QR code — the counter sees orders in pickup order, so nobody waits in line.",
-            repoUrl: "https://github.com/null-pointers/queueless",
-            demoUrl: "https://queueless-demo.vercel.app",
-            techStack: "React, Node.js, MongoDB"
-        });
+        await hackathons.submitRepo(meera, event._id, { repoUrl: "https://github.com/null-pointers/queueless" });
         // Byte Busters haven't chosen a problem yet — sign in as Kabir to try it.
-        log(`✓ ${LIVE}: running now — problems are out, selection closes ${new Date(now.getTime() + 4 * HOUR).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`);
+        const at = (ms) => new Date(ms).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" });
+        log(`✓ ${LIVE}: running now — choose a problem by ${at(now.getTime() + 3 * HOUR)}, repository by ${at(now.getTime() + 6 * HOUR)}, final submission after that`);
     }
 
     // ---------------------------------------------------------------- 2. HackNight Finale — finished, certificates ready
@@ -231,10 +228,11 @@ const seedHackathonDemo = async ({ log = (message) => logger.info(message) } = {
         const hack = await hackathons.ensureHackathon(event);
         hack.revealAt = start;
         hack.selectionDeadline = new Date(start.getTime() + 2 * HOUR);
+        hack.repoDeadline = new Date(start.getTime() + 5 * HOUR);
         hack.submissionDeadline = new Date(end.getTime() - HOUR);
         hack.problemStatements = PROBLEMS;
         hack.judges = [drMehta, aarav].map((user) => ({ user: user._id, addedBy: diya._id }));
-        hack.notified = ["REVEAL", "SELECTION_1H", "SUBMISSION_1H", "JUDGING_OPEN"];
+        hack.notified = ["REVEAL", "SELECTION_1H", "REPO_1H", "FINAL_OPEN", "SUBMISSION_1H", "JUDGING_OPEN"];
         hack.agenda = [
             { title: "Opening ceremony", startsAt: start, note: "" },
             { title: "Problem statements released", startsAt: start, note: "" },
@@ -255,6 +253,8 @@ const seedHackathonDemo = async ({ log = (message) => logger.info(message) } = {
                 problemStatement: problem._id,
                 problemChosenAt: new Date(start.getTime() + 40 * MIN),
                 problemChosenBy: team.leader,
+                repoSubmittedAt: new Date(start.getTime() + 3 * HOUR),
+                repoSubmittedBy: team.leader,
                 project,
                 submittedAt: new Date(start.getTime() + submittedMinutes * MIN),
                 submittedBy: team.leader
@@ -354,7 +354,9 @@ const ensureHackathonDemo = async () => {
     try {
         const demoAccounts = await User.countDocuments({ email: { $in: DEMO_LOCALS.map(email) } });
         if (demoAccounts < DEMO_LOCALS.length) return;
-        if (await Event.exists({ title: { $in: [LIVE, DONE] } })) return;
+        const existing = await Event.find({ title: { $in: [LIVE, DONE] } }).select("_id").lean();
+        // Already there — unless it was made before the repository stage existed, then it's refreshed once.
+        if (existing.length && !(await Hackathon.exists({ event: { $in: existing.map((event) => event._id) }, repoDeadline: null }))) return;
         logger.info("Adding the demo hackathons to this demo database");
         await seedHackathonDemo();
     } catch (error) {

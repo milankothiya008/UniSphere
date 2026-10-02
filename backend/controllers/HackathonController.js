@@ -13,6 +13,7 @@ module.exports = {
     addJudge: ok("Judge added", (req) => hackathons.addJudge(req.user, req.params.id, req.body.userId)),
     removeJudge: ok("Judge removed", (req) => hackathons.removeJudge(req.user, req.params.id, req.params.userId)),
     chooseProblem: ok("Problem statement chosen", (req) => hackathons.chooseProblem(req.user, req.params.id, req.body.problemId)),
+    submitRepo: ok("Repository saved", (req) => hackathons.submitRepo(req.user, req.params.id, req.body)),
     submitProject: ok("Project submitted", (req) => hackathons.submitProject(req.user, req.params.id, req.body)),
     judging: ok("Judging panel fetched", (req) => hackathons.listForJudging(req.user, req.params.id)),
     score: ok("Score saved", (req) => hackathons.scoreEntry(req.user, req.params.id, req.params.entryId, req.body)),

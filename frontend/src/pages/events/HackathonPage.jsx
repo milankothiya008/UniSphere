@@ -3,7 +3,6 @@ import { Link, useParams } from "react-router-dom";
 import {
     CalendarClock,
     Check,
-    CheckCircle2,
     Clock,
     Code2,
     ExternalLink,
@@ -62,7 +61,8 @@ const nextDeadline = (hack) => {
     const now = Date.now();
     if (new Date(hack.revealAt) > now) return [hack.revealAt, "Problem statements are released"];
     if (new Date(hack.selectionDeadline) > now) return [hack.selectionDeadline, "Problem selection closes"];
-    if (new Date(hack.submissionDeadline) > now) return [hack.submissionDeadline, "Submissions close"];
+    if (new Date(hack.repoDeadline) > now) return [hack.repoDeadline, "Repository deadline"];
+    if (new Date(hack.submissionDeadline) > now) return [hack.submissionDeadline, "Final submissions close"];
     return null;
 };
 
@@ -114,10 +114,59 @@ const Agenda = ({ agenda }) => {
     );
 };
 
-const SubmissionForm = ({ hack, eventId, onSaved }) => {
+// Stage 2: the code repository link (changeable until the repository deadline).
+const RepoForm = ({ hack, eventId, onSaved, onCancel }) => {
+    const toast = useToast();
+    const [repoUrl, setRepoUrl] = useState(hack.myEntry?.project?.repoUrl || "");
+    const [pending, setPending] = useState(false);
+    const [error, setError] = useState(null);
+
+    const save = async (event) => {
+        event.preventDefault();
+        setPending(true);
+        setError(null);
+        try {
+            const response = await hackathonApi.submitRepo(eventId, { repoUrl: repoUrl.trim() });
+            onSaved(response.data);
+            toast.success("Repository saved — the final submission opens after the repository deadline");
+        } catch (err) {
+            setError(err);
+        } finally {
+            setPending(false);
+        }
+    };
+
+    return (
+        <form className="hack-stage-form" onSubmit={save}>
+            <Input
+                label="Code repository"
+                type="url"
+                value={repoUrl}
+                onChange={(e) => setRepoUrl(e.target.value)}
+                placeholder="https://github.com/your-team/project"
+                hint={`GitHub, GitLab or Bitbucket. Judges see your commits — keep pushing to it. You can change the link until ${formatDateTime(hack.repoDeadline)}.`}
+                required
+            />
+            <ApiErrorAlert error={error} />
+            <div className="form-actions">
+                {onCancel && (
+                    <Button variant="ghost" onClick={onCancel} disabled={pending}>
+                        Cancel
+                    </Button>
+                )}
+                <Button type="submit" loading={pending} disabled={repoUrl.trim().length < 8}>
+                    <GitBranch size={16} /> {hack.myEntry?.repoSubmittedAt ? "Update repository" : "Save repository"}
+                </Button>
+            </div>
+        </form>
+    );
+};
+
+// Stage 3: the final submission (open from the repository deadline until the submission deadline).
+const SubmissionForm = ({ hack, eventId, onSaved, onCancel }) => {
     const toast = useToast();
     const existing = hack.myEntry?.project || {};
-    const [form, setForm] = useState({ title: "", summary: "", repoUrl: "", demoUrl: "", videoUrl: "", deckUrl: "", techStack: "", ...existing });
+    const [form, setForm] = useState({ title: "", summary: "", demoUrl: "", videoUrl: "", deckUrl: "", techStack: "", ...existing });
     const [pending, setPending] = useState(false);
     const [error, setError] = useState(null);
     const set = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -127,7 +176,8 @@ const SubmissionForm = ({ hack, eventId, onSaved }) => {
         setPending(true);
         setError(null);
         try {
-            const response = await hackathonApi.submitProject(eventId, form);
+            const { title, summary, demoUrl, videoUrl, deckUrl, techStack } = form;
+            const response = await hackathonApi.submitProject(eventId, { title, summary, demoUrl, videoUrl, deckUrl, techStack });
             onSaved(response.data);
             toast.success(hack.myEntry?.submittedAt ? "Submission updated" : "Project submitted — good luck!");
         } catch (err) {
@@ -138,19 +188,26 @@ const SubmissionForm = ({ hack, eventId, onSaved }) => {
     };
 
     return (
-        <form className="stack" onSubmit={save}>
+        <form className="hack-stage-form" onSubmit={save}>
             <div className="form-grid">
                 <Input label="Project name" value={form.title} onChange={set("title")} maxLength={120} required />
                 <Input label="Tech stack" value={form.techStack} onChange={set("techStack")} maxLength={300} placeholder="React, Node.js, MongoDB" />
                 <Textarea className="span-2" label="What did you build?" value={form.summary} onChange={set("summary")} rows={4} maxLength={3000} required hint="The problem, your solution and how it works (at least 20 characters)" />
-                <Input label="Code repository" type="url" value={form.repoUrl} onChange={set("repoUrl")} placeholder="https://github.com/team/project" />
-                <Input label="Live demo" type="url" value={form.demoUrl} onChange={set("demoUrl")} placeholder="https://…" />
+                <Input label="Live demo" type="url" value={form.demoUrl} onChange={set("demoUrl")} placeholder="https://your-project.vercel.app" />
                 <Input label="Demo video" type="url" value={form.videoUrl} onChange={set("videoUrl")} placeholder="YouTube or Drive link" />
-                <Input label="Presentation" type="url" value={form.deckUrl} onChange={set("deckUrl")} placeholder="Slides or PDF link" />
+                <Input className="span-2" label="Presentation (optional)" type="url" value={form.deckUrl} onChange={set("deckUrl")} placeholder="Slides or PDF link" />
             </div>
-            <span className="subtle small">Add at least a code repository or a live demo. You can edit your submission until the deadline.</span>
+            <span className="subtle small">
+                Add a live demo link or a demo video. Repository: <a href={existing.repoUrl} target="_blank" rel="noreferrer">{existing.repoUrl}</a> (locked). You can edit until{" "}
+                {formatDateTime(hack.submissionDeadline)}.
+            </span>
             <ApiErrorAlert error={error} />
             <div className="form-actions">
+                {onCancel && (
+                    <Button variant="ghost" onClick={onCancel} disabled={pending}>
+                        Cancel
+                    </Button>
+                )}
                 <Button type="submit" loading={pending}>
                     <Send size={16} /> {hack.myEntry?.submittedAt ? "Update submission" : "Submit project"}
                 </Button>
@@ -159,11 +216,40 @@ const SubmissionForm = ({ hack, eventId, onSaved }) => {
     );
 };
 
+// One stage of the team's progress: done, open now, upcoming or missed.
+const Stage = ({ number, icon: Icon, title, state, detail, children }) => (
+    <li className={`hack-stage is-${state}`}>
+        <span className="hack-stage-marker">{state === "done" ? <Check size={15} strokeWidth={3} /> : number}</span>
+        <div className="hack-stage-body">
+            <div className="hack-stage-head">
+                <strong>
+                    <Icon size={15} /> {title}
+                </strong>
+                <span className="hack-stage-state">{{ done: "Done", open: "Open now", upcoming: "Later", missed: "Missed" }[state]}</span>
+            </div>
+            <span className="small subtle">{detail}</span>
+            {children}
+        </div>
+    </li>
+);
+
 const TeamCard = ({ hack, eventId, onChange }) => {
     const entry = hack.myEntry;
     const viewer = hack.viewer;
-    const [editing, setEditing] = useState(false);
-    const submissionOpen = viewer.canSubmit && (!hack.problemCount || entry.problemStatement);
+    const [editing, setEditing] = useState(null);
+    const now = Date.now();
+    const passed = (at) => new Date(at) <= now;
+    const saved = (data) => {
+        setEditing(null);
+        onChange(data);
+    };
+
+    const problemState = entry.problemStatement ? "done" : viewer.canChooseProblem ? "open" : passed(hack.selectionDeadline) ? "missed" : "upcoming";
+    const repoState = entry.repoSubmittedAt ? "done" : viewer.canSubmitRepo ? "open" : passed(hack.repoDeadline) ? "missed" : "upcoming";
+    const finalState = entry.submittedAt ? "done" : viewer.canSubmit ? "open" : passed(hack.repoDeadline) ? "missed" : "upcoming";
+    const repoEditable = viewer.canSubmitRepo && !passed(hack.repoDeadline);
+    const finalEditable = viewer.canSubmit;
+
     return (
         <Card
             className="hack-team"
@@ -174,48 +260,80 @@ const TeamCard = ({ hack, eventId, onChange }) => {
             }
             actions={entry.members > 1 ? <span className="subtle small">{entry.members} members</span> : null}
         >
-            <div className="stack">
-                <div className="hack-team-steps">
-                    <div className={`hack-team-step ${entry.problemStatement ? "is-done" : ""}`}>
-                        {entry.problemStatement ? <CheckCircle2 size={18} /> : <Lightbulb size={18} />}
-                        <span>
-                            <strong>Problem statement</strong>
-                            <span className="small">{entry.problemStatement ? entry.problemStatement.title : new Date(hack.revealAt) > Date.now() ? `Released ${formatDateTime(hack.revealAt)}` : "Not chosen yet — pick one below"}</span>
-                        </span>
-                    </div>
-                    <div className={`hack-team-step ${entry.submittedAt ? "is-done" : ""}`}>
-                        {entry.submittedAt ? <CheckCircle2 size={18} /> : <Rocket size={18} />}
-                        <span>
-                            <strong>Project</strong>
-                            <span className="small">{entry.submittedAt ? `“${entry.project.title}” · submitted ${timeAgo(entry.submittedAt)}` : `Due ${formatDateTime(hack.submissionDeadline)}`}</span>
-                        </span>
-                    </div>
-                </div>
-                {entry.submittedAt && !editing && (
-                    <div className="hack-submitted">
-                        <p className="small" style={{ margin: 0 }}>
-                            {entry.project.summary}
-                        </p>
-                        <ProjectLinks project={entry.project} />
-                        {submissionOpen && (
-                            <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
-                                <Pencil size={14} /> Edit submission
-                            </Button>
-                        )}
-                    </div>
-                )}
-                {submissionOpen && (!entry.submittedAt || editing) && (
-                    <SubmissionForm
-                        hack={hack}
-                        eventId={eventId}
-                        onSaved={(data) => {
-                            setEditing(false);
-                            onChange(data);
-                        }}
-                    />
-                )}
-                {!viewer.canSubmit && !entry.submittedAt && new Date(hack.submissionDeadline) <= Date.now() && <p className="subtle small">The submission deadline has passed.</p>}
-            </div>
+            <ol className="hack-stages">
+                <Stage
+                    number={1}
+                    icon={Lightbulb}
+                    title="Choose a problem statement"
+                    state={problemState}
+                    detail={
+                        entry.problemStatement
+                            ? `${entry.problemStatement.title}${viewer.canChooseProblem ? ` · can be changed until ${formatDateTime(hack.selectionDeadline)}` : ""}`
+                            : passed(hack.revealAt)
+                              ? `By ${formatDateTime(hack.selectionDeadline)} — pick one below`
+                              : `Problem statements are released ${formatDateTime(hack.revealAt)}`
+                    }
+                />
+                <Stage
+                    number={2}
+                    icon={GitBranch}
+                    title="Add your code repository"
+                    state={repoState}
+                    detail={
+                        entry.repoSubmittedAt
+                            ? `Added ${timeAgo(entry.repoSubmittedAt)}`
+                            : repoState === "missed"
+                              ? "The repository deadline passed without a link"
+                              : `By ${formatDateTime(hack.repoDeadline)}${!entry.problemStatement && hack.problemCount ? " · after choosing a problem" : ""}`
+                    }
+                >
+                    {entry.repoSubmittedAt && editing !== "repo" && (
+                        <div className="hack-stage-done">
+                            <LinkChip href={entry.project.repoUrl} icon={GitBranch} label={entry.project.repoUrl.replace(/^https?:\/\//, "")} />
+                            {repoEditable && (
+                                <button type="button" className="link-button small" onClick={() => setEditing("repo")}>
+                                    Change
+                                </button>
+                            )}
+                        </div>
+                    )}
+                    {viewer.canSubmitRepo && (!entry.repoSubmittedAt || editing === "repo") && (
+                        <RepoForm hack={hack} eventId={eventId} onSaved={saved} onCancel={entry.repoSubmittedAt ? () => setEditing(null) : null} />
+                    )}
+                </Stage>
+                <Stage
+                    number={3}
+                    icon={Rocket}
+                    title="Final submission"
+                    state={finalState}
+                    detail={
+                        entry.submittedAt
+                            ? `“${entry.project.title}” · submitted ${timeAgo(entry.submittedAt)}`
+                            : finalState === "missed"
+                              ? passed(hack.submissionDeadline)
+                                  ? "The submission deadline has passed"
+                                  : "Your team has no repository, so it can't make a final submission"
+                              : `Opens ${formatDateTime(hack.repoDeadline)} · due ${formatDateTime(hack.submissionDeadline)} — live demo, video and slides`
+                    }
+                >
+                    {entry.submittedAt && editing !== "final" && (
+                        <div className="hack-stage-done">
+                            <p className="small" style={{ margin: 0 }}>
+                                {entry.project.summary}
+                            </p>
+                            <ProjectLinks project={entry.project} />
+                            {finalEditable && (
+                                <button type="button" className="link-button small" onClick={() => setEditing("final")}>
+                                    Edit submission
+                                </button>
+                            )}
+                        </div>
+                    )}
+                    {finalEditable && (!entry.submittedAt || editing === "final") && (
+                        <SubmissionForm hack={hack} eventId={eventId} onSaved={saved} onCancel={entry.submittedAt ? () => setEditing(null) : null} />
+                    )}
+                </Stage>
+            </ol>
         </Card>
     );
 };
@@ -389,7 +507,12 @@ const ProblemEditor = ({ eventId, problem, onClose, onSaved }) => {
 
 const Setup = ({ hack, event, setHack }) => {
     const toast = useToast();
-    const [times, setTimes] = useState({ revealAt: toDateTimeInput(hack.revealAt), selectionDeadline: toDateTimeInput(hack.selectionDeadline), submissionDeadline: toDateTimeInput(hack.submissionDeadline) });
+    const [times, setTimes] = useState({
+        revealAt: toDateTimeInput(hack.revealAt),
+        selectionDeadline: toDateTimeInput(hack.selectionDeadline),
+        repoDeadline: toDateTimeInput(hack.repoDeadline),
+        submissionDeadline: toDateTimeInput(hack.submissionDeadline)
+    });
     const [agenda, setAgenda] = useState(hack.agenda.map((item) => ({ ...item, startsAt: toDateTimeInput(item.startsAt) })));
     const [criteria, setCriteria] = useState(hack.criteria.map((item) => ({ ...item })));
     const [editing, setEditing] = useState(null);
@@ -427,8 +550,17 @@ const Setup = ({ hack, event, setHack }) => {
             >
                 <div className="form-grid">
                     <Input label="Release problem statements" type="datetime-local" min={startInput} max={endInput} value={times.revealAt} onChange={setTime("revealAt")} hint="Not before the event starts" />
-                    <Input label="Problem selection closes" type="datetime-local" min={times.revealAt} max={endInput} value={times.selectionDeadline} onChange={setTime("selectionDeadline")} />
-                    <Input label="Submissions close" type="datetime-local" min={times.selectionDeadline} max={endInput} value={times.submissionDeadline} onChange={setTime("submissionDeadline")} hint="Judging opens then" />
+                    <Input label="1. Problem selection closes" type="datetime-local" min={times.revealAt} max={endInput} value={times.selectionDeadline} onChange={setTime("selectionDeadline")} />
+                    <Input
+                        label="2. Repository deadline"
+                        type="datetime-local"
+                        min={times.selectionDeadline}
+                        max={endInput}
+                        value={times.repoDeadline}
+                        onChange={setTime("repoDeadline")}
+                        hint="Teams share their GitHub link by then; the final submission opens after it"
+                    />
+                    <Input label="3. Final submissions close" type="datetime-local" min={times.repoDeadline} max={endInput} value={times.submissionDeadline} onChange={setTime("submissionDeadline")} hint="Live demo, video, slides — judging opens then" />
                 </div>
                 <div className="form-actions">
                     <Button
@@ -437,6 +569,7 @@ const Setup = ({ hack, event, setHack }) => {
                             save("times", {
                                 revealAt: fromDateTimeInput(times.revealAt),
                                 selectionDeadline: fromDateTimeInput(times.selectionDeadline),
+                                repoDeadline: fromDateTimeInput(times.repoDeadline),
                                 submissionDeadline: fromDateTimeInput(times.submissionDeadline)
                             })
                         }
@@ -764,7 +897,8 @@ const Leaderboard = ({ hack, event }) => {
                         {[
                             ["Teams", data.stats.entries],
                             ["Chose a problem", data.stats.chosen],
-                            ["Submitted", data.stats.submitted],
+                            ["Added a repository", data.stats.repos],
+                            ["Final submissions", data.stats.submitted],
                             ["Fully judged", data.stats.fullyScored]
                         ].map(([label, value]) => (
                             <div key={label} className="hack-stat">

@@ -50,8 +50,11 @@ const hackathonSchema = new mongoose.Schema(
         problemStatements: { type: [problemSchema], default: [] },
         // Problem statements become visible to participants at revealAt (never before the event starts).
         revealAt: { type: Date, required: true },
-        // Teams choose a problem statement until selectionDeadline and submit their project until submissionDeadline.
+        // Three stages, each with its own deadline: choose a problem statement (selectionDeadline), register the
+        // code repository (repoDeadline), then — once the repository deadline has passed — the final submission
+        // with the demo, video and slides (submissionDeadline).
         selectionDeadline: { type: Date, required: true },
+        repoDeadline: { type: Date, default: null },
         submissionDeadline: { type: Date, required: true },
         criteria: { type: [criterionSchema], default: [] },
         judges: { type: [judgeSchema], default: [] },

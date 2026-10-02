@@ -91,6 +91,7 @@ router.delete("/:id/hackathon/problems/:problemId", ...auth, id, problemId, vali
 router.post("/:id/hackathon/judges", ...auth, id, body("userId").isMongoId().withMessage("Choose a judge"), validate, hackathon.addJudge);
 router.delete("/:id/hackathon/judges/:userId", ...auth, id, mongoIdParam("userId"), validate, hackathon.removeJudge);
 router.put("/:id/hackathon/entry/problem", ...auth, id, body("problemId").isMongoId().withMessage("Choose a problem statement"), validate, hackathon.chooseProblem);
+router.put("/:id/hackathon/entry/repo", ...auth, id, body("repoUrl").isString().isLength({ min: 8, max: 500 }).withMessage("Add the repository link"), validate, hackathon.submitRepo);
 router.put("/:id/hackathon/entry/project", ...auth, id, validate, hackathon.submitProject);
 router.get("/:id/hackathon/judging", ...auth, id, validate, hackathon.judging);
 router.put("/:id/hackathon/judging/:entryId", ...auth, id, mongoIdParam("entryId"), body("marks").isArray({ max: 10 }), body("comment").optional().isString().isLength({ max: 1000 }), validate, hackathon.score);
