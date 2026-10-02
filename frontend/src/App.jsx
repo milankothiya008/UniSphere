@@ -49,6 +49,8 @@ const EventFormPage = lazy(() => import("./pages/events/EventFormPage"));
 const PersonPage = lazy(() => import("./pages/PersonPage"));
 const ManageEventsPage = lazy(() => import("./pages/events/ManageEventsPage"));
 const EventPlannerPage = lazy(() => import("./pages/events/EventPlannerPage"));
+const HackathonPage = lazy(() => import("./pages/events/HackathonPage"));
+const VerifyCertificatePage = lazy(() => import("./pages/VerifyCertificatePage"));
 const ParticipantsPage = lazy(() => import("./pages/events/ParticipantsPage"));
 const CheckInPage = lazy(() => import("./pages/events/CheckInPage"));
 const ResultEditorPage = lazy(() => import("./pages/events/ResultEditorPage"));
@@ -80,6 +82,8 @@ const App = () => (
                 <Route path="/verify-email" element={<VerifyEmailPage />} />
                 {/* Opened from email footers, signed in or not. */}
                 <Route path="/unsubscribe" element={<UnsubscribePage />} />
+                {/* Anyone can check a certificate's code (QR on the certificate). */}
+                <Route path="/verify/:code" element={<VerifyCertificatePage />} />
                 {/* Reset is now code-based; old links from earlier emails land on the new flow. */}
                 <Route path="/reset-password" element={<Navigate to="/forgot-password" replace />} />
             </Route>
@@ -114,6 +118,7 @@ const App = () => (
                 <Route path="/events/create" element={<ProtectedRoute roles={[STUDENT]}><EventFormPage /></ProtectedRoute>} />
                 <Route path="/events/:id" element={<EventDetailPage />} />
                 <Route path="/events/:id/edit" element={<EventFormPage />} />
+                <Route path="/events/:id/hackathon" element={<HackathonPage />} />
                 <Route path="/events/:id/participants" element={<ParticipantsPage />} />
                 <Route path="/events/:id/check-in" element={<CheckInPage />} />
                 <Route path="/events/:id/results/edit" element={<ResultEditorPage />} />

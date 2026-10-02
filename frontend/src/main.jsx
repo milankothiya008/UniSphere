@@ -23,6 +23,17 @@ import "./styles/system.css";
 import "./styles/planner.css";
 import "./styles/insta.css";
 import "./styles/social.css";
+import "./styles/extras.css";
+import { registerServiceWorker } from "./lib/push";
+import { refreshUnread } from "./hooks/useUnreadCount";
+
+// Installable app + push notifications. A push arriving while the app is open updates the red dot at once.
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => registerServiceWorker());
+    navigator.serviceWorker.addEventListener("message", (event) => {
+        if (event.data?.type === "push") refreshUnread();
+    });
+}
 
 createRoot(document.getElementById("root")).render(
     <StrictMode>

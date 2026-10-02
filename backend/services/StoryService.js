@@ -283,7 +283,7 @@ const listViewers = async (actor, storyId, query = {}) => {
             .sort({ viewedAt: -1 })
             .skip(pagination.skip)
             .limit(pagination.limit)
-            .populate("user", "name departmentCode batchCode accountType")
+            .populate("user", "name departmentCode batchCode accountType avatar")
             .lean(),
         StoryView.countDocuments(filter)
     ]);

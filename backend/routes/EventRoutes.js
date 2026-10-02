@@ -20,6 +20,8 @@ const {
 const { body, query } = require("express-validator");
 const { singleGalleryFile } = require("../middleware/Upload");
 const { uploadLimiter } = require("../middleware/RateLimiter");
+const hackathon = require("../controllers/HackathonController");
+const certificates = require("../controllers/CertificateController");
 
 const router = express.Router();
 const auth = [protect, requireVerified];
@@ -52,6 +54,48 @@ router.post("/:id/reject", ...auth, id, rejectRules, validate, e.rejectEvent);
 router.post("/:id/publish", ...auth, id, validate, e.publishEvent);
 router.post("/:id/cancel", ...auth, id, body("reason").optional().isString().isLength({ max: 1000 }), validate, e.cancelEvent);
 router.post("/:id/complete", ...auth, id, validate, e.completeEvent);
+
+// Reminders: officers with SEND_REMINDERS send "registration closing" or "starting soon" by hand.
+router.post(
+    "/:id/reminders",
+    ...auth,
+    id,
+    body("kind").isIn(["REGISTRATION_CLOSING", "EVENT_STARTING"]).withMessage("Choose which reminder to send"),
+    body("note").optional().isString().isLength({ max: 500 }).withMessage("Keep the note under 500 characters"),
+    validate,
+    e.sendReminder
+);
+
+// Feedback after the event: attendees rate it; organisers see the summary.
+router.get("/:id/feedback", ...auth, id, validate, e.getFeedback);
+router.put(
+    "/:id/feedback",
+    ...auth,
+    id,
+    body("rating").isInt({ min: 1, max: 5 }).withMessage("Choose 1 to 5 stars"),
+    body("note").optional().isString().isLength({ max: 1000 }).withMessage("Keep the note under 1000 characters"),
+    validate,
+    e.giveFeedback
+);
+
+// Certificates the viewer has for this event (issued on request).
+router.get("/:id/certificates", ...auth, id, validate, certificates.forEvent);
+
+// Hackathon mode (HACKATHON events).
+const problemId = mongoIdParam("problemId");
+router.get("/:id/hackathon", ...auth, id, validate, hackathon.get);
+router.put("/:id/hackathon", ...auth, id, body("agenda").optional().isArray({ max: 40 }), body("criteria").optional().isArray({ max: 10 }), validate, hackathon.updateSettings);
+router.post("/:id/hackathon/problems", ...auth, id, validate, hackathon.addProblem);
+router.put("/:id/hackathon/problems/:problemId", ...auth, id, problemId, validate, hackathon.updateProblem);
+router.delete("/:id/hackathon/problems/:problemId", ...auth, id, problemId, validate, hackathon.deleteProblem);
+router.post("/:id/hackathon/judges", ...auth, id, body("userId").isMongoId().withMessage("Choose a judge"), validate, hackathon.addJudge);
+router.delete("/:id/hackathon/judges/:userId", ...auth, id, mongoIdParam("userId"), validate, hackathon.removeJudge);
+router.put("/:id/hackathon/entry/problem", ...auth, id, body("problemId").isMongoId().withMessage("Choose a problem statement"), validate, hackathon.chooseProblem);
+router.put("/:id/hackathon/entry/project", ...auth, id, validate, hackathon.submitProject);
+router.get("/:id/hackathon/judging", ...auth, id, validate, hackathon.judging);
+router.put("/:id/hackathon/judging/:entryId", ...auth, id, mongoIdParam("entryId"), body("marks").isArray({ max: 10 }), body("comment").optional().isString().isLength({ max: 1000 }), validate, hackathon.score);
+router.get("/:id/hackathon/leaderboard", ...auth, id, validate, hackathon.leaderboard);
+router.post("/:id/hackathon/results", ...auth, id, body("winners").optional().isInt({ min: 1, max: 10 }), body("titles").optional().isArray({ max: 10 }), validate, hackathon.draftResults);
 
 // Changes to a published event (the live event is untouched until they are published)
 router.post("/:id/changes/approve", ...auth, id, optionalCommentRules, validate, e.approveChanges);

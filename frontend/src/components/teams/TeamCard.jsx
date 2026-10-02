@@ -70,7 +70,7 @@ export const TeamCard = ({ event, team, isLeader, onChange }) => {
             <ul className="team-roster">
                 {team.members.map((member) => (
                     <li key={member.user._id}>
-                        <Avatar name={member.user.name} size="sm" />
+                        <Avatar name={member.user.name} src={member.user.avatar} size="sm" />
                         <span className="grow">
                             <strong>{member.user.name}</strong>
                             <small>{detail(member.user)}</small>
@@ -91,7 +91,7 @@ export const TeamCard = ({ event, team, isLeader, onChange }) => {
                 ))}
                 {team.invites.map((invite) => (
                     <li key={invite.user._id} className="is-invited">
-                        <Avatar name={invite.user.name} size="sm" />
+                        <Avatar name={invite.user.name} src={invite.user.avatar} size="sm" />
                         <span className="grow">
                             <strong>{invite.user.name}</strong>
                             <small>

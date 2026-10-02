@@ -1,4 +1,4 @@
-import { api, request } from "./client";
+import { api, downloadFile, request } from "./client";
 
 export const authApi = {
     register: (body) => api.post("/auth/register", body),
@@ -26,6 +26,8 @@ export const userApi = {
     update: (id, body) => api.put(`/users/${id}`, body),
     // Anyone's public profile: no email, mobile number or schedule.
     profile: (id) => api.get(`/users/${id}/profile`),
+    people: (q, department) => api.get("/users/people", { q, department }),
+    downloadRecord: () => downloadFile("/users/me/record.pdf", "participation_record.pdf"),
     setStatus: (id, isActive) => api.patch(`/users/${id}/status`, { isActive })
 };
 
@@ -68,6 +70,35 @@ export const clubRequestApi = {
     approve: (id) => api.post(`/club-requests/${id}/approve`)
 };
 
+// Hackathon mode for HACKATHON events.
+export const hackathonApi = {
+    get: (id) => api.fresh(`/events/${id}/hackathon`),
+    update: (id, body) => api.put(`/events/${id}/hackathon`, body),
+    addProblem: (id, body) => api.post(`/events/${id}/hackathon/problems`, body),
+    updateProblem: (id, problemId, body) => api.put(`/events/${id}/hackathon/problems/${problemId}`, body),
+    deleteProblem: (id, problemId) => api.delete(`/events/${id}/hackathon/problems/${problemId}`),
+    addJudge: (id, userId) => api.post(`/events/${id}/hackathon/judges`, { userId }),
+    removeJudge: (id, userId) => api.delete(`/events/${id}/hackathon/judges/${userId}`),
+    chooseProblem: (id, problemId) => api.put(`/events/${id}/hackathon/entry/problem`, { problemId }),
+    submitProject: (id, body) => api.put(`/events/${id}/hackathon/entry/project`, body),
+    judging: (id) => api.fresh(`/events/${id}/hackathon/judging`),
+    score: (id, entryId, body) => api.put(`/events/${id}/hackathon/judging/${entryId}`, body),
+    leaderboard: (id) => api.fresh(`/events/${id}/hackathon/leaderboard`),
+    draftResults: (id, body) => api.post(`/events/${id}/hackathon/results`, body)
+};
+
+export const certificateApi = {
+    mine: () => api.fresh("/certificates/mine"),
+    verify: (code) => api.get(`/certificates/verify/${encodeURIComponent(code)}`),
+    download: (code) => downloadFile(`/certificates/${code}/pdf`, "certificate.pdf")
+};
+
+export const pushApi = {
+    publicKey: () => api.get("/push/public-key"),
+    subscribe: (subscription) => api.post("/push/subscribe", subscription),
+    unsubscribe: (endpoint) => api.post("/push/unsubscribe", { endpoint })
+};
+
 export const eventApi = {
     list: (query) => api.get("/events", query),
     manage: (query) => api.get("/events/manage", query),
@@ -104,6 +135,11 @@ export const eventApi = {
     declineTeamInvite: (id, teamId) => api.post(`/events/${id}/teams/${teamId}/decline`),
     cancel: (id, reason) => api.post(`/events/${id}/cancel`, { reason }),
     complete: (id) => api.post(`/events/${id}/complete`),
+    // Reminders (SEND_REMINDERS), feedback and certificates
+    sendReminder: (id, kind, note) => api.post(`/events/${id}/reminders`, { kind, note }),
+    feedback: (id) => api.fresh(`/events/${id}/feedback`),
+    giveFeedback: (id, body) => api.put(`/events/${id}/feedback`, body),
+    certificates: (id) => api.fresh(`/events/${id}/certificates`),
     register: (id, body) => api.post(`/events/${id}/register`, body),
     unregister: (id) => api.delete(`/events/${id}/register`),
     participants: (id, query) => api.get(`/events/${id}/registrations`, query),

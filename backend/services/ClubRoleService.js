@@ -29,7 +29,7 @@ const listRoles = async (actor, clubId) => {
     if (!context.isMember && !context.isMentor) {
         throw new AppError("Only club members and the club's mentor can see its roles", 403, ERROR_CODES.FORBIDDEN);
     }
-    const memberships = await ClubMembership.find({ club: context.club._id, status: MEMBERSHIP_STATUS.APPROVED }).select("role user").populate("user", "name");
+    const memberships = await ClubMembership.find({ club: context.club._id, status: MEMBERSHIP_STATUS.APPROVED }).select("role user").populate("user", "name avatar");
     return {
         canManage: contextHas(context, ASSIGN),
         grantable: GRANTABLE,

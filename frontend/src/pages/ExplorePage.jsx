@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { Award, Building2, CalendarDays, Images, Search, X } from "lucide-react";
-import { clubApi, eventApi } from "../api/endpoints";
+import { clubApi, eventApi, userApi } from "../api/endpoints";
 import { useDebounce } from "../hooks/useDebounce";
 import { useQueryState } from "../hooks/useQueryState";
 import { Avatar, EmptyState, Skeleton } from "../components/ui";
 import { categoryStyle, categoryVars } from "../lib/eventVisuals";
 import { imageUrl } from "../lib/images";
 import { isLive } from "../lib/eligibility";
-import { formatDate, humanize, plural } from "../lib/format";
+import { batchLabel, formatDate, humanize, plural } from "../lib/format";
+import { ROLE_LABELS } from "../lib/constants";
 
 const SHORTCUTS = [
     { to: "/clubs", icon: Building2, label: "Clubs" },
@@ -55,21 +56,24 @@ const GridSkeleton = () => (
 );
 
 const useExploreResults = (search) => {
-    const [state, setState] = useState({ loading: true, clubs: [], events: [] });
+    const [state, setState] = useState({ loading: true, clubs: [], events: [], people: [] });
 
     useEffect(() => {
         let alive = true;
         setState((prev) => ({ ...prev, loading: true }));
         const load = search
-            ? Promise.all([clubApi.list({ search, limit: 8 }), eventApi.list({ search, timeframe: "upcoming", limit: 12 }), eventApi.list({ search, timeframe: "past", limit: 12 })]).then(
-                  ([clubs, upcoming, past]) => ({ clubs: clubs.data, events: [...upcoming.data, ...past.data] })
-              )
+            ? Promise.all([
+                  clubApi.list({ search, limit: 8 }),
+                  eventApi.list({ search, timeframe: "upcoming", limit: 12 }),
+                  eventApi.list({ search, timeframe: "past", limit: 12 }),
+                  search.length >= 2 ? userApi.people(search) : Promise.resolve({ data: [] })
+              ]).then(([clubs, upcoming, past, people]) => ({ clubs: clubs.data, events: [...upcoming.data, ...past.data], people: people.data }))
             : Promise.all([eventApi.list({ timeframe: "ongoing", limit: 6 }), eventApi.list({ timeframe: "upcoming", limit: 18 }), eventApi.list({ timeframe: "past", limit: 12 })]).then(
-                  ([live, upcoming, past]) => ({ clubs: [], events: [...live.data, ...upcoming.data, ...past.data] })
+                  ([live, upcoming, past]) => ({ clubs: [], events: [...live.data, ...upcoming.data, ...past.data], people: [] })
               );
         load
             .then((result) => alive && setState({ loading: false, ...result }))
-            .catch(() => alive && setState({ loading: false, clubs: [], events: [] }));
+            .catch(() => alive && setState({ loading: false, clubs: [], events: [], people: [] }));
         return () => {
             alive = false;
         };
@@ -83,7 +87,7 @@ const ExplorePage = () => {
     const [filters, setFilters] = useQueryState({ search: "" });
     const [search, setSearch] = useState(filters.search);
     const debounced = useDebounce(search.trim(), 300);
-    const { loading, clubs, events } = useExploreResults(debounced);
+    const { loading, clubs, events, people } = useExploreResults(debounced);
 
     useEffect(() => {
         if (debounced !== filters.search) {
@@ -96,7 +100,7 @@ const ExplorePage = () => {
         <div className="explore">
             <label className="explore-search">
                 <Search size={18} />
-                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search" aria-label="Search clubs and events" />
+                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search" aria-label="Search clubs, events and people" />
                 {search && (
                     <button type="button" onClick={() => setSearch("")} aria-label="Clear search">
                         <X size={16} />
@@ -114,8 +118,26 @@ const ExplorePage = () => {
                 </nav>
             )}
 
+            {debounced && people.length > 0 && (
+                <section className="explore-clubs" aria-label="People">
+                    <h2 className="explore-heading">People</h2>
+                    {people.map((person) => (
+                        <Link key={person._id} to={person.isSelf ? "/profile" : `/people/${person._id}`} className="explore-club">
+                            <Avatar name={person.name} src={person.avatar} />
+                            <span className="grow">
+                                <strong>{person.name}</strong>
+                                <span className="subtle">
+                                    {[ROLE_LABELS[person.globalRole], person.departmentCode, person.batchCode && `Batch ${batchLabel(person.batchCode)}`].filter(Boolean).join(" · ")}
+                                </span>
+                            </span>
+                        </Link>
+                    ))}
+                </section>
+            )}
+
             {debounced && clubs.length > 0 && (
-                <section className="explore-clubs">
+                <section className="explore-clubs" aria-label="Clubs">
+                    {people.length > 0 && <h2 className="explore-heading">Clubs</h2>}
                     {clubs.map((club) => (
                         <Link key={club._id} to={`/clubs/${club._id}`} className="explore-club">
                             <Avatar name={club.name} src={club.logo} />
@@ -135,7 +157,7 @@ const ExplorePage = () => {
             ) : events.length ? (
                 <Grid events={events} />
             ) : (
-                !loading && !clubs.length && <EmptyState icon={debounced ? Search : CalendarDays} title={debounced ? "No results" : "No events yet"} />
+                !loading && !clubs.length && !people.length && <EmptyState icon={debounced ? Search : CalendarDays} title={debounced ? "No results" : "No events yet"} />
             )}
         </div>
     );

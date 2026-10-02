@@ -119,7 +119,7 @@ export const GalleryViewer = ({ items, index, onIndex, onClose, title, review = 
                     {index + 1} / {items.length}
                 </span>
                 <div className="gv-by">
-                    <Avatar name={item.uploader.name} size="sm" />
+                    <Avatar name={item.uploader.name} src={item.uploader.avatar} size="sm" />
                     <span>
                         <strong>{item.uploader.name}</strong>
                         <small>

@@ -20,6 +20,7 @@ const { recordAudit } = require("./AuditService");
 const { notify, notifyAllUsers } = require("./NotificationService");
 const { sendAnnouncementEmails } = require("./CampusMailer");
 const { approvedMemberIds } = require("./MembershipService");
+const { clubFollowerIds } = require("./SubscriptionService");
 const logger = require("../utils/Logger");
 
 const MANUAL_POST_TYPES = [FEED_POST_TYPES.ANNOUNCEMENT, FEED_POST_TYPES.CLUB_UPDATE, FEED_POST_TYPES.EVENT_UPDATE];
@@ -121,7 +122,7 @@ const createPost = async (actor, payload) => {
     if (membersOnly) {
         await notify([...(await approvedMemberIds(context.club._id)), context.club.mentor], notification);
     } else {
-        await notifyAllUsers(notification);
+        await notifyAllUsers({ ...notification, pushTo: await clubFollowerIds(context.club._id) });
     }
     // Followers of the club (bell on) also get it by email.
     await sendAnnouncementEmails(post, context.club, actor, { membersOnly, link: notification.link });

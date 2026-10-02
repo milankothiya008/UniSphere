@@ -7,10 +7,11 @@ import { EventActions } from "../../components/events/EventActions";
 import { EventChanges } from "../../components/events/EventChanges";
 import { RegistrationPanel } from "../../components/events/RegistrationPanel";
 import { ScheduleCheck } from "../../components/events/ScheduleCheck";
+import { CertificatesCard, FeedbackCard, HackathonSummary } from "../../components/events/EventExtras";
 import { Podium } from "../../components/feed/FeedCard";
 import { CategoryArt } from "../../components/events/EventCard";
 import { categoryVars } from "../../lib/eventVisuals";
-import { batchLabel, formatDateLong, formatDateTime, formatTimeRange, humanize, timeAgo, toDateInput } from "../../lib/format";
+import { batchLabel, formatDateTime, formatEventDates, formatEventTimes, humanize, timeAgo, toDateInput } from "../../lib/format";
 
 const WORKFLOW = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "PUBLISHED", "COMPLETED"];
 const WORKFLOW_LABELS = ["Draft", "Mentor review", "Approved", "Published", "Completed"];
@@ -197,6 +198,7 @@ const EventDetailPage = () => {
                             {showsSchedule(event) && (
                                 <ScheduleCheck
                                     dateKey={toDateInput(event.startAt)}
+                                    endDate={event.endDate ? toDateInput(event.endAt) : null}
                                     startTime={event.startTime}
                                     endTime={event.endTime}
                                     audience={event.eligibility?.departments?.length ? event.eligibility.departments : "ALL"}
@@ -218,7 +220,9 @@ const EventDetailPage = () => {
                                 </Card>
                             )}
 
+                            <HackathonSummary event={event} />
                             <ResultsSection event={event} />
+                            <FeedbackCard event={event} />
                             <UpdatesSection event={event} />
                         </div>
 
@@ -228,15 +232,15 @@ const EventDetailPage = () => {
                                     <div>
                                         <CalendarDays size={18} />
                                         <span>
-                                            <dt>Date</dt>
-                                            <dd>{formatDateLong(event.startAt)}</dd>
+                                            <dt>{event.endDate ? "Dates" : "Date"}</dt>
+                                            <dd>{formatEventDates(event.startAt, event.endAt)}</dd>
                                         </span>
                                     </div>
                                     <div>
                                         <Clock size={18} />
                                         <span>
                                             <dt>Time</dt>
-                                            <dd>{formatTimeRange(event.startAt, event.endAt)}</dd>
+                                            <dd>{formatEventTimes(event.startAt, event.endAt)}</dd>
                                         </span>
                                     </div>
                                     <div>
@@ -299,6 +303,7 @@ const EventDetailPage = () => {
                                 </ButtonLink>
                             )}
                             <EventActions event={event} onChange={(updated) => setData(updated)} />
+                            <CertificatesCard event={event} onChange={(updated) => setData(updated)} />
 
                             {(event.contact?.name || event.contact?.email || event.contact?.phone || event.organizer) && (
                                 <Card title="Contact">

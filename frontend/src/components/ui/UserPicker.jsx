@@ -82,7 +82,7 @@ export const UserPicker = ({ label, hint, error, accountType, departments, onSel
                                         setOpen(false);
                                     }}
                                 >
-                                    <Avatar name={user.name} size="sm" />
+                                    <Avatar name={user.name} src={user.avatar} size="sm" />
                                     <span style={{ minWidth: 0 }}>
                                         <strong style={{ display: "block", fontSize: "0.9rem" }}>{user.name}</strong>
                                         <span className="subtle">

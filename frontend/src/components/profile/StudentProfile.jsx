@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
     ArrowRight,
+    Award,
     Building2,
     CalendarCheck2,
     CalendarDays,
@@ -20,6 +21,7 @@ import {
 import { EventRow } from "../events/EventCard";
 import { Avatar, Badge, ButtonLink, Card, RoleBadge, StatusBadge, Tabs } from "../ui";
 import { ClubHQ } from "../dashboard/ClubHQ";
+import { Achievements } from "./Achievements";
 import { ApplicationRow } from "../recruitment/ApplicationRow";
 import { countdownParts, daysUntil, formatDateLong, formatTimeRange } from "../../lib/format";
 
@@ -319,7 +321,8 @@ const Proposals = ({ requests }) =>
 const TABS = [
     { value: "schedule", label: "Schedule", icon: CalendarCheck2 },
     { value: "applications", label: "Applications", icon: FileSignature },
-    { value: "clubs", label: "Clubs", icon: Building2 }
+    { value: "clubs", label: "Clubs", icon: Building2 },
+    { value: "achievements", label: "Achievements", icon: Award }
 ];
 
 /** The student's side of the profile: what's next, their schedule, applications, clubs and (for officers) Club HQ. */
@@ -356,6 +359,7 @@ export const StudentProfile = ({ data }) => {
                         <CompactEmpty icon={FileSignature} title="No applications yet" text="Apply when a club is recruiting." />
                     </Card>
                 ))}
+            {tab === "achievements" && <Achievements />}
             {tab === "clubs" && (
                 <div className="stack">
                     <MyClubs memberships={student.memberships} hiddenClubIds={workspaceClubIds} />

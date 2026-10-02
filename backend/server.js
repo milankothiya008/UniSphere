@@ -17,6 +17,7 @@ const { deliveryMode, checkMailConfiguration } = require("./services/MailService
 const { startEmailWorker } = require("./services/EmailQueueService");
 const { startStorySweeper } = require("./services/StoryService");
 const { startInterviewReminderSweeper } = require("./services/RecruitmentReminderService");
+const { startEventSweeper } = require("./services/EventReminderService");
 
 const authRoutes = require("./routes/AuthRoutes");
 const userRoutes = require("./routes/UserRoutes");
@@ -36,6 +37,8 @@ const storyRoutes = require("./routes/StoryRoutes");
 const ticketRoutes = require("./routes/TicketRoutes");
 const galleryRoutes = require("./routes/GalleryRoutes");
 const recruitmentRoutes = require("./routes/RecruitmentRoutes");
+const certificateRoutes = require("./routes/CertificateRoutes");
+const pushRoutes = require("./routes/PushRoutes");
 const devRoutes = require("./routes/DevRoutes");
 
 validateEnv();
@@ -90,6 +93,8 @@ app.use("/api/stories", storyRoutes);
 app.use("/api/tickets", ticketRoutes);
 app.use("/api/gallery", galleryRoutes);
 app.use("/api/recruitment", recruitmentRoutes);
+app.use("/api/certificates", certificateRoutes);
+app.use("/api/push", pushRoutes);
 
 // Development inbox: only exists when SMTP is not configured and NODE_ENV is not production.
 if (deliveryMode() === "preview") {
@@ -121,6 +126,7 @@ const start = async () => {
     startEmailWorker();
     startStorySweeper();
     startInterviewReminderSweeper();
+    startEventSweeper();
 
     app.listen(env.port, () => {
         logger.info(`Server running on port ${env.port}`);

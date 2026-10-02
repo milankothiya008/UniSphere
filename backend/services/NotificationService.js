@@ -57,6 +57,7 @@ const notify = async (userIds, { type, title, message = "", link = null, email =
         await Notification.insertMany(
             recipients.map((user) => ({ user, type, title, message, link }))
         );
+        require("./PushService").pushToUsers(recipients, { title, body: message, url: link, tag: type });
 
         if (email) {
             await emailUsers(recipients, {
@@ -78,7 +79,9 @@ const BROADCAST_BATCH = 1000;
 
 // Campus-wide activity (new events, announcements, results, new clubs) reaches every active user in-app.
 // Deliberately no email: mailing the whole university would be spam and exceed SMTP sending limits.
-const notifyAllUsers = async ({ type, title, message = "", link = null, exclude = [] }) => {
+// pushTo: the few people who should also get a phone notification (e.g. the club's followers); a push to
+// the whole campus for every new event would be noise.
+const notifyAllUsers = async ({ type, title, message = "", link = null, exclude = [], pushTo = [] }) => {
     const excluded = new Set(uniqueIds(exclude));
 
     try {
@@ -91,6 +94,8 @@ const notifyAllUsers = async ({ type, title, message = "", link = null, exclude 
                 { ordered: false }
             );
         }
+        const pushed = uniqueIds(pushTo).filter((id) => !excluded.has(id));
+        require("./PushService").pushToUsers(pushed, { title, body: message, url: link, tag: type });
     } catch (error) {
         logger.error("Failed to broadcast notifications", { type, message: error.message });
     }

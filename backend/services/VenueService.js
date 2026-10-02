@@ -238,13 +238,13 @@ const withVenueLock = async (venueId, task) => {
     }
 };
 
-const getAvailableVenues = async ({ eventDate, startTime, endTime, excludeEventId, club, departments }) => {
+const getAvailableVenues = async ({ eventDate, endDate, startTime, endTime, excludeEventId, club, departments }) => {
     if (!eventDate || !startTime || !endTime) {
         throw new AppError("eventDate, startTime and endTime are required", 400, ERROR_CODES.VALIDATION_ERROR);
     }
 
     const startAt = combineDateAndTime(eventDate, startTime);
-    const endAt = combineDateAndTime(eventDate, endTime);
+    const endAt = combineDateAndTime(endDate || eventDate, endTime);
 
     if (startAt >= endAt) {
         throw new AppError("endTime must be after startTime", 400, ERROR_CODES.VALIDATION_ERROR);

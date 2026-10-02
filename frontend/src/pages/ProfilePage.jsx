@@ -6,12 +6,13 @@ import { useAuth } from "../context/AuthContext";
 import { useWorkspace } from "../context/WorkspaceContext";
 import { AsyncContent, Avatar, ButtonLink, Card, EmptyState, Skeleton, StatStrip, StatusBadge } from "../components/ui";
 import { StudentProfile } from "../components/profile/StudentProfile";
+import { AvatarUpload } from "../components/profile/AvatarUpload";
 import { ROLE_LABELS } from "../lib/constants";
 import { batchLabel } from "../lib/format";
 
 const ProfileHead = ({ user, stats }) => (
     <section className="profile-head">
-        <Avatar name={user.name} size="xl" />
+        <AvatarUpload size="xl" allowRemove={false} />
         <div className="profile-head-main">
             <div className="profile-name-row">
                 <h1>{user.name}</h1>

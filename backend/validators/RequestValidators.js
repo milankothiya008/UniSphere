@@ -150,6 +150,8 @@ const eventFields = (optional = false) => {
         f("category").isIn(EVENT_CATEGORIES).withMessage("Invalid category"),
         f("venue").isMongoId().withMessage("Venue is required"),
         f("eventDate").matches(DATE_PATTERN).withMessage("Event date must be YYYY-MM-DD"),
+        body("endDate").optional({ values: "null" }).matches(DATE_PATTERN).withMessage("End date must be YYYY-MM-DD"),
+        body("certificatesEnabled").optional().isBoolean(),
         f("startTime").matches(TIME_PATTERN).withMessage("Start time must be HH:mm"),
         f("endTime").matches(TIME_PATTERN).withMessage("End time must be HH:mm"),
         f("registrationEnd").isISO8601().withMessage("Registration deadline is required"),
@@ -177,6 +179,7 @@ const eventUpdateRules = eventFields(true);
 
 const availabilityRules = [
     query("eventDate").matches(DATE_PATTERN).withMessage("eventDate must be YYYY-MM-DD"),
+    query("endDate").optional().matches(DATE_PATTERN).withMessage("endDate must be YYYY-MM-DD"),
     query("startTime").matches(TIME_PATTERN).withMessage("startTime must be HH:mm"),
     query("endTime").matches(TIME_PATTERN).withMessage("endTime must be HH:mm"),
     query("excludeEventId").optional().isMongoId(),

@@ -193,7 +193,7 @@ const PresidentCard = ({ club, onSaved }) => {
                 </p>
                 {club.president && (
                     <div className="row">
-                        <Avatar name={club.president.name} size="sm" />
+                        <Avatar name={club.president.name} src={club.president.avatar} size="sm" />
                         <span>
                             <strong>{club.president.name}</strong> <span className="subtle">{club.president.email}</span>
                         </span>

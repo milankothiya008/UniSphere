@@ -43,7 +43,7 @@ const { EMAIL_CATEGORIES } = require("../constants/EmailCategories");
 const { recordAudit } = require("./AuditService");
 const { notify, notifyAllUsers } = require("./NotificationService");
 const { createSystemPost } = require("./FeedService");
-const { followedAmong } = require("./SubscriptionService");
+const { followedAmong, clubFollowerIds } = require("./SubscriptionService");
 const { clubUsersWithPermission, clubIdsWithAnyPermission } = require("./MembershipService");
 const teams = require("./TeamService");
 
@@ -100,12 +100,23 @@ const assertRegistrationOpenAhead = (event, message) => {
     }
 };
 
-const buildSchedule = (payload) => {
-    const startAt = combineDateAndTime(payload.eventDate, payload.startTime);
-    const endAt = combineDateAndTime(payload.eventDate, payload.endTime);
+// Longest event: a week (fests and multi-day hackathons fit; anything longer is several events).
+const MAX_EVENT_DAYS = 7;
 
+const buildSchedule = (payload) => {
+    // Events may end on a later day (overnight hackathons, two-day fests); endDate defaults to the start date.
+    const endKey = payload.endDate ? toDateKey(payload.endDate) : toDateKey(payload.eventDate);
+    const startAt = combineDateAndTime(payload.eventDate, payload.startTime);
+    const endAt = combineDateAndTime(endKey, payload.endTime);
+
+    if (endKey < toDateKey(payload.eventDate)) {
+        throw new AppError("The event can't end before the day it starts", 400, ERROR_CODES.VALIDATION_ERROR);
+    }
     if (startAt >= endAt) {
         throw new AppError("Event end time must be after the start time", 400, ERROR_CODES.VALIDATION_ERROR);
+    }
+    if (endAt - startAt > MAX_EVENT_DAYS * 86400000) {
+        throw new AppError(`An event can last at most ${MAX_EVENT_DAYS} days`, 400, ERROR_CODES.VALIDATION_ERROR);
     }
 
     if (startAt <= new Date()) {
@@ -134,6 +145,7 @@ const buildSchedule = (payload) => {
 
     return {
         eventDate: dateKeyToDate(payload.eventDate),
+        endDate: endKey === toDateKey(payload.eventDate) ? null : dateKeyToDate(endKey),
         startTime: payload.startTime,
         endTime: payload.endTime,
         startAt,
@@ -259,7 +271,8 @@ const registrationWindowState = (event, now = new Date()) => {
 };
 
 const serialize = (event, extra = {}) => {
-    const { revision, ...obj } = event.toObject ? event.toObject() : event;
+    // The reminder log stays with the organisers (see getEventDetail).
+    const { revision, remindersSent, ...obj } = event.toObject ? event.toObject() : event;
     return { ...obj, registrationState: registrationWindowState(obj), ...extra };
 };
 
@@ -276,6 +289,7 @@ const viewerFor = (context, event, registration) => ({
     // Check-in at the door: the president opens it, every officer scans.
     canManageCheckIn: contextHas(context, CLUB_PERMISSIONS.MANAGE_CHECK_IN),
     canMarkAttendance: contextHas(context, CLUB_PERMISSIONS.MARK_ATTENDANCE),
+    canSendReminders: contextHas(context, CLUB_PERMISSIONS.SEND_REMINDERS),
     canReview: context.isMentor && event.status === EVENT_STATUS.PENDING_APPROVAL,
     canReviewChanges: context.isMentor && event.revision?.status === REVISION_STATUS.PENDING_APPROVAL,
     canPublishChanges: contextHas(context, CLUB_PERMISSIONS.PUBLISH_EVENTS) && event.revision?.status === REVISION_STATUS.APPROVED,
@@ -334,7 +348,13 @@ const getEventDetail = async (actor, eventId) => {
         // On hold while the club is suspended or archived: visible to those involved, closed to registration.
         onHold: event.club.status !== CLUB_STATUS.ACTIVE,
         ...(event.club.status !== CLUB_STATUS.ACTIVE && event.status === EVENT_STATUS.PUBLISHED ? { registrationState: "ON_HOLD" } : {}),
-        viewer: actor ? { ...viewerFor(context, event, registration), ...teamInfo } : null,
+        viewer: actor
+            ? {
+                  ...viewerFor(context, event, registration),
+                  ...teamInfo,
+                  ...(contextHas(context, CLUB_PERMISSIONS.SEND_REMINDERS) ? { reminders: require("./EventReminderService").reminderStatus(event) } : {})
+              }
+            : null,
         ...(isStaff && event.revision ? { revision: await describeRevision(event) } : {})
     });
 };
@@ -362,6 +382,7 @@ const createDraft = async (actor, payload) => {
         ...team,
         maxParticipants: assertCapacityFits(payload.maxParticipants, venue, 0, team.maxTeamSize),
         eligibility: normalizeEligibility(payload.eligibility),
+        certificatesEnabled: Boolean(payload.certificatesEnabled),
         rules: payload.rules || "",
         contact: normalizeContact(payload.contact),
         organizer: await resolveOrganizer(club._id, payload.organizer, actor),
@@ -393,6 +414,7 @@ const EDIT_FIELDS = [
     "eligibility",
     "venue",
     "eventDate",
+    "endDate",
     "startTime",
     "endTime",
     "registrationStart",
@@ -419,6 +441,7 @@ const FIELD_LABELS = {
     eligibility: "eligibility",
     venue: "venue",
     eventDate: "date",
+    endDate: "end date",
     startTime: "start time",
     endTime: "end time",
     registrationStart: "registration opening",
@@ -485,8 +508,17 @@ const activeRegistrations = (eventId) =>
 // Forms work in whole minutes, so a stored time with seconds still counts as unchanged.
 const sameInstant = (value, current) => Math.floor(new Date(value).getTime() / 60000) === Math.floor(new Date(current).getTime() / 60000);
 
+// The end date as the form sends it: null when the event ends on its start date.
+const endDateKeyOf = (endDate, eventDate) => {
+    if (!endDate) return null;
+    const key = toDateKey(endDate);
+    return key === toDateKey(eventDate) ? null : key;
+};
+
 const scheduleChanged = (event, payload) =>
     (payload.eventDate !== undefined && payload.eventDate !== toDateKey(event.eventDate)) ||
+    (payload.endDate !== undefined &&
+        endDateKeyOf(payload.endDate, payload.eventDate || event.eventDate) !== endDateKeyOf(event.endDate, payload.eventDate || event.eventDate)) ||
     (payload.startTime !== undefined && payload.startTime !== event.startTime) ||
     (payload.endTime !== undefined && payload.endTime !== event.endTime) ||
     (Boolean(payload.registrationStart) && !sameInstant(payload.registrationStart, event.registrationStart)) ||
@@ -532,6 +564,7 @@ const proposeChanges = async (event, payload, actor) => {
             proposed,
             buildSchedule({
                 eventDate: payload.eventDate || toDateKey(event.eventDate),
+                endDate: payload.endDate !== undefined ? payload.endDate || null : event.endDate,
                 startTime: payload.startTime || event.startTime,
                 endTime: payload.endTime || event.endTime,
                 registrationStart: payload.registrationStart || event.registrationStart,
@@ -606,6 +639,20 @@ const updateEvent = async (actor, eventId, payload) => {
     const { club } = await assertClubPermission(actor, event.club, CLUB_PERMISSIONS.MANAGE_EVENTS, "You cannot edit this club's events");
     const editsDetails = EDIT_FIELDS.some((field) => payload[field] !== undefined);
     const note = String(payload.updateNote || "").trim();
+
+    // Certificates are the club's own decision: switched on or off directly, never reviewed by the mentor.
+    if (payload.certificatesEnabled !== undefined && Boolean(payload.certificatesEnabled) !== event.certificatesEnabled) {
+        if ([EVENT_STATUS.CANCELLED, EVENT_STATUS.REJECTED].includes(event.status)) {
+            throw new AppError("This event no longer issues certificates", 409, ERROR_CODES.INVALID_STATE);
+        }
+        event.certificatesEnabled = Boolean(payload.certificatesEnabled);
+        event.updatedBy = actor._id;
+        await event.save();
+        await audit(event, AUDIT_ACTIONS.EVENT_UPDATED, actor, event.status, null, { fields: ["certificatesEnabled"] });
+        if (event.certificatesEnabled && event.status === EVENT_STATUS.COMPLETED) {
+            await require("./CertificateService").announceCertificates(event);
+        }
+    }
 
     // Opening or closing registration is an operational switch, not a change to the event's details.
     if (payload.registrationClosed !== undefined) {
@@ -1046,7 +1093,9 @@ const publishEvent = async (actor, eventId) => {
         title: `New event: ${event.title}`,
         message: `${club.name} · ${event.shortDescription}`,
         link: EVENT_LINK(event),
-        exclude: [actor._id]
+        exclude: [actor._id],
+        // Followers get it on their phone too.
+        pushTo: await clubFollowerIds(club._id)
     });
     await sendEventLaunchEmails(event, club, actor);
 
@@ -1115,6 +1164,7 @@ const completeEvent = async (actor, eventId) => {
     await event.save();
 
     await audit(event, AUDIT_ACTIONS.EVENT_COMPLETED, actor, EVENT_STATUS.PUBLISHED);
+    await require("./CertificateService").announceCertificates(event);
 
     return getEventDetail(actor, event._id);
 };

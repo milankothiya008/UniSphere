@@ -150,7 +150,7 @@ const Holders = ({ role, holders }) => {
         <span className="role-holders">
             <span className="role-faces" aria-hidden="true">
                 {people.slice(0, 4).map((person) => (
-                    <Avatar key={person._id} name={person.name} size="xs" />
+                    <Avatar key={person._id} name={person.name} src={person.avatar} size="xs" />
                 ))}
             </span>
             <span className="small">

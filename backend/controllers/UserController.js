@@ -12,6 +12,15 @@ const searchUsers = asyncHandler(async (req, res) => {
     sendSuccess(res, 200, "Users found", users);
 });
 
+const searchPeople = asyncHandler(async (req, res) => {
+    sendSuccess(res, 200, "People found", await userService.searchPeople(req.user, req.query));
+});
+
+const myRecord = asyncHandler(async (req, res) => {
+    const { pdf, filename } = await require("../services/RecordService").recordPdf(req.user);
+    res.type("pdf").set("Content-Disposition", `attachment; filename="${filename}"`).set("Cache-Control", "private, no-store").send(pdf);
+});
+
 const getProfile = asyncHandler(async (req, res) => {
     sendSuccess(res, 200, "Profile fetched", await userService.getPublicProfile(req.user, req.params.id));
 });
@@ -36,6 +45,8 @@ module.exports = {
     searchUsers,
     getUserById,
     getProfile,
+    searchPeople,
+    myRecord,
     updateUser,
     setStatus
 };

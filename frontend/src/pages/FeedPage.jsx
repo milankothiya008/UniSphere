@@ -7,6 +7,7 @@ import { useQueryState } from "../hooks/useQueryState";
 import { useSentinel } from "../hooks/useReveal";
 import { EventPost } from "../components/events/EventPost";
 import { StoryTray } from "../components/stories/StoryTray";
+import { PushPrompt } from "../components/layout/PushPrompt";
 import { Avatar, EmptyState, ErrorState, Spinner } from "../components/ui";
 import { EVENT_CATEGORIES } from "../lib/constants";
 import { categoryStyle, startsInLabel } from "../lib/eventVisuals";
@@ -206,7 +207,7 @@ const Sidebar = ({ clubs, refreshKey }) => {
     return (
         <aside className="feed-side">
             <Link to="/profile" className="side-person side-me">
-                <Avatar name={user.name} size="lg" />
+                <Avatar name={user.name} src={user.avatar} size="lg" />
                 <span className="grow">
                     <strong>{user.name}</strong>
                     <small>{user.email}</small>
@@ -277,6 +278,7 @@ const FeedPage = () => {
         <div className="feed-layout">
             <div className="feed-main">
                 <StoryTray clubs={clubs} />
+                <PushPrompt />
                 <FeedTabs
                     tab={filters.tab}
                     counts={counts}

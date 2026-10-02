@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { authApi } from "../api/endpoints";
 import { refreshSession, setAccessToken, setSessionExpiredHandler } from "../api/client";
 import { ROLES } from "../lib/constants";
+import { disablePush } from "../lib/push";
 
 const AuthContext = createContext(null);
 
@@ -79,6 +80,8 @@ export const AuthProvider = ({ children }) => {
 
     const logout = useCallback(async () => {
         try {
+            // This device stops getting the signed-out user's notifications.
+            await disablePush().catch(() => {});
             await authApi.logout();
         } finally {
             clearSession();

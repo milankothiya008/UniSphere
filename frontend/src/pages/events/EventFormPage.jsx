@@ -20,6 +20,7 @@ import {
     PageHeader,
     Segmented,
     Select,
+    Switch,
     Textarea
 } from "../../components/ui";
 import { EVENT_CATEGORIES } from "../../lib/constants";
@@ -34,6 +35,8 @@ const blank = {
     category: "TECHNOLOGY",
     poster: "",
     eventDate: "",
+    // Multi-day / overnight events: the day it ends ("" = same day).
+    endDate: "",
     startTime: "10:00",
     endTime: "12:00",
     venue: "",
@@ -50,6 +53,7 @@ const blank = {
     participationMode: "INDIVIDUAL",
     minTeamSize: 2,
     maxTeamSize: 4,
+    certificatesEnabled: false,
     updateNote: ""
 };
 
@@ -61,6 +65,7 @@ const fromEvent = (event) => ({
     category: event.category,
     poster: event.poster || "",
     eventDate: toDateInput(event.startAt),
+    endDate: event.endDate ? toDateInput(event.endAt) : "",
     startTime: event.startTime,
     endTime: event.endTime,
     venue: event.venue?._id || event.venue || "",
@@ -77,6 +82,7 @@ const fromEvent = (event) => ({
     participationMode: event.participationMode || "INDIVIDUAL",
     minTeamSize: event.participationMode === "TEAM" ? event.minTeamSize : 2,
     maxTeamSize: event.participationMode === "TEAM" ? event.maxTeamSize : 4,
+    certificatesEnabled: Boolean(event.certificatesEnabled),
     updateNote: event.revision?.note || ""
 });
 
@@ -105,7 +111,12 @@ const validate = (form, { nowInput, isEdit, original }) => {
     if (!form.eventDate) errors.eventDate = "Pick a date";
     else if (form.eventDate < today) errors.eventDate = "Pick today or a future date";
     else if (form.eventDate === today && form.startTime <= nowInput.slice(11)) errors.startTime = "This time has already passed today";
-    if (form.startTime >= form.endTime) errors.endTime = "End time must be after start time";
+    if (form.endDate) {
+        if (form.eventDate && form.endDate <= form.eventDate) errors.endDate = "Pick a day after the start date";
+        else if (form.eventDate && (new Date(`${form.endDate}T00:00`) - new Date(`${form.eventDate}T00:00`)) / 86400000 > 7) errors.endDate = "An event can last at most 7 days";
+    } else if (form.startTime >= form.endTime) {
+        errors.endTime = "End time must be after start time — or tick “Ends on a later day”";
+    }
     if (!form.venue) errors.venue = "Choose a venue";
     const deadlineUnchanged = isEdit && original && form.registrationEnd === original.registrationEnd;
     if (!form.registrationEnd) {
@@ -131,6 +142,8 @@ const validate = (form, { nowInput, isEdit, original }) => {
     }
     return errors;
 };
+
+const nextDay = (dateKey) => new Date(Date.parse(`${dateKey}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
 
 const bookingSummary = (venue) =>
     (venue.bookedBy || []).map((booking) => `${booking.startTime}–${booking.endTime} ${booking.title}${booking.pendingApproval ? ", pending" : ""}`).join("; ") || "booked";
@@ -194,15 +207,17 @@ const EventFormPage = () => {
     useEffect(() => {
         let active = true;
         const audience = { club: form.club || undefined, departments: audienceKey || undefined };
-        const request =
-            !form.eventDate || form.startTime >= form.endTime
-                ? referenceApi.venues({ status: "ACTIVE", ...audience }).then((response) => response.data.map((venue) => ({ ...venue, available: undefined })))
-                : referenceApi.availableVenues({ eventDate: form.eventDate, startTime: form.startTime, endTime: form.endTime, excludeEventId: id, ...audience }).then((response) => response.data);
+        const validSlot = form.eventDate && (form.endDate ? form.endDate > form.eventDate : form.startTime < form.endTime);
+        const request = !validSlot
+            ? referenceApi.venues({ status: "ACTIVE", ...audience }).then((response) => response.data.map((venue) => ({ ...venue, available: undefined })))
+            : referenceApi
+                  .availableVenues({ eventDate: form.eventDate, endDate: form.endDate || undefined, startTime: form.startTime, endTime: form.endTime, excludeEventId: id, ...audience })
+                  .then((response) => response.data);
         request.then((list) => active && setVenues(list)).catch(() => active && setVenues(reference.venues));
         return () => {
             active = false;
         };
-    }, [form.eventDate, form.startTime, form.endTime, form.club, audienceKey, id, reference.venues]);
+    }, [form.eventDate, form.endDate, form.startTime, form.endTime, form.club, audienceKey, id, reference.venues]);
 
     const errors = validate(form, { nowInput, isEdit, original });
     const eventStartInput = form.eventDate ? `${form.eventDate}T${form.startTime}` : undefined;
@@ -242,6 +257,8 @@ const EventFormPage = () => {
             title: form.title.trim(),
             category: form.category,
             eventDate: form.eventDate,
+            endDate: form.endDate || null,
+            certificatesEnabled: form.certificatesEnabled,
             startTime: form.startTime,
             endTime: form.endTime,
             venue: form.venue,
@@ -396,6 +413,14 @@ const EventFormPage = () => {
                         <div className="span-2">
                             <ImageUpload label="Poster" value={form.poster} onChange={set("poster")} folder="event-posters" wide />
                         </div>
+                        {form.category === "HACKATHON" && (
+                            <div className="span-2">
+                                <Alert type="info" title="Hackathon tools are on">
+                                    After saving, open the event's <strong>Hackathon hub</strong> to add problem statements (released to teams when the event starts), the problem selection and
+                                    submission deadlines, the agenda and the judges. Teams register first and pick a problem later, like a real hackathon.
+                                </Alert>
+                            </div>
+                        )}
                     </div>
                 </Card>
 
@@ -420,7 +445,17 @@ const EventFormPage = () => {
                                 error={scheduleError("startTime", form.eventDate)}
                                 required
                             />
-                            <Input label="Ends" type="time" value={form.endTime} onChange={set("endTime")} error={fieldError("endTime")} required />
+                            <Input label="Ends" type="time" value={form.endTime} onChange={set("endTime")} error={scheduleError("endTime", form.eventDate)} required />
+                        </div>
+                        <div className="span-2 multi-day-row">
+                            <Checkbox
+                                label="Ends on a later day (overnight or multi-day event)"
+                                checked={Boolean(form.endDate)}
+                                onChange={(e) => set("endDate")(e.target.checked ? nextDay(form.eventDate || today) : "")}
+                            />
+                            {form.endDate && (
+                                <Input label="End date" type="date" min={form.eventDate || today} value={form.endDate} onChange={set("endDate")} error={scheduleError("endDate", form.endDate)} required />
+                            )}
                         </div>
                         <Select
                             className="span-2"
@@ -443,7 +478,7 @@ const EventFormPage = () => {
                         />
                         {form.eventDate && (
                             <div className="span-2">
-                                <ScheduleCheck dateKey={form.eventDate} startTime={form.startTime} endTime={form.endTime} audience={formAudience} excludeId={id} embedded />
+                                <ScheduleCheck dateKey={form.eventDate} endDate={form.endDate} startTime={form.startTime} endTime={form.endTime} audience={formAudience} excludeId={id} embedded />
                             </div>
                         )}
                         {selectedVenue?.available === false && (
@@ -562,6 +597,15 @@ const EventFormPage = () => {
                         </Field>
                         <Input label="Eligibility notes" value={form.eligibilityNotes} onChange={set("eligibilityNotes")} placeholder="e.g. Bring a student ID" maxLength={1000} />
                     </div>
+                </Card>
+
+                <Card title="Certificates">
+                    <Switch
+                        checked={form.certificatesEnabled}
+                        onChange={set("certificatesEnabled")}
+                        label="Give certificates"
+                        description="Participation certificates for students checked in at the event, and merit certificates for the winners once results are published. Students download them from the event page; each has a QR code anyone can verify."
+                    />
                 </Card>
 
                 <Card title="Rules & contact">

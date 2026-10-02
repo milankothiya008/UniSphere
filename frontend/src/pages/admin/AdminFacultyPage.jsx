@@ -36,7 +36,7 @@ const AdminFacultyPage = () => {
                                         <tr key={faculty._id}>
                                             <td>
                                                 <div className="row" style={{ flexWrap: "nowrap" }}>
-                                                    <Avatar name={faculty.name} size="sm" />
+                                                    <Avatar name={faculty.name} src={faculty.avatar} size="sm" />
                                                     <div>
                                                         <strong>{faculty.name}</strong>
                                                         <div className="subtle">{faculty.email}</div>

@@ -19,7 +19,7 @@ const IMAGE_SIGNATURES = [
     }
 ];
 
-const ALLOWED_FOLDERS = ["club-logos", "club-covers", "event-posters", "feed"];
+const ALLOWED_FOLDERS = ["club-logos", "club-covers", "event-posters", "feed", "avatars"];
 
 // Detect the type from the file's bytes rather than trusting the client-supplied mimetype.
 const detectImage = (buffer) => {

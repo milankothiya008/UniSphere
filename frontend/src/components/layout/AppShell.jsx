@@ -117,7 +117,7 @@ const PrimaryLink = ({ item, onCreate }) => {
     const body = (
         <>
             <span className="nav-icon">
-                {item.avatar ? <Avatar name={item.avatar.name} size="xs" /> : <item.icon size={24} strokeWidth={1.9} />}
+                {item.avatar ? <Avatar name={item.avatar.name} src={item.avatar.avatar} size="xs" /> : <item.icon size={24} strokeWidth={1.9} />}
                 <Count value={item.count} dot={item.dot} />
             </span>
             <span className="nav-label">{item.label}</span>

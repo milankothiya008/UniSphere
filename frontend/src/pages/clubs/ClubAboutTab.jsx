@@ -71,7 +71,7 @@ const ClubAboutTab = () => {
                 <Card title="People">
                     <div className="stack">
                         <div className="row" style={{ flexWrap: "nowrap" }}>
-                            <Avatar name={club.president?.name || "?"} />
+                            <Avatar name={club.president?.name || "?"} src={club.president?.avatar} />
                             <div>
                                 <span className="subtle row" style={{ gap: 5 }}>
                                     <Crown size={12} /> President
@@ -80,7 +80,7 @@ const ClubAboutTab = () => {
                             </div>
                         </div>
                         <div className="row" style={{ flexWrap: "nowrap" }}>
-                            <Avatar name={club.mentor?.name || "?"} />
+                            <Avatar name={club.mentor?.name || "?"} src={club.mentor?.avatar} />
                             <div>
                                 <span className="subtle row" style={{ gap: 5 }}>
                                     <GraduationCap size={12} /> Faculty mentor

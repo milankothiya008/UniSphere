@@ -45,6 +45,11 @@ const eventSchema = new mongoose.Schema(
             type: Date,
             required: true
         },
+        // Multi-day and overnight events end on a later day; null means the event ends on eventDate.
+        endDate: {
+            type: Date,
+            default: null
+        },
         startTime: {
             type: String,
             required: true
@@ -118,6 +123,28 @@ const eventSchema = new mongoose.Schema(
             trim: true,
             maxlength: 8000,
             default: ""
+        },
+        // The president switches certificates on per event: participation for checked-in students,
+        // merit for winners in the published results (see CertificateService).
+        certificatesEnabled: {
+            type: Boolean,
+            default: false
+        },
+        // Reminders already sent (automatic ones are claimed here so they go out once; manual ones are
+        // rate-limited from it). kind: REG_CLOSING | START_24H | START_1H | FEEDBACK | MANUAL_*.
+        remindersSent: {
+            type: [
+                new mongoose.Schema(
+                    {
+                        kind: { type: String, required: true },
+                        at: { type: Date, default: Date.now },
+                        by: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+                        recipients: { type: Number, default: 0 }
+                    },
+                    { _id: false }
+                )
+            ],
+            default: []
         },
         contact: {
             name: { type: String, trim: true, default: "" },

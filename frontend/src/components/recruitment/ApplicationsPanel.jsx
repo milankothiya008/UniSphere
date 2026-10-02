@@ -124,7 +124,7 @@ export const ApplicationsPanel = ({ drive, initialPosition = "" }) => {
                     {data?.map((application, index) => (
                         <li key={application._id} style={{ "--i": Math.min(index, 12) }}>
                             <button type="button" className="recruit-app-row" onClick={() => setOpen(application._id)}>
-                                <Avatar name={application.applicant.name} size="sm" />
+                                <Avatar name={application.applicant.name} src={application.applicant.avatar} size="sm" />
                                 <span className="grow">
                                     <strong>{application.applicant.name}</strong>
                                     <span className="subtle small">

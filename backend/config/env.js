@@ -63,6 +63,12 @@ const env = {
         apiSecret: process.env.CLOUDINARY_API_SECRET || "",
         folder: process.env.CLOUDINARY_FOLDER || "campusconnect"
     },
+    // Web Push (phone/desktop notifications). Generate keys with: npx web-push generate-vapid-keys
+    push: {
+        publicKey: process.env.VAPID_PUBLIC_KEY || "",
+        privateKey: process.env.VAPID_PRIVATE_KEY || "",
+        subject: process.env.VAPID_SUBJECT || "mailto:admin@campusconnect.local"
+    },
     uploadDir: process.env.UPLOAD_DIR || path.join(__dirname, "..", "uploads"),
     maxUploadBytes: Number(process.env.MAX_UPLOAD_BYTES) || 5 * 1024 * 1024,
     // Club stories: short-lived photos and videos kept in media storage, never in the database.

@@ -225,7 +225,7 @@ const ParticipantsPage = () => {
                                                     )}
                                                     <td>
                                                         <div className="row" style={{ flexWrap: "nowrap" }}>
-                                                            <Avatar name={row.user.name} size="sm" />
+                                                            <Avatar name={row.user.name} src={row.user.avatar} size="sm" />
                                                             <div>
                                                                 <strong>{row.user.name}</strong>
                                                                 <div className="subtle">{row.user.email}</div>
@@ -281,7 +281,7 @@ const ParticipantsPage = () => {
                                                     </td>
                                                     <td>
                                                         <div className="row" style={{ flexWrap: "nowrap" }}>
-                                                            <Avatar name={row.user.name} size="sm" />
+                                                            <Avatar name={row.user.name} src={row.user.avatar} size="sm" />
                                                             <div>
                                                                 <strong>{row.team ? `${row.team.name} · ${row.user.name}` : row.user.name}</strong>
                                                                 <div className="subtle">{row.user.email}</div>

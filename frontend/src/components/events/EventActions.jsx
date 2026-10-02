@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
     Ban,
+    BellRing,
     CheckCircle2,
     ClipboardList,
     FilePenLine,
@@ -18,6 +19,7 @@ import {
 import { eventApi } from "../../api/endpoints";
 import { useToast } from "../../context/ToastContext";
 import { Button, Card, ConfirmDialog } from "../ui";
+import { ReminderDialog } from "./EventExtras";
 
 const CANCELLABLE = ["DRAFT", "PENDING_APPROVAL", "NEEDS_CHANGES", "APPROVED", "PUBLISHED"];
 
@@ -95,6 +97,15 @@ export const EventActions = ({ event, onChange }) => {
             >
                 {event.registrationClosed ? <Unlock size={16} /> : <Lock size={16} />}
                 {event.registrationClosed ? "Reopen registration" : "Close registration"}
+            </Button>
+        );
+    }
+
+    // Reminder emails, for roles the president gave that authority.
+    if (viewer.canSendReminders && event.status === "PUBLISHED" && new Date(event.endAt) > new Date()) {
+        staffActions.push(
+            <Button key="remind" variant="secondary" block onClick={() => setDialog("remind")}>
+                <BellRing size={16} /> Send reminder
             </Button>
         );
     }
@@ -181,6 +192,7 @@ export const EventActions = ({ event, onChange }) => {
                 </Card>
             )}
 
+            <ReminderDialog event={event} open={dialog === "remind"} onClose={close} onSent={() => eventApi.get(event._id).then((response) => onChange(response.data))} />
             <ConfirmDialog
                 open={dialog === "publish"}
                 onClose={close}

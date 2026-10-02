@@ -2,6 +2,7 @@ import {
     BookOpen,
     Briefcase,
     Code2,
+    Cpu,
     Handshake,
     Lightbulb,
     Music,
@@ -27,6 +28,7 @@ export const CATEGORY_STYLE = {
     WORKSHOP: { icon: Wrench, from: "#10243f", to: "#1f6fd1", glow: "rgba(147, 197, 253, 0.5)" },
     SEMINAR: { icon: Presentation, from: "#1e2a3a", to: "#475569", glow: "rgba(203, 213, 225, 0.45)" },
     COMPETITION: { icon: Swords, from: "#450a0a", to: "#c2362f", glow: "rgba(245, 184, 61, 0.5)" },
+    HACKATHON: { icon: Cpu, from: "#04121f", to: "#0b6e6e", glow: "rgba(52, 211, 153, 0.5)" },
     OTHER: { icon: Lightbulb, from: "#1b2a6b", to: "#3c5bd6", glow: "rgba(245, 184, 61, 0.4)" }
 };
 

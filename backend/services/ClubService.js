@@ -36,7 +36,7 @@ const PHONE_PATTERN = /^\+?[0-9][0-9 ()-]{6,18}[0-9]$/;
 
 
 const populateClub = (query) =>
-    query.populate("president", "name email departmentCode batchCode").populate("mentor", "name email departmentCode");
+    query.populate("president", "name email departmentCode batchCode avatar").populate("mentor", "name email departmentCode avatar");
 
 const memberCounts = async (clubIds) => {
     const rows = await ClubMembership.aggregate([
@@ -418,7 +418,7 @@ const listClubMembers = async (actor, clubId) => {
     }
 
     const members = await ClubMembership.find({ club: context.club._id, status: MEMBERSHIP_STATUS.APPROVED })
-        .populate("user", "name email phone departmentCode batchCode")
+        .populate("user", "name email phone departmentCode batchCode avatar")
         .sort({ joinedAt: 1 });
 
     return members

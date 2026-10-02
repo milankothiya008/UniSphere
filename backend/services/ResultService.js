@@ -435,6 +435,7 @@ const publishResult = async (actor, eventId) => {
         exclude: [actor._id]
     });
     await sendResultEmails(event, result, context.club, actor);
+    await require("./CertificateService").announceMerit(event, result);
 
     return getResult(actor, event._id);
 };

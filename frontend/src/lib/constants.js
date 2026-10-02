@@ -66,6 +66,7 @@ export const PERMISSION_GROUPS = [
         title: "Communication",
         items: [
             ["POST_UPDATES", "Post updates", "Announcements and stories"],
+            ["SEND_REMINDERS", "Send reminders", "Email reminders about registration deadlines and event start"],
             ["MODERATE_GALLERY", "Approve gallery uploads", "Review photos and videos from events"]
         ]
     }
@@ -97,6 +98,7 @@ export const EVENT_CATEGORIES = [
     "WORKSHOP",
     "SEMINAR",
     "COMPETITION",
+    "HACKATHON",
     "OTHER"
 ];
 

@@ -1,0 +1,22 @@
+{
+    "name": "CampusConnect",
+    "short_name": "CampusConnect",
+    "description": "Clubs, events and campus life in one place.",
+    "id": "/",
+    "start_url": "/feed?source=app",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#ffffff",
+    "theme_color": "#ffffff",
+    "categories": ["education", "social"],
+    "icons": [
+        { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+        { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+        { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    ],
+    "shortcuts": [
+        { "name": "Activity", "url": "/activity", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+        { "name": "My profile", "url": "/profile", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+    ]
+}

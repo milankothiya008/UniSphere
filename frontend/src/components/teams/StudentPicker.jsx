@@ -54,7 +54,7 @@ export const StudentPicker = ({ eventId, selected, onChange, max, exclude = [] }
                 <div className="picked-list">
                     {selected.map((user) => (
                         <span key={user._id} className="picked-chip">
-                            <Avatar name={user.name} size="sm" />
+                            <Avatar name={user.name} src={user.avatar} size="sm" />
                             <span>{user.name}</span>
                             <button type="button" onClick={() => onChange(selected.filter((item) => item._id !== user._id))} aria-label={`Remove ${user.name}`}>
                                 <X size={13} />
@@ -90,7 +90,7 @@ export const StudentPicker = ({ eventId, selected, onChange, max, exclude = [] }
                             disabled={!user.available}
                             onClick={() => add(user)}
                         >
-                            <Avatar name={user.name} size="sm" />
+                            <Avatar name={user.name} src={user.avatar} size="sm" />
                             <span className="grow">
                                 <strong>{user.name}</strong>
                                 <small>{user.available ? `${user.email} · ${detail(user)}` : "Already registered for this event"}</small>

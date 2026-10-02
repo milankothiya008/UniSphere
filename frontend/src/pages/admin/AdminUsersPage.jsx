@@ -75,7 +75,7 @@ const AdminUsersPage = () => {
                                         <tr key={user._id}>
                                             <td>
                                                 <div className="row" style={{ flexWrap: "nowrap" }}>
-                                                    <Avatar name={user.name} size="sm" />
+                                                    <Avatar name={user.name} src={user.avatar} size="sm" />
                                                     <div>
                                                         <strong>{user.name}</strong>
                                                         <div className="subtle">{user.email}</div>

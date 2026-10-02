@@ -8,6 +8,19 @@ const listEvents = asyncHandler(async (req, res) => {
     sendSuccess(res, 200, "Events fetched", items, { meta });
 });
 
+const sendReminder = asyncHandler(async (req, res) => {
+    const result = await require("../services/EventReminderService").sendManualReminder(req.user, req.params.id, req.body);
+    sendSuccess(res, 200, result.recipients ? `Reminder sent to ${result.recipients} student${result.recipients === 1 ? "" : "s"}` : "No one to remind right now", result);
+});
+
+const getFeedback = asyncHandler(async (req, res) => {
+    sendSuccess(res, 200, "Feedback fetched", await require("../services/FeedbackService").getFeedback(req.user, req.params.id));
+});
+
+const giveFeedback = asyncHandler(async (req, res) => {
+    sendSuccess(res, 200, "Thanks for your feedback", await require("../services/FeedbackService").giveFeedback(req.user, req.params.id, req.body));
+});
+
 const schedule = asyncHandler(async (req, res) => {
     sendSuccess(res, 200, "Schedule fetched", await scheduleService.getSchedule(req.user, req.query));
 });
@@ -103,6 +116,9 @@ module.exports = {
     listEvents,
     listManaged,
     schedule,
+    sendReminder,
+    getFeedback,
+    giveFeedback,
     listClubEvents,
     getEvent,
     createEvent,

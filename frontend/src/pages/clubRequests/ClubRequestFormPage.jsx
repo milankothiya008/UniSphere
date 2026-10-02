@@ -181,7 +181,7 @@ const ClubRequestFormPage = () => {
                         >
                             <div className="row" style={{ marginBottom: founders.length ? 6 : 0 }}>
                                 <span className="chip">
-                                    <Avatar name={user.name} size="sm" /> {user.name} (you)
+                                    <Avatar name={user.name} src={user.avatar} size="sm" /> {user.name} (you)
                                 </span>
                                 {founders.map((founder) => (
                                     <span key={founder._id} className="chip">

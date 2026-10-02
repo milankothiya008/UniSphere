@@ -29,7 +29,7 @@ const { withTicketRetry, sendTicketEmail } = require("./TicketService");
 
 const ACTIVE = [REGISTRATION_STATUS.REGISTERED, REGISTRATION_STATUS.WAITLISTED];
 const { LEADER, INVITED, ACCEPTED, DECLINED, CANCELLED, LEFT, REMOVED } = TEAM_MEMBER_STATUS;
-const MEMBER_FIELDS = "name email departmentCode batchCode";
+const MEMBER_FIELDS = "name email departmentCode batchCode avatar";
 
 const eventLink = (event) => `/events/${event._id}`;
 const conflict = (message) => new AppError(message, 409, ERROR_CODES.INVALID_STATE);

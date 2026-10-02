@@ -29,6 +29,16 @@ const phoneUpdate = async (userId, value) => {
     return phone;
 };
 
+// Profile photos are uploaded to media storage first; the profile keeps the https URL.
+const avatarUpdate = (value) => {
+    if (value === null || value === "") return null;
+    const text = String(value).trim();
+    if (!/^https?:\/\/[^\s]+$/.test(text) && !text.startsWith("/uploads/")) {
+        throw new AppError("Upload the photo again", 400, ERROR_CODES.VALIDATION_ERROR);
+    }
+    return text.slice(0, 500);
+};
+
 const updateUser = async (actor, id, data) => {
     if (String(actor._id) !== String(id)) {
         throw new AppError("You can only update your own profile", 403, ERROR_CODES.FORBIDDEN);
@@ -40,6 +50,9 @@ const updateUser = async (actor, id, data) => {
     }
     if (data.phone !== undefined) {
         allowed.phone = await phoneUpdate(id, data.phone);
+    }
+    if (data.avatar !== undefined) {
+        allowed.avatar = avatarUpdate(data.avatar);
     }
 
     const user = await User.findByIdAndUpdate(id, allowed, {
@@ -61,7 +74,7 @@ const updateUser = async (actor, id, data) => {
  * their own profile.
  */
 const getPublicProfile = async (actor, id) => {
-    const user = await User.findOne({ _id: id, isActive: true, isEmailVerified: true }).select("name accountType globalRole departmentCode batchCode createdAt").lean();
+    const user = await User.findOne({ _id: id, isActive: true, isEmailVerified: true }).select("name accountType globalRole departmentCode batchCode avatar createdAt").lean();
     if (!user) {
         throw new AppError("Profile not found", 404, ERROR_CODES.NOT_FOUND);
     }
@@ -80,6 +93,7 @@ const getPublicProfile = async (actor, id) => {
     return {
         _id: user._id,
         name: user.name,
+        avatar: user.avatar || null,
         accountType: user.accountType,
         globalRole: user.globalRole,
         departmentCode: user.departmentCode,
@@ -89,6 +103,25 @@ const getPublicProfile = async (actor, id) => {
         clubs,
         mentoredClubs: mentored
     };
+};
+
+/**
+ * People search (Explore): students and faculty by name, with only what a profile shows publicly —
+ * never email or mobile number. The university admin account isn't listed.
+ */
+const searchPeople = async (actor, query = {}) => {
+    const q = String(query.q || "").trim();
+    if (q.length < 2) return [];
+    const filter = {
+        isActive: true,
+        isEmailVerified: true,
+        globalRole: { $in: [GLOBAL_ROLES.STUDENT, GLOBAL_ROLES.FACULTY] },
+        name: searchRegex(q)
+    };
+    if (query.department) filter.departmentCode = String(query.department).toUpperCase();
+    const limit = Math.min(Math.max(Number(query.limit) || 20, 1), 40);
+    const people = await User.find(filter).select("name avatar accountType globalRole departmentCode batchCode").sort({ name: 1 }).limit(limit).lean();
+    return people.map((person) => ({ ...person, isSelf: String(person._id) === String(actor._id) }));
 };
 
 // Lightweight directory lookup used by pickers (founding members, president, award recipients).
@@ -117,6 +150,7 @@ const searchUsers = async (query = {}) => {
 
 module.exports = {
     getPublicProfile,
+    searchPeople,
     getAllUsers,
     getUserById,
     updateUser,

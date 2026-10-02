@@ -19,6 +19,22 @@ export const formatDateTime = (value) =>
 
 export const formatTimeRange = (start, end) => `${formatTime(start)} – ${formatTime(end)}`;
 
+/** True when an event ends on a later (campus) day than it starts. */
+export const isMultiDay = (start, end) => valid(start) && valid(end) && toDateInput(start) !== toDateInput(end);
+
+/** "6:00 pm – 11:30 pm", or for multi-day events "12 Oct, 6:00 pm – 13 Oct, 6:00 am". */
+export const formatEventTimes = (start, end) =>
+    isMultiDay(start, end)
+        ? `${fmt({ day: "numeric", month: "short" }).format(toDate(start))}, ${formatTime(start)} – ${fmt({ day: "numeric", month: "short" }).format(toDate(end))}, ${formatTime(end)}`
+        : formatTimeRange(start, end);
+
+/** "Mon, 12 Oct" or "12–13 Oct" for the date line of an event. */
+export const formatEventDates = (start, end) => {
+    if (!isMultiDay(start, end)) return formatDateLong(start);
+    const day = (value) => fmt({ weekday: "short", day: "numeric", month: "short" }).format(toDate(value));
+    return `${day(start)} – ${day(end)}`;
+};
+
 export const dateParts = (value) => {
     if (!valid(value)) {
         return { month: "", day: "" };

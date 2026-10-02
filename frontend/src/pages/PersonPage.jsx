@@ -38,7 +38,7 @@ const PersonPage = () => {
             {person && (
                 <div className="profile">
                     <section className="profile-head">
-                        <Avatar name={person.name} size="xl" />
+                        <Avatar name={person.name} src={person.avatar} size="xl" />
                         <div className="profile-head-main">
                             <div className="profile-name-row">
                                 <h1>{person.name}</h1>

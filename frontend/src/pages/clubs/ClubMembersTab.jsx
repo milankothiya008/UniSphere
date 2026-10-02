@@ -35,7 +35,7 @@ const CoreTeam = ({ team, me }) => (
             {team.map((membership, index) => (
                 <div key={membership._id} className={`core-member ${membership.role === "PRESIDENT" ? "is-president" : ""}`} style={{ "--i": Math.min(index, 10) }}>
                     <Link to={`/people/${membership.user._id}`} className="core-member-who">
-                        <Avatar name={membership.user.name} size="lg" />
+                        <Avatar name={membership.user.name} src={membership.user.avatar} size="lg" />
                         <strong>
                             {membership.user.name}
                             {membership.user._id === me && <span className="subtle"> (you)</span>}
@@ -205,7 +205,7 @@ const ClubMembersTab = () => {
                                             <tr key={membership._id}>
                                                 <td>
                                                     <Link to={`/people/${membership.user._id}`} className="row member-who" style={{ flexWrap: "nowrap" }}>
-                                                        <Avatar name={membership.user.name} size="sm" />
+                                                        <Avatar name={membership.user.name} src={membership.user.avatar} size="sm" />
                                                         <span>
                                                             <strong>{membership.user.name}</strong>
                                                             {membership.user._id === user._id && <span className="subtle"> (you)</span>}

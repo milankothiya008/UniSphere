@@ -16,7 +16,7 @@ const CLUB_ROLES = Object.freeze({
     MEMBER: "MEMBER"
 });
 
-const USER_PUBLIC_FIELDS = "name email accountType globalRole isEmailVerified departmentCode batchCode isActive createdAt";
+const USER_PUBLIC_FIELDS = "name email accountType globalRole isEmailVerified departmentCode batchCode avatar isActive createdAt";
 
 // What a signed-in user (and the admin) sees of an account: the public fields plus the mobile number.
 const USER_ACCOUNT_FIELDS = `${USER_PUBLIC_FIELDS} phone`;

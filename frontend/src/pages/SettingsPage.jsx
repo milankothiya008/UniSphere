@@ -4,10 +4,12 @@ import { KeyRound, Save } from "lucide-react";
 import { authApi, userApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { ApiErrorAlert, Avatar, Badge, Button, Card, Input, PageHeader } from "../components/ui";
+import { ApiErrorAlert, Badge, Button, Card, Input, PageHeader } from "../components/ui";
 import { ROLE_LABELS } from "../lib/constants";
 import { batchLabel, formatDate } from "../lib/format";
 import { passwordProblems } from "../lib/validation";
+import { AvatarUpload } from "../components/profile/AvatarUpload";
+import { PushSetting } from "../components/layout/PushPrompt";
 import { formatPhone, normalizePhone, phoneInputValue } from "../lib/phone";
 import { useWorkspace } from "../context/WorkspaceContext";
 
@@ -100,6 +102,9 @@ const SettingsPage = () => {
                             </div>
                         </form>
                     </Card>
+                    <Card title="Notifications">
+                        <PushSetting />
+                    </Card>
                     <Card title="Change password">
                         <form className="stack" onSubmit={changePassword}>
                             <Input
@@ -141,7 +146,7 @@ const SettingsPage = () => {
                 </div>
                 <Card>
                     <div className="stack" style={{ alignItems: "center", textAlign: "center" }}>
-                        <Avatar name={user.name} size="lg" />
+                        <AvatarUpload size="xl" />
                         <div>
                             <h2>{user.name}</h2>
                             <span className="subtle">{user.email}</span>

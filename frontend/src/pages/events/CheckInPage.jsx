@@ -203,7 +203,7 @@ const SearchTab = ({ eventId, onChange, busy }) => {
                 <div className="checkin-list">
                     {data?.map((attendee) => (
                         <div key={attendee.registrationId} className={`checkin-row ${attendee.checkedInAt ? "is-checked" : ""}`}>
-                            <Avatar name={attendee.name} size="sm" />
+                            <Avatar name={attendee.name} src={attendee.avatar} size="sm" />
                             <div className="grow">
                                 <strong>{attendee.name}</strong>
                                 <span className="subtle small">
@@ -430,7 +430,7 @@ const CheckInPage = () => {
                                         <div className="checkin-recent">
                                             {data.recent.map((attendee) => (
                                                 <div key={attendee.registrationId} className="checkin-recent-row">
-                                                    <Avatar name={attendee.name} size="sm" />
+                                                    <Avatar name={attendee.name} src={attendee.avatar} size="sm" />
                                                     <div className="grow">
                                                         <strong>{attendee.name}</strong>
                                                         <span className="subtle small">

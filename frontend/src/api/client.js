@@ -122,6 +122,30 @@ export const request = async (path, { method = "GET", body, query, retry = true 
     return payload;
 };
 
+/** Downloads a file (PDF) that needs the user's session, and saves it under `filename`. */
+export const downloadFile = async (path, filename, { retry = true } = {}) => {
+    const response = await fetch(buildUrl(path), { headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}, credentials: "include" });
+    if (response.status === 401 && retry && accessToken) {
+        await refreshSession();
+        return downloadFile(path, filename, { retry: false });
+    }
+    if (!response.ok) {
+        const payload = await parse(response);
+        throw new ApiError(payload.message || "Download failed", { status: response.status });
+    }
+    const disposition = response.headers.get("content-disposition") || "";
+    const name = /filename="([^"]+)"/.exec(disposition)?.[1] || filename;
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+};
+
 // A short-lived cache for GET requests: going back to a page within a few seconds is instant, and
 // identical requests made at the same time share one response. Any change (POST/PUT/PATCH/DELETE) clears
 // it, so what you see after an action is always fresh.

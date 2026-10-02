@@ -17,7 +17,9 @@ const CLUB_PERMISSIONS = Object.freeze({
     // Approving photos and videos for an event's gallery: president and vice-president.
     MODERATE_GALLERY: "MODERATE_GALLERY",
     // Running recruitment drives (form, rounds, results, final selection): the president only.
-    MANAGE_RECRUITMENT: "MANAGE_RECRUITMENT"
+    MANAGE_RECRUITMENT: "MANAGE_RECRUITMENT",
+    // Sending reminder emails about an event (registration closing, event starting). Grantable.
+    SEND_REMINDERS: "SEND_REMINDERS"
 });
 
 // Which roles hold which authorities is decided per club: see utils/ClubRoles.js and Club.roles.

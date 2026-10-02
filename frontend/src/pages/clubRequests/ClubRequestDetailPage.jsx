@@ -172,7 +172,7 @@ const ClubRequestDetailPage = () => {
                             <Card title="People">
                                 <div className="stack">
                                     <div className="row" style={{ flexWrap: "nowrap" }}>
-                                        <Avatar name={request.requester?.name} size="sm" />
+                                        <Avatar name={request.requester?.name} src={request.requester?.avatar} size="sm" />
                                         <div>
                                             <strong>{request.requester?.name}</strong> <Badge>Requester</Badge>
                                             <div className="subtle">{request.requester?.email}</div>
@@ -180,7 +180,7 @@ const ClubRequestDetailPage = () => {
                                     </div>
                                     {request.foundingMembers?.map((member) => (
                                         <div key={member._id} className="row" style={{ flexWrap: "nowrap" }}>
-                                            <Avatar name={member.name} size="sm" />
+                                            <Avatar name={member.name} src={member.avatar} size="sm" />
                                             <div>
                                                 <strong>{member.name}</strong>
                                                 <div className="subtle">{member.email}</div>

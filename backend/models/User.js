@@ -44,6 +44,12 @@ const userSchema = new mongoose.Schema(
             type: String,
             default: null
         },
+        // Profile photo (a URL in media storage, never the file itself).
+        avatar: {
+            type: String,
+            default: null,
+            maxlength: 500
+        },
         // Mobile number ("+91" and ten digits). Club members must add one; it is shown in member lists
         // to other club members, mentors and the admin (utils/Phone).
         phone: {

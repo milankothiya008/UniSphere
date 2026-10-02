@@ -294,7 +294,7 @@ const ApplyPage = () => {
                                     <div className="stack-lg">
                                         <Card title="Your details">
                                             <div className="recruit-profile">
-                                                <Avatar name={user.name} />
+                                                <Avatar name={user.name} src={user.avatar} />
                                                 <div>
                                                     <strong>{user.name}</strong>
                                                     <span className="subtle small">

@@ -359,7 +359,7 @@ const RoundCard = ({ driveId, positionId, clubId, round, number, canManage, onCh
                 <ul className="recruit-candidates">
                     {round.candidates.map((candidate, index) => (
                         <li key={candidate.applicationId} className={`recruit-candidate ${candidate.outcome ? `is-${candidate.outcome.toLowerCase()}` : ""}`} style={{ "--i": Math.min(index, 12) }}>
-                            <Avatar name={candidate.applicant.name} size="sm" />
+                            <Avatar name={candidate.applicant.name} src={candidate.applicant.avatar} size="sm" />
                             <span className="grow">
                                 <strong>{candidate.applicant.name}</strong>
                                 <span className="subtle small">{candidate.applicant.email}</span>
@@ -481,7 +481,7 @@ const FinalSelection = ({ drive, data, onDone }) => {
                                 className={`recruit-candidate ${decision === "OFFER" ? "is-qualified" : decision === "NOT_SELECTED" ? "is-eliminated" : decision === "RESERVE" ? "is-reserve" : ""}`}
                                 style={{ "--i": Math.min(index, 12) }}
                             >
-                                <Avatar name={finalist.applicant.name} size="sm" />
+                                <Avatar name={finalist.applicant.name} src={finalist.applicant.avatar} size="sm" />
                                 <span className="grow">
                                     <strong>{finalist.applicant.name}</strong>
                                     <span className="subtle small">{finalist.applicant.email}</span>
@@ -588,7 +588,7 @@ const OffersCard = ({ drive, data, canManage, onChange }) => {
                     <ul className="recruit-candidates">
                         {offers.map((item, index) => (
                             <li key={item.applicationId} className="recruit-candidate" style={{ "--i": Math.min(index, 12) }}>
-                                <Avatar name={item.applicant.name} size="sm" />
+                                <Avatar name={item.applicant.name} src={item.applicant.avatar} size="sm" />
                                 <span className="grow">
                                     <strong>{item.applicant.name}</strong>
                                     <span className="subtle small">

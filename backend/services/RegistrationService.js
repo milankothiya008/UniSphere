@@ -332,14 +332,14 @@ const listParticipants = async (actor, eventId, query = {}) => {
     await assertCanViewParticipants(actor, event.club, CLUB_PERMISSIONS.VIEW_PARTICIPANTS);
 
     const registrations = await EventRegistration.find({ event: event._id, status: REGISTRATION_STATUS.REGISTERED })
-        .populate("user", "name email departmentCode batchCode")
+        .populate("user", "name email departmentCode batchCode avatar")
         .populate("team", "name size")
         .populate("checkedInBy", "name")
         .sort({ registeredAt: 1 });
 
     // The waitlist lists places in the queue: students, or teams through their leader.
     const queued = await EventRegistration.find({ event: event._id, status: REGISTRATION_STATUS.WAITLISTED, teamRole: { $ne: "MEMBER" } })
-        .populate("user", "name email departmentCode batchCode")
+        .populate("user", "name email departmentCode batchCode avatar")
         .populate("team", "name size")
         .sort({ waitlistedAt: 1, _id: 1 });
 

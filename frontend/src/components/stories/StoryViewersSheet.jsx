@@ -59,7 +59,7 @@ export const StoryViewersSheet = ({ story, onClose }) => {
                 <div className="sv-sheet-list">
                     {state.items.map((view) => (
                         <div key={view.user._id} className="sv-viewer">
-                            <Avatar name={view.user.name} />
+                            <Avatar name={view.user.name} src={view.user.avatar} />
                             <span className="grow">
                                 <strong>{view.user.name}</strong>
                                 <small>{[detailOf(view.user), timeAgo(view.viewedAt)].filter(Boolean).join(" · ")}</small>

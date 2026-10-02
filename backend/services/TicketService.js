@@ -71,7 +71,8 @@ const EVENT_FIELDS = "title startAt endAt eventDate startTime endTime venue club
 
 const loadTicketEvent = (eventId) => Event.findById(eventId).select(EVENT_FIELDS).populate("venue", "name location").populate("club", "name logo");
 
-const whenLabel = (event) => `${formatDateKey(event.eventDate)}, ${event.startTime}–${event.endTime}`;
+const whenLabel = (event) =>
+    event.endDate ? `${formatDateKey(event.eventDate)}, ${event.startTime} – ${formatDateKey(event.endDate)}, ${event.endTime}` : `${formatDateKey(event.eventDate)}, ${event.startTime}–${event.endTime}`;
 const whereLabel = (event) => (event.venue ? [event.venue.name, event.venue.location].filter(Boolean).join(", ") : "");
 
 const tokenFor = (registration) => createTicketToken({ registrationId: registration._id, ticketCode: registration.ticketCode });

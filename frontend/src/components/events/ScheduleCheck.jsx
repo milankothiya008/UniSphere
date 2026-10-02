@@ -13,6 +13,7 @@ import { formatDateLong, campusDayStart } from "../../lib/format";
  */
 export const ScheduleCheck = ({
     dateKey,
+    endDate,
     startTime,
     endTime,
     audience = "ALL",
@@ -23,7 +24,10 @@ export const ScheduleCheck = ({
 }) => {
     const { data, loading, error } = useApi(() => eventApi.schedule({ from: dateKey, days: 1 }), [dateKey], { enabled: Boolean(dateKey) });
     const start = toMinutes(startTime);
-    const end = toMinutes(endTime);
+    // A multi-day event runs past midnight: its end is counted on from the first day.
+    const extraDays = endDate && dateKey ? Math.max(0, Math.round((Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${dateKey}T00:00:00Z`)) / 86400000)) : 0;
+    const endMinutes = toMinutes(endTime);
+    const end = endMinutes === null ? null : endMinutes + extraDays * 1440;
     // Hidden for anyone the planner is closed to (the server decides).
     if (!dateKey || error) return null;
 

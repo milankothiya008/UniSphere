@@ -20,6 +20,9 @@ const formatDate = (date) =>
     shifted(date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
 // "Tue, 6 Oct 2026 · 18:00–23:30"
-const formatSchedule = (startAt, endAt) => `${formatDate(startAt)} · ${formatTime(startAt)}–${formatTime(endAt)}`;
+const formatSchedule = (startAt, endAt) =>
+    formatDate(startAt) === formatDate(endAt)
+        ? `${formatDate(startAt)} · ${formatTime(startAt)}–${formatTime(endAt)}`
+        : `${formatDate(startAt)}, ${formatTime(startAt)} – ${formatDate(endAt)}, ${formatTime(endAt)}`;
 
 module.exports = { offsetMinutes, formatTime, formatDate, formatSchedule };
