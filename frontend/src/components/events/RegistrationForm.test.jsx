@@ -128,12 +128,12 @@ describe("likes", () => {
         const post = { ...baseEvent, registrationForm: null, likeCount: 2, likedByMe: false, publishedAt: future(-0.1), myRegistration: null, venue: { name: "Lab 1" } };
         renderWithRouter(<EventPost event={post} />);
 
-        expect(screen.getByText("2 likes")).toBeInTheDocument();
+        expect(screen.getByLabelText("2 likes")).toHaveTextContent("2");
         await userEvent.click(screen.getByRole("button", { name: "Like Robo Race" }));
         expect(likeApi.set).toHaveBeenCalledWith("event", "e1", true);
-        expect(await screen.findByText("3 likes")).toBeInTheDocument();
+        expect(await screen.findByLabelText("3 likes")).toHaveTextContent("3");
         await userEvent.click(screen.getByRole("button", { name: "Unlike Robo Race" }));
-        expect(await screen.findByText("2 likes")).toBeInTheDocument();
+        expect(await screen.findByLabelText("2 likes")).toBeInTheDocument();
 
         // Two quick clicks on the poster = a double tap.
         const poster = screen.getByRole("link", { name: "Open Robo Race" });

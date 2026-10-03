@@ -290,7 +290,10 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
             <div className="event-post-actions">
                 <div className="post-primary">{action}</div>
                 <div className="post-tools">
-                    <LikeButton like={like} label={event.title} />
+                    <span className="like-group">
+                        <LikeButton like={like} label={event.title} />
+                        <LikeCount like={like} type="event" id={event._id} />
+                    </span>
                     {!past && (
                         <button type="button" className="tool-btn" onClick={() => downloadIcs(event)} aria-label="Add to calendar" title="Add to calendar">
                             <CalendarPlus size={24} strokeWidth={1.8} />
@@ -303,7 +306,6 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
             </div>
 
             <div className="event-post-body">
-                <LikeCount like={like} type="event" id={event._id} />
                 {!past && <Capacity event={event} />}
                 <p className={`post-caption ${expanded || !longDescription ? "" : "is-clamped"}`}>
                     <Link to={link} className="event-post-title">

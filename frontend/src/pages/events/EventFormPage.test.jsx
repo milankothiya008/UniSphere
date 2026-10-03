@@ -191,5 +191,5 @@ describe("EventFormPage steps: registration form and budget", () => {
         const body = eventApi.create.mock.calls[0][0];
         expect(body.registrationForm).toEqual({ enabled: true, questions: [expect.objectContaining({ type: "SHORT", label: "T-shirt size", required: false })] });
         expect(body.budgetItems).toEqual([{ item: "Prizes", quantity: 1, unitCost: 1500, note: "" }]);
-    });
+    }, 15000); // Many steps: slow when the whole suite runs in parallel.
 });

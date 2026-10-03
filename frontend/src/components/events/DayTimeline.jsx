@@ -1,10 +1,62 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronRight, Clock, MapPin, Users } from "lucide-react";
-import { audiencesOverlap, layoutLanes, shortClock, visibleRange } from "../../lib/schedule";
+import { audiencesOverlap, shortClock, visibleRange } from "../../lib/schedule";
 import { campusDayStart } from "../../lib/format";
 
-const LANE = 70;
+const LANE = 56;
+const MIN_WIDTH = 680; // px; narrower screens scroll sideways
+
+// Text width in px, for laying labels out without overlaps (an estimate where there's no canvas, e.g. tests).
+let measureContext;
+const textWidth = (text, font, perChar) => {
+    if (measureContext === undefined) {
+        const jsdom = typeof navigator !== "undefined" && /jsdom/i.test(navigator.userAgent);
+        measureContext = jsdom || typeof document === "undefined" ? null : document.createElement("canvas").getContext("2d");
+    }
+    if (!measureContext) return text.length * perChar;
+    measureContext.font = font;
+    return measureContext.measureText(text).width;
+};
+
+/**
+ * Gantt-style layout: each event's coloured bar covers its real duration, and its full name and time sit
+ * on the bar and run past it when the event is short. Rows are assigned so no two labels overlap; a label
+ * that would run off the right edge grows leftwards instead.
+ */
+const layoutBlocks = (events, range, bodyWidth) => {
+    const span = range.end - range.start;
+    const perMinute = bodyWidth / span;
+    const family = getComputedFontFamily();
+    const rowEnds = [];
+    const blocks = [...events]
+        .sort((a, b) => a.start - b.start || b.end - a.end)
+        .map((event) => {
+            const start = Math.max(event.start, range.start);
+            const end = Math.min(event.end, range.end);
+            const barLeft = (start - range.start) * perMinute;
+            const barWidth = Math.max(6, (end - start) * perMinute);
+            const meta = `${shortClock(event.start)}–${shortClock(event.end)} · ${event.club.name}`;
+            const label = Math.max(textWidth(event.title, `700 12.5px ${family}`, 7.4), textWidth(meta, `400 11px ${family}`, 6.2)) + 26;
+            const width = Math.min(Math.max(barWidth, label), bodyWidth);
+            const anchorRight = barLeft + width > bodyWidth;
+            const left = anchorRight ? Math.max(0, bodyWidth - width) : barLeft;
+            let row = rowEnds.findIndex((rowEnd) => rowEnd <= left - 4);
+            if (row === -1) {
+                row = rowEnds.length;
+                rowEnds.push(left + width);
+            } else {
+                rowEnds[row] = left + width;
+            }
+            return { event, meta, left, width, barLeft: barLeft - left, barWidth, anchorRight, row };
+        });
+    return { blocks, rows: Math.max(1, rowEnds.length) };
+};
+
+const getComputedFontFamily = () => {
+    if (typeof document === "undefined" || !window.getComputedStyle) return "sans-serif";
+    return window.getComputedStyle(document.body).fontFamily || "sans-serif";
+};
 
 // Events the viewer may open: live ones, and anything of their own clubs. Other clubs' unpublished
 // events are shown (they hold the slot) but stay private.
@@ -30,12 +82,26 @@ const useNowMinutes = (dateKey) => {
  * audience is chosen; `proposed` draws the slot being planned.
  */
 export const DayTimeline = ({ dateKey, events, audience = "ALL", proposed, clashIds, label }) => {
-    const { placed, lanes } = layoutLanes(events);
-    // Short events are narrow blocks, so the full details of the one pointed at or tapped show underneath.
+    // Venue and audience of the event pointed at or tapped show underneath.
     const [selectedId, setSelectedId] = useState(null);
-    const selected = placed.find((event) => String(event._id) === String(selectedId)) || null;
+    const selected = events.find((event) => String(event._id) === String(selectedId)) || null;
     const range = visibleRange(events, proposed ? [proposed] : []);
     const span = range.end - range.start;
+
+    // Labels are laid out in pixels, so follow the timeline's real width.
+    const bodyRef = useRef(null);
+    const [bodyWidth, setBodyWidth] = useState(MIN_WIDTH);
+    useLayoutEffect(() => {
+        const body = bodyRef.current;
+        if (!body) return undefined;
+        const update = () => body.clientWidth && setBodyWidth(body.clientWidth);
+        update();
+        if (typeof ResizeObserver === "undefined") return undefined;
+        const observer = new ResizeObserver(update);
+        observer.observe(body);
+        return () => observer.disconnect();
+    }, []);
+    const { blocks, rows } = layoutBlocks(events, range, bodyWidth);
     const pct = (minutes) => `${((Math.min(Math.max(minutes, range.start), range.end) - range.start) / span) * 100}%`;
     const width = (start, end) => `${((Math.min(end, range.end) - Math.max(start, range.start)) / span) * 100}%`;
     const hours = [];
@@ -63,7 +129,7 @@ export const DayTimeline = ({ dateKey, events, audience = "ALL", proposed, clash
                             </span>
                         ))}
                     </div>
-                    <div className="tl-body" style={{ height: lanes * LANE + 16 }}>
+                    <div className="tl-body" ref={bodyRef} style={{ height: rows * LANE + 12 }}>
                         {hours.map((minute) => (
                             <span key={minute} className="tl-grid" style={{ left: pct(minute) }} aria-hidden="true" />
                         ))}
@@ -78,22 +144,18 @@ export const DayTimeline = ({ dateKey, events, audience = "ALL", proposed, clash
                                 <span>{proposed.label || "Your event"}</span>
                             </div>
                         )}
-                        {placed.map((event, index) => {
+                        {blocks.map(({ event, meta, left, width: blockWidth, barLeft, barWidth, anchorRight, row }, index) => {
                             const faded = !audiencesOverlap(event.audience, audience);
                             const classes = [
                                 "tl-event",
                                 event.tentative ? "is-tentative" : "",
                                 event.mine ? "is-mine" : "",
                                 faded ? "is-faded" : "",
-                                clashIds?.has(String(event._id)) ? "is-clash" : ""
+                                clashIds?.has(String(event._id)) ? "is-clash" : "",
+                                anchorRight ? "is-right" : ""
                             ].join(" ");
                             const title = `${event.title} · ${event.club.name} · ${shortClock(event.start)}–${shortClock(event.end)} · ${audienceText(event.audience)}${event.tentative ? " · awaiting approval" : ""}`;
-                            const style = {
-                                left: pct(event.start),
-                                width: width(event.start, event.end),
-                                top: 8 + event.lane * LANE,
-                                "--i": Math.min(index, 10)
-                            };
+                            const style = { left, width: blockWidth, top: 6 + row * LANE, "--i": Math.min(index, 10) };
                             const on = selected && String(selected._id) === String(event._id);
                             return (
                                 <button
@@ -108,10 +170,9 @@ export const DayTimeline = ({ dateKey, events, audience = "ALL", proposed, clash
                                     onMouseEnter={() => setSelectedId(event._id)}
                                     onFocus={() => setSelectedId(event._id)}
                                 >
+                                    <span className="tl-bar" style={{ left: barLeft, width: barWidth }} aria-hidden="true" />
                                     <strong>{event.title}</strong>
-                                    <span>
-                                        {shortClock(event.start)}–{shortClock(event.end)} · {event.club.name}
-                                    </span>
+                                    <span className="tl-meta">{meta}</span>
                                 </button>
                             );
                         })}
@@ -119,7 +180,7 @@ export const DayTimeline = ({ dateKey, events, audience = "ALL", proposed, clash
                     </div>
                 </div>
             </div>
-            {placed.length > 0 && (
+            {events.length > 0 && (
                 <div className={`tl-detail ${selected ? "is-on" : ""}`} aria-live="polite">
                     {selected ? (
                         <>
@@ -148,7 +209,7 @@ export const DayTimeline = ({ dateKey, events, audience = "ALL", proposed, clash
                             )}
                         </>
                     ) : (
-                        <span className="subtle small">Point at or tap an event to see its full name and details.</span>
+                        <span className="subtle small">Point at or tap an event to see its venue and who it's for.</span>
                     )}
                 </div>
             )}

@@ -116,15 +116,22 @@ const LikersDialog = ({ open, onClose, type, id }) => {
     );
 };
 
-/** "12 likes" under a post; organisers can open it to see who. */
+/** The number beside the heart; organisers can tap it to see who liked. */
 export const LikeCount = ({ like, type, id, canSeeLikers = false }) => {
     const [open, setOpen] = useState(false);
     if (!like.count) return null;
-    if (!canSeeLikers) return <span className="like-count">{plural(like.count)}</span>;
+    const text = like.count.toLocaleString("en-IN");
+    if (!canSeeLikers) {
+        return (
+            <span className="like-count" aria-label={plural(like.count)} title={plural(like.count)}>
+                {text}
+            </span>
+        );
+    }
     return (
         <>
-            <button type="button" className="like-count is-button" onClick={() => setOpen(true)}>
-                {plural(like.count)}
+            <button type="button" className="like-count is-button" onClick={() => setOpen(true)} aria-label={`${plural(like.count)} — see who`} title="See who liked">
+                {text}
             </button>
             <LikersDialog open={open} onClose={() => setOpen(false)} type={type} id={id} />
         </>

@@ -201,25 +201,23 @@
     background: var(--hairline);
 }
 
+/* One event: a label card for its full name and time; the coloured bar inside is its real duration. */
 .tl-event {
     position: absolute;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    min-width: 6px;
-    height: 62px;
-    padding: 4px 8px;
+    height: 48px;
+    padding: 0 10px 0 12px;
     overflow: hidden;
+    color: var(--text);
     font: inherit;
     text-align: left;
+    white-space: nowrap;
     cursor: pointer;
-    border-top: 0;
-    border-right: 0;
-    border-bottom: 0;
-    color: var(--ink-900);
-    background: var(--ink-100);
-    border-left: 3px solid var(--ink-600);
-    border-radius: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 9px;
     box-shadow: var(--shadow-xs);
     animation: tl-in 0.35s var(--ease-out, ease-out) both;
     animation-delay: calc(var(--i, 0) * 30ms);
@@ -229,6 +227,36 @@
         opacity 0.2s ease;
 }
 
+.tl-event.is-right {
+    align-items: flex-end;
+    text-align: right;
+}
+
+.tl-bar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: var(--ink-100);
+    border-left: 3px solid var(--ink-600);
+}
+
+.tl-event > strong,
+.tl-event > .tl-meta {
+    position: relative;
+}
+
+.tl-event > strong {
+    font-size: 12.5px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--ink-900);
+}
+
+.tl-event > .tl-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
 .tl-event:hover,
 .tl-event.is-selected {
     z-index: 2;
@@ -236,32 +264,69 @@
     box-shadow: var(--shadow-sm);
 }
 
-.tl-event span {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-}
-
-/* Names wrap onto two lines instead of being cut after a few letters. */
-.tl-event strong {
-    display: -webkit-box;
-    overflow: hidden;
-    font-size: 12px;
-    line-height: 1.25;
-    overflow-wrap: anywhere;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-}
-
-.tl-event.is-selected {
+.tl-event.is-selected,
+.tl-event:focus-visible {
     outline: 2px solid var(--ink-600);
     outline-offset: 1px;
 }
 
-.tl-event:focus-visible {
-    outline: 2px solid var(--ink-600);
-    outline-offset: 2px;
+.tl-event.is-tentative .tl-bar {
+    background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--violet-600) 12%, transparent) 6px 8px), var(--violet-100);
+    border-left: 3px dashed var(--violet-600);
+}
+
+.tl-event.is-tentative > strong {
+    color: var(--violet-600);
+}
+
+.tl-event.is-mine {
+    border-color: var(--gold-500);
+    box-shadow: inset 0 0 0 1px var(--gold-500);
+}
+
+.tl-event.is-faded {
+    opacity: 0.35;
+    filter: grayscale(0.6);
+}
+
+.tl-event.is-clash {
+    border-color: var(--danger-600);
+    box-shadow: inset 0 0 0 1px var(--danger-600);
+}
+
+.tl-proposed {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: color-mix(in srgb, var(--gold-500) 16%, transparent);
+    border: 2px dashed var(--gold-600);
+    border-radius: 10px;
+    pointer-events: none;
+}
+
+/* The label sits on the band's bottom edge, above the event blocks. */
+.tl-proposed span {
+    position: absolute;
+    left: 50%;
+    bottom: -9px;
+    z-index: 3;
+    padding: 1px 7px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    background: var(--gold-600);
+    border-radius: 6px;
+    transform: translateX(-50%);
+}
+
+.tl-proposed.is-clash {
+    background: color-mix(in srgb, var(--danger-600) 9%, transparent);
+    border-color: var(--danger-600);
+}
+
+.tl-proposed.is-clash span {
+    background: var(--danger-600);
 }
 
 /* Full details of the event pointed at, under the timeline. */
@@ -321,65 +386,6 @@
     gap: 2px;
     font-size: 0.85rem;
     font-weight: 600;
-}
-
-.tl-event span {
-    font-size: 11px;
-    color: var(--text-muted);
-}
-
-.tl-event.is-tentative {
-    color: var(--violet-600);
-    background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--violet-600) 12%, transparent) 6px 8px), var(--violet-100);
-    border-left: 3px dashed var(--violet-600);
-}
-
-.tl-event.is-mine {
-    box-shadow: inset 0 0 0 2px var(--gold-500);
-}
-
-.tl-event.is-faded {
-    opacity: 0.35;
-    filter: grayscale(0.6);
-}
-
-.tl-event.is-clash {
-    box-shadow: inset 0 0 0 2px var(--danger-600);
-}
-
-.tl-proposed {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    background: color-mix(in srgb, var(--gold-500) 16%, transparent);
-    border: 2px dashed var(--gold-600);
-    border-radius: 10px;
-    pointer-events: none;
-}
-
-/* The label sits on the band's bottom edge, above the event blocks. */
-.tl-proposed span {
-    position: absolute;
-    left: 50%;
-    bottom: -9px;
-    z-index: 3;
-    padding: 1px 7px;
-    font-size: 10.5px;
-    font-weight: 700;
-    color: #fff;
-    white-space: nowrap;
-    background: var(--gold-600);
-    border-radius: 6px;
-    transform: translateX(-50%);
-}
-
-.tl-proposed.is-clash {
-    background: color-mix(in srgb, var(--danger-600) 9%, transparent);
-    border-color: var(--danger-600);
-}
-
-.tl-proposed.is-clash span {
-    background: var(--danger-600);
 }
 
 .tl-now {

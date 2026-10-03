@@ -845,11 +845,13 @@
 }
 
 .like-count {
-    display: block;
+    display: inline-block;
+    min-width: 1ch;
     padding: 0;
     font: inherit;
     font-size: 0.9rem;
     font-weight: 700;
+    font-variant-numeric: tabular-nums;
     color: var(--text);
     background: none;
     border: 0;
@@ -907,4 +909,20 @@
     align-items: center;
     gap: 6px;
     margin-top: -12px;
+}
+
+/* Heart with its count right beside it. */
+.like-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    margin-right: 4px;
+}
+
+.like-group .like-btn {
+    margin-right: -4px;
+}
+
+.like-group .like-count {
+    padding-right: 4px;
 }
