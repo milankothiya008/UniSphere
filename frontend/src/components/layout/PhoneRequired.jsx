@@ -18,7 +18,7 @@ export const PhoneRequired = () => {
     const [pending, setPending] = useState(false);
     const [error, setError] = useState(null);
 
-    if (!user || user.phone || !["STUDENT", "FACULTY"].includes(user.accountType)) return null;
+    if (!user || user.phone || user.globalRole === "ADMIN" || !["STUDENT", "FACULTY"].includes(user.accountType)) return null;
     const phone = normalizePhone(value);
     const problem = !value.trim() ? "Enter your mobile number" : !phone ? "Enter a 10-digit Indian mobile number" : null;
 

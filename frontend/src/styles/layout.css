@@ -1270,7 +1270,7 @@ a.next-up:hover {
     top: 12px;
     padding: 4px 10px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.95);
+    background: color-mix(in srgb, var(--surface) 95%, transparent);
     color: var(--ink-800);
     font-size: 0.78rem;
     font-weight: 700;

@@ -144,6 +144,209 @@
     color-scheme: light;
 }
 
+/* ---------------------------------------------------------------- Readable text on dark surfaces */
+:root[data-theme="dark"] .badge-ink,
+:root[data-theme="dark"] .tab.active,
+:root[data-theme="dark"] .segmented button.active,
+:root[data-theme="dark"] .avatar,
+:root[data-theme="dark"] .role-option.selected,
+:root[data-theme="dark"] .auth-step.current,
+:root[data-theme="dark"] .auth-step.current .auth-step-dot,
+:root[data-theme="dark"] .dev-code code,
+:root[data-theme="dark"] .dept-option.selected,
+:root[data-theme="dark"] .pill-tab.active,
+:root[data-theme="dark"] .pill-tab.active .count,
+:root[data-theme="dark"] .hq-tab.active,
+:root[data-theme="dark"] .hack-phase,
+:root[data-theme="dark"] .hack-countdown,
+:root[data-theme="dark"] .hack-link,
+:root[data-theme="dark"] .is-open > .hack-stage-body .hack-stage-state,
+:root[data-theme="dark"] .cert-icon,
+:root[data-theme="dark"] .reminder-to svg,
+:root[data-theme="dark"] .wiz-step.is-done .wiz-dot,
+:root[data-theme="dark"] .budget-total,
+:root[data-theme="dark"] .gallery-count,
+:root[data-theme="dark"] .gallery-drop,
+:root[data-theme="dark"] .nav-item.active .nav-icon svg,
+:root[data-theme="dark"] .icon-button.is-on,
+:root[data-theme="dark"] .link-button:hover,
+:root[data-theme="dark"] .phone-nudge-icon,
+:root[data-theme="dark"] .rec-date,
+:root[data-theme="dark"] .back-link:hover,
+:root[data-theme="dark"] .workflow .step.current .step-label,
+:root[data-theme="dark"] .planner-today,
+:root[data-theme="dark"] .recruit-chip,
+:root[data-theme="dark"] .recruit-howto li::before,
+:root[data-theme="dark"] .recruit-glance dd,
+:root[data-theme="dark"] .club-card-recruiting,
+:root[data-theme="dark"] .recruit-slot,
+:root[data-theme="dark"] .recruit-role-option,
+:root[data-theme="dark"] .recruit-step-dot,
+:root[data-theme="dark"] .recruit-wizard-steps li.is-done button,
+:root[data-theme="dark"] .recruit-q-icon,
+:root[data-theme="dark"] .recruit-add-q,
+:root[data-theme="dark"] .recruit-add-page,
+:root[data-theme="dark"] .recruit-option-add:hover,
+:root[data-theme="dark"] .recruit-role-tab.is-add,
+:root[data-theme="dark"] .recruit-role-card-cta,
+:root[data-theme="dark"] .drive-fact-icon,
+:root[data-theme="dark"] .drive-about-club,
+:root[data-theme="dark"] .authority-chip,
+:root[data-theme="dark"] .post-follow:hover,
+:root[data-theme="dark"] .person-club-tag,
+:root[data-theme="dark"] .venue-card-icon,
+:root[data-theme="dark"] .venue-type.is-on,
+:root[data-theme="dark"] .side-link,
+:root[data-theme="dark"] tr.row-link:hover .row-link-chevron {
+    color: var(--ink-600);
+}
+
+:root[data-theme="dark"] .badge-gold,
+:root[data-theme="dark"] .team-hint {
+    color: var(--gold-500);
+}
+
+:root[data-theme="dark"] .change-to {
+    color: var(--success-600);
+}
+
+/* Alerts: tinted panels with light text instead of dark text on dark tints. */
+:root[data-theme="dark"] .alert-error {
+    color: #ffc2c7;
+    border-color: color-mix(in srgb, var(--danger-600) 35%, transparent);
+}
+
+:root[data-theme="dark"] .alert-success {
+    color: #a8f0d0;
+    border-color: color-mix(in srgb, var(--success-600) 35%, transparent);
+}
+
+:root[data-theme="dark"] .alert-info {
+    color: #b9defc;
+    border-color: color-mix(in srgb, var(--info-600) 35%, transparent);
+}
+
+:root[data-theme="dark"] .alert-warning {
+    color: #ffd99a;
+    border-color: color-mix(in srgb, var(--warning-600) 35%, transparent);
+}
+
+/* Tables */
+:root[data-theme="dark"] .table tbody tr:hover td {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+/* Empty / error state icons */
+:root[data-theme="dark"] .state-icon {
+    background: linear-gradient(135deg, var(--ink-50), var(--ink-100));
+}
+
+:root[data-theme="dark"] .state-error .state-icon {
+    background: var(--danger-100);
+}
+
+:root[data-theme="dark"] .all-clear {
+    background: var(--success-100);
+}
+
+/* Story rings while loading, "more" ring */
+:root[data-theme="dark"] .story-ring.is-loading::before {
+    background: var(--border);
+}
+
+:root[data-theme="dark"] .story-more .story-ring::before {
+    background: conic-gradient(from 0deg, #2a2e38, #3a3f4c, #2a2e38);
+}
+
+/* Live, capacity and result chips */
+:root[data-theme="dark"] .live-chip {
+    color: #ffb3b9;
+    background: var(--danger-100);
+    border-color: color-mix(in srgb, var(--danger-600) 35%, transparent);
+}
+
+:root[data-theme="dark"] .result-card-stage .live-chip {
+    background: var(--surface);
+}
+
+:root[data-theme="dark"] .post-capacity-flag {
+    color: #ffb27a;
+    background: #35200f;
+}
+
+:root[data-theme="dark"] .event-post-results {
+    background: linear-gradient(135deg, var(--gold-100), var(--surface));
+    border-color: color-mix(in srgb, var(--gold-500) 25%, transparent);
+}
+
+/* Medals and podium: deep metal tones instead of pastel blocks. */
+:root[data-theme="dark"] .medal-1 {
+    color: #ffd76a;
+    background: #4a3a10;
+}
+
+:root[data-theme="dark"] .medal-2 {
+    color: #dfe3ec;
+    background: #2e333e;
+}
+
+:root[data-theme="dark"] .medal-3 {
+    color: #f2b98e;
+    background: #48301e;
+}
+
+:root[data-theme="dark"] .place-1 .podium-block {
+    color: #ffd76a;
+    background: linear-gradient(180deg, #5c4712, #3a2d0b);
+}
+
+:root[data-theme="dark"] .place-2 .podium-block {
+    color: #dfe3ec;
+    background: linear-gradient(180deg, #3a404c, #262a33);
+}
+
+:root[data-theme="dark"] .place-3 .podium-block {
+    color: #f2b98e;
+    background: linear-gradient(180deg, #5a3a24, #3b2617);
+}
+
+/* Teams */
+:root[data-theme="dark"] .team-meter span.is-needed {
+    background: repeating-linear-gradient(45deg, var(--warning-100), var(--warning-100) 4px, #4a3612 4px, #4a3612 8px);
+}
+
+:root[data-theme="dark"] .team-invite {
+    background: linear-gradient(135deg, var(--ink-50), var(--violet-100));
+}
+
+/* Workflow line, hovered link cards */
+:root[data-theme="dark"] .workflow .step + .step::before {
+    background: var(--border);
+}
+
+:root[data-theme="dark"] .card-link:hover {
+    border-color: var(--border-strong);
+}
+
+/* Auth pages: the form card sits on the dark page like every other card. */
+:root[data-theme="dark"] .auth-main {
+    background:
+        radial-gradient(600px 300px at 100% 0%, rgba(92, 120, 255, 0.12), transparent 70%),
+        radial-gradient(500px 260px at 0% 100%, rgba(245, 184, 61, 0.06), transparent 70%),
+        var(--bg);
+}
+
+:root[data-theme="dark"] .auth-card {
+    box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.8);
+}
+
+/* Shadows read as smudges on near-black; use a hairline lift instead. */
+:root[data-theme="dark"] {
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35), 0 2px 8px -2px rgba(0, 0, 0, 0.5);
+    --shadow: 0 2px 6px rgba(0, 0, 0, 0.35), 0 12px 28px -12px rgba(0, 0, 0, 0.6);
+}
+
 /* Smooth switch between themes. */
 :root.theme-switching *,
 :root.theme-switching *::before,

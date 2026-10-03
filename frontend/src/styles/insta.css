@@ -225,7 +225,7 @@ a:hover {
         justify-content: space-between;
         height: var(--topbar-height);
         padding: 0 8px 0 12px;
-        background: rgba(255, 255, 255, 0.94);
+        background: color-mix(in srgb, var(--surface) 94%, transparent);
         backdrop-filter: saturate(180%) blur(12px);
         -webkit-backdrop-filter: saturate(180%) blur(12px);
         border-bottom: 1px solid var(--hairline);
@@ -516,7 +516,7 @@ a:hover {
 }
 
 .club-story-avatar.is-seen {
-    background: #dbdbdb;
+    background: var(--border);
 }
 
 .club-story-avatar .avatar {
@@ -566,14 +566,14 @@ a:hover {
 }
 
 .btn-secondary {
-    background: #efefef;
+    background: var(--neutral-100);
     border-color: transparent;
     color: var(--text);
     box-shadow: none;
 }
 
 .btn-secondary:hover:not(:disabled) {
-    background: #dbdbdb;
+    background: var(--border);
     border-color: transparent;
     box-shadow: none;
 }
@@ -630,7 +630,7 @@ a:hover {
 }
 
 .segmented {
-    background: #efefef;
+    background: var(--neutral-100);
 }
 
 .segmented button.active {
@@ -682,7 +682,7 @@ a:hover {
         height: 4px;
         margin: 8px auto 0;
         border-radius: 4px;
-        background: #dbdbdb;
+        background: var(--border);
     }
 }
 
@@ -824,7 +824,7 @@ a:hover {
 .story-ring.is-seen::before,
 .story-ring.is-quiet::before,
 .story-more .story-ring::before {
-    background: #dbdbdb;
+    background: var(--border);
     transform: scale(0.97);
 }
 
@@ -856,24 +856,34 @@ a:hover {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    margin-bottom: 4px;
+    margin-bottom: 8px;
     border-top: 1px solid var(--hairline);
-    padding-top: 6px;
+    padding-top: 12px;
 }
 
+/* Live now · Upcoming · Past: a segmented control; the chosen tab lifts out of the track. */
 .feed-tabs {
-    display: flex;
-    gap: 4px;
+    display: inline-flex;
+    gap: 2px;
+    max-width: 100%;
+    padding: 3px;
     overflow-x: auto;
     scrollbar-width: none;
+    background: var(--surface-muted);
+    border: 1px solid var(--hairline);
+    border-radius: 999px;
+}
+
+.feed-tabs::-webkit-scrollbar {
+    display: none;
 }
 
 .feed-tab {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    height: 32px;
-    padding: 0 12px;
+    gap: 7px;
+    height: 34px;
+    padding: 0 14px;
     border: none;
     border-radius: 999px;
     background: none;
@@ -888,14 +898,41 @@ a:hover {
     color: var(--text);
 }
 
+.feed-tab:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
 .feed-tab.active {
-    background: var(--text);
-    color: #fff;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow:
+        0 0 0 1px var(--border),
+        var(--shadow-xs);
 }
 
 .feed-tab .count {
-    font-size: 0.75rem;
-    opacity: 0.7;
+    display: inline-grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+    background: var(--neutral-100);
+    border-radius: 999px;
+}
+
+.feed-tab.active .count {
+    color: var(--ink-600);
+    background: var(--ink-100);
+}
+
+.feed-tab.is-live.active .count {
+    color: var(--danger-600);
+    background: var(--danger-100);
 }
 
 .feed-filters {
@@ -1372,7 +1409,7 @@ a:hover {
     padding: 0 14px;
     margin-bottom: 12px;
     border-radius: var(--radius);
-    background: #efefef;
+    background: var(--neutral-100);
     color: var(--text-muted);
 }
 
@@ -1678,7 +1715,7 @@ a:hover {
 .club-head-actions .btn-icon {
     width: 34px;
     height: 34px;
-    background: #efefef;
+    background: var(--neutral-100);
     color: var(--text);
 }
 
@@ -1802,14 +1839,14 @@ a.next-up:hover {
 
 .follow-btn.is-following,
 .follow.is-light .follow-btn.is-following {
-    background: #efefef;
+    background: var(--neutral-100);
     color: var(--text);
     border: none;
 }
 
 .follow-btn.is-following:hover:not(:disabled),
 .follow.is-light .follow-btn.is-following:hover:not(:disabled) {
-    background: #dbdbdb;
+    background: var(--border);
     border: none;
 }
 

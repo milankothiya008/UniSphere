@@ -569,7 +569,7 @@
     padding: 0;
     border: 0;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.9);
+    background: color-mix(in srgb, var(--surface) 90%, transparent);
     color: var(--danger-600);
     cursor: pointer;
 }
@@ -883,7 +883,7 @@ img.gv-media.is-loaded {
 }
 
 .gallery-card-chip.is-empty {
-    background: rgba(255, 255, 255, 0.9);
+    background: color-mix(in srgb, var(--surface) 90%, transparent);
     color: var(--text-muted);
 }
 

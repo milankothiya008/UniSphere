@@ -297,7 +297,7 @@
 .auth-card {
     padding: 34px 32px;
     border-radius: var(--radius-xl);
-    background: rgba(255, 255, 255, 0.86);
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
     border: 1px solid var(--border);
     box-shadow: 0 30px 60px -36px rgba(16, 24, 56, 0.4);
     backdrop-filter: blur(10px);

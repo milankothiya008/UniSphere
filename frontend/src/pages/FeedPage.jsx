@@ -37,7 +37,7 @@ const FeedTabs = ({ tab, counts, onChange, filtersOpen, onFilters, filtered }) =
                     type="button"
                     role="tab"
                     aria-selected={tab === value}
-                    className={`feed-tab ${tab === value ? "active" : ""}`}
+                    className={`feed-tab ${tab === value ? "active" : ""} ${value === "ongoing" ? "is-live" : ""}`}
                     onClick={() => onChange(value)}
                 >
                     {value === "ongoing" && counts.ongoing ? <span className="live-dot" /> : null}

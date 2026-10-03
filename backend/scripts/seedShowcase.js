@@ -246,6 +246,7 @@ const photo = (seed, width = 1080, height = 1350) => `https://picsum.photos/seed
 
 // Demo students get made-up mobile numbers (club members must have one).
 let demoPhones = 0;
+let demoFacultyPhones = 0;
 
 const makeUser = async ({ name, local }, { faculty = false } = {}) => {
     const email = `${local}@${DOMAIN}`.toLowerCase();
@@ -261,7 +262,8 @@ const makeUser = async ({ name, local }, { faculty = false } = {}) => {
         globalRole: faculty ? GLOBAL_ROLES.FACULTY : GLOBAL_ROLES.STUDENT,
         departmentCode: parsed.departmentCode,
         batchCode: faculty ? null : parsed.batchCode,
-        phone: faculty ? null : `+9190000${String(++demoPhones).padStart(5, "0")}`,
+        // Every account has a mobile number (asked at sign-up); faculty numbers start 91 to tell them apart.
+        phone: faculty ? `+9191000${String(++demoFacultyPhones).padStart(5, "0")}` : `+9190000${String(++demoPhones).padStart(5, "0")}`,
         isEmailVerified: true
     });
 };

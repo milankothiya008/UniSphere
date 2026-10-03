@@ -1602,7 +1602,7 @@
     height: 44px;
     padding: 0 6px;
     border-radius: 12px;
-    background: #fff;
+    background: var(--surface);
     color: var(--warning-600);
     font-weight: 700;
     font-size: 1.1rem;
