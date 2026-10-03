@@ -124,7 +124,12 @@ const userSchema = new mongoose.Schema(
             eventRecommendations: { type: Boolean, default: true },
             eventActivity: { type: Boolean, default: true },
             recruitment: { type: Boolean, default: true }
-        }
+        },
+        // Chat: "Active now / Active 5m ago" (shown only to others when this is on, like Instagram),
+        // and people this user has blocked from messaging them.
+        lastSeenAt: { type: Date, default: null },
+        showActivityStatus: { type: Boolean, default: true },
+        blockedUsers: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], default: [] }
     },
     { timestamps: true }
 );

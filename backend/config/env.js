@@ -87,6 +87,18 @@ const env = {
         // Waiting-for-review uploads one person may have per event, so the review queue can't be flooded.
         maxPendingPerUser: Number(process.env.GALLERY_MAX_PENDING_PER_USER) || 30
     },
+    // Chat attachments: photos, videos, voice notes and documents.
+    chat: {
+        maxImageBytes: Number(process.env.CHAT_MAX_IMAGE_BYTES) || 15 * 1024 * 1024,
+        maxVideoBytes: Number(process.env.CHAT_MAX_VIDEO_BYTES) || 50 * 1024 * 1024,
+        maxVideoSeconds: Number(process.env.CHAT_MAX_VIDEO_SECONDS) || 180,
+        maxAudioBytes: Number(process.env.CHAT_MAX_AUDIO_BYTES) || 10 * 1024 * 1024,
+        maxAudioSeconds: Number(process.env.CHAT_MAX_AUDIO_SECONDS) || 600,
+        maxDocumentBytes: Number(process.env.CHAT_MAX_FILE_BYTES) || 25 * 1024 * 1024,
+        // How long the sender can still edit a message (WhatsApp allows 15 minutes).
+        editMinutes: Number(process.env.CHAT_EDIT_MINUTES) || 15,
+        maxGroupMembers: Number(process.env.CHAT_MAX_GROUP_MEMBERS) || 256
+    },
     // Recruitment application files (resumes, portfolios).
     recruitment: {
         maxDocumentBytes: Number(process.env.RECRUITMENT_MAX_FILE_BYTES) || 5 * 1024 * 1024,

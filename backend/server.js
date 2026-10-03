@@ -40,6 +40,7 @@ const recruitmentRoutes = require("./routes/RecruitmentRoutes");
 const certificateRoutes = require("./routes/CertificateRoutes");
 const pushRoutes = require("./routes/PushRoutes");
 const likeRoutes = require("./routes/LikeRoutes");
+const chatRoutes = require("./routes/ChatRoutes");
 const devRoutes = require("./routes/DevRoutes");
 
 validateEnv();
@@ -97,6 +98,7 @@ app.use("/api/recruitment", recruitmentRoutes);
 app.use("/api/certificates", certificateRoutes);
 app.use("/api/push", pushRoutes);
 app.use("/api/likes", likeRoutes);
+app.use("/api/chat", chatRoutes);
 
 // Development inbox: only exists when SMTP is not configured and NODE_ENV is not production.
 if (deliveryMode() === "preview") {
@@ -132,7 +134,10 @@ const start = async () => {
     // Demo databases only: add the hackathon demo once (no effect on real data).
     require("./services/DemoHackathonSeeder").ensureHackathonDemo();
 
-    app.listen(env.port, () => {
+    // One HTTP server for the REST API and the live chat socket.
+    const server = require("http").createServer(app);
+    require("./services/ChatRealtime").init(server, { origin: env.clientUrl });
+    server.listen(env.port, () => {
         logger.info(`Server running on port ${env.port}`);
     });
 };

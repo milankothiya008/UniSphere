@@ -761,3 +761,15 @@
         bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom));
     }
 }
+
+/* ---------------------------------------------------------------- Brand mark (svg logo) */
+svg.brand-mark,
+.brand svg.brand-mark,
+:root[data-theme="dark"] svg.brand-mark {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: none;
+    border-radius: 9px;
+    box-shadow: 0 6px 14px -8px rgba(44, 70, 176, 0.7);
+}

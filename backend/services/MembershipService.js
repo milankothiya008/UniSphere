@@ -65,6 +65,8 @@ const leaveClub = async (actor, clubId) => {
 
     await ClubMembership.deleteOne({ _id: membership._id });
     await auditMembership(AUDIT_ACTIONS.MEMBER_LEFT, actor, club, membership, MEMBERSHIP_STATUS.APPROVED, null);
+    // Leaving the club closes its group chat for them straight away.
+    await require("./ChatService").clubMembershipChanged(club._id, actor._id);
 };
 
 const findApprovedMember = async (clubId, userId) => {
@@ -158,6 +160,7 @@ const removeMember = async (actor, clubId, userId) => {
 
     await ClubMembership.deleteOne({ _id: membership._id });
     await auditMembership(AUDIT_ACTIONS.MEMBER_REMOVED, actor, club, membership, membership.role, null);
+    await require("./ChatService").clubMembershipChanged(club._id, userId);
 };
 
 // Direct add (e.g. founders or students who joined offline); the student still has to be a verified student.

@@ -20,7 +20,9 @@ export default defineConfig({
         port: Number(process.env.VITE_PORT) || 3000,
         proxy: {
             "/api": { target: apiTarget, changeOrigin: true },
-            "/uploads": { target: apiTarget, changeOrigin: true }
+            "/uploads": { target: apiTarget, changeOrigin: true },
+            // Live chat (WebSocket).
+            "/socket.io": { target: apiTarget, changeOrigin: true, ws: true }
         }
     },
     test: {

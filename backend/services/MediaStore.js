@@ -15,12 +15,38 @@ const { detectImage } = require("./StorageService");
 // Each store is scoped (a club for stories, an event for galleries): an upload is issued to one user for
 // one scope and can only be attached there by that user.
 
-const KINDS = { IMAGE: "IMAGE", VIDEO: "VIDEO", DOCUMENT: "DOCUMENT" };
-const FORMATS = { IMAGE: ["jpg", "jpeg", "png", "webp"], VIDEO: ["mp4", "mov", "webm"], DOCUMENT: ["pdf"] };
-// PDFs go to Cloudinary as "raw" files: free Cloudinary accounts block PDF delivery through the image pipeline.
-const RESOURCE = { IMAGE: "image", VIDEO: "video", DOCUMENT: "raw" };
+const KINDS = { IMAGE: "IMAGE", VIDEO: "VIDEO", AUDIO: "AUDIO", DOCUMENT: "DOCUMENT" };
+const FORMATS = { IMAGE: ["jpg", "jpeg", "png", "webp"], VIDEO: ["mp4", "mov", "webm"], AUDIO: ["webm", "ogg", "m4a", "mp4", "mp3", "wav", "aac"], DOCUMENT: ["pdf"] };
+// Documents go to Cloudinary as "raw" files: free Cloudinary accounts block PDF delivery through the image
+// pipeline. Audio (voice notes) uses Cloudinary's video pipeline, which also handles audio.
+const RESOURCE = { IMAGE: "image", VIDEO: "video", AUDIO: "video", DOCUMENT: "raw" };
 
-const detectDocument = (buffer) => (buffer && buffer.length > 4 && buffer.toString("ascii", 0, 5) === "%PDF-" ? { ext: "pdf", mime: "application/pdf" } : null);
+// Office and text documents a store may accept besides PDF (config.documentFormats).
+const ZIP_DOCS = ["docx", "pptx", "xlsx"];
+const OLE_DOCS = ["doc", "ppt", "xls"];
+const TEXT_DOCS = ["txt", "csv"];
+
+/** What a document file really is, checked from its bytes (the extension only picks between look-alikes). */
+const detectDocument = (buffer, ext = "pdf") => {
+    if (!buffer || buffer.length < 5) return null;
+    if (buffer.toString("ascii", 0, 5) === "%PDF-") return { ext: "pdf", mime: "application/pdf" };
+    const wanted = String(ext || "").toLowerCase();
+    if (ZIP_DOCS.includes(wanted) && buffer[0] === 0x50 && buffer[1] === 0x4b && buffer[2] === 0x03 && buffer[3] === 0x04) return { ext: wanted, mime: "application/zip" };
+    if (OLE_DOCS.includes(wanted) && buffer.subarray(0, 8).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]))) return { ext: wanted, mime: "application/octet-stream" };
+    if (TEXT_DOCS.includes(wanted) && !buffer.subarray(0, 4096).includes(0)) return { ext: wanted, mime: "text/plain" };
+    return null;
+};
+
+/** Voice notes: WebM/Opus (Chrome, Android), MP4/AAC (Safari, iPhone), Ogg, MP3 or WAV. */
+const detectAudio = (buffer) => {
+    if (!buffer || buffer.length < 12) return null;
+    if (buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) return { ext: "webm", mime: "audio/webm" };
+    if (buffer.toString("ascii", 0, 4) === "OggS") return { ext: "ogg", mime: "audio/ogg" };
+    if (buffer.toString("ascii", 4, 8) === "ftyp") return { ext: "m4a", mime: "audio/mp4" };
+    if (buffer.toString("ascii", 0, 3) === "ID3" || (buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0)) return { ext: "mp3", mime: "audio/mpeg" };
+    if (buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WAVE") return { ext: "wav", mime: "audio/wav" };
+    return null;
+};
 const TICKET_TTL_SECONDS = 60 * 60;
 
 const useCloudinary = () => Boolean(env.cloudinary.cloudName && env.cloudinary.apiKey && env.cloudinary.apiSecret);
@@ -79,15 +105,33 @@ const detectVideo = (buffer) => {
  *   limits        () => { maxImageBytes, maxVideoBytes, maxVideoSeconds }
  *   transforms    { image, thumb, video: () => string, videoPoster, videoThumb }
  *   localUploadUrl (scopeId) => API path the browser posts files to in development
- *   kinds         which of IMAGE / VIDEO / DOCUMENT the store accepts (default IMAGE and VIDEO)
+ *   kinds         which of IMAGE / VIDEO / AUDIO / DOCUMENT the store accepts (default IMAGE and VIDEO)
+ *   documentFormats  document extensions accepted (default ["pdf"]; e.g. docx, pptx, xlsx, txt)
  */
 const createMediaStore = (config) => {
     const limits = () => config.limits();
     const accepted = config.kinds || [KINDS.IMAGE, KINDS.VIDEO];
+    const documentFormats = config.documentFormats || FORMATS.DOCUMENT;
     const maxBytesFor = (kind) =>
-        kind === KINDS.VIDEO ? limits().maxVideoBytes : kind === KINDS.DOCUMENT ? limits().maxDocumentBytes || limits().maxImageBytes : limits().maxImageBytes;
+        kind === KINDS.VIDEO
+            ? limits().maxVideoBytes
+            : kind === KINDS.AUDIO
+              ? limits().maxAudioBytes || limits().maxVideoBytes
+              : kind === KINDS.DOCUMENT
+                ? limits().maxDocumentBytes || limits().maxImageBytes
+                : limits().maxImageBytes;
+    const docExt = (ext) => {
+        const wanted = String(ext || "pdf").toLowerCase();
+        if (!documentFormats.includes(wanted)) throw uploadError(`Only ${documentFormats.map((format) => format.toUpperCase()).join(", ")} files are allowed`);
+        return wanted;
+    };
     const acceptedLabel = () => {
-        const parts = [accepted.includes(KINDS.IMAGE) && "JPEG, PNG or WebP photos", accepted.includes(KINDS.VIDEO) && "MP4, MOV or WebM videos", accepted.includes(KINDS.DOCUMENT) && "PDF files"].filter(Boolean);
+        const parts = [
+            accepted.includes(KINDS.IMAGE) && "JPEG, PNG or WebP photos",
+            accepted.includes(KINDS.VIDEO) && "MP4, MOV or WebM videos",
+            accepted.includes(KINDS.AUDIO) && "voice notes",
+            accepted.includes(KINDS.DOCUMENT) && `${documentFormats.map((format) => format.toUpperCase()).join(", ")} files`
+        ].filter(Boolean);
         return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0];
     };
     const notIssued = () => uploadError(`This upload was not issued for this ${config.scopeLabel}`);
@@ -99,10 +143,10 @@ const createMediaStore = (config) => {
     const idMac = (scopeId, userId, nonce) =>
         crypto.createHmac("sha256", `${env.jwtAccessSecret}:${config.macPurpose}`).update(`${scopeId}:${userId}:${nonce}`).digest("hex").slice(0, 20);
 
-    // Raw files (PDFs) keep their extension in the public ID so they're served as PDFs.
-    const issuePublicId = (scopeId, userId, kind = KINDS.IMAGE) => {
+    // Raw files (documents) keep their extension in the public ID so they're served with the right type.
+    const issuePublicId = (scopeId, userId, kind = KINDS.IMAGE, ext = "pdf") => {
         const nonce = crypto.randomBytes(8).toString("hex");
-        return `${config.folder(scopeId)}/${nonce}_${idMac(scopeId, userId, nonce)}${kind === KINDS.DOCUMENT ? ".pdf" : ""}`;
+        return `${config.folder(scopeId)}/${nonce}_${idMac(scopeId, userId, nonce)}${kind === KINDS.DOCUMENT ? `.${ext}` : ""}`;
     };
 
     const publicIdIssuedTo = (publicId, scopeId, userId) => {
@@ -110,13 +154,13 @@ const createMediaStore = (config) => {
         if (typeof publicId !== "string" || !publicId.startsWith(prefix)) {
             return false;
         }
-        const [nonce, mac, extra] = publicId.slice(prefix.length).replace(/\.pdf$/, "").split("_");
+        const [nonce, mac, extra] = publicId.slice(prefix.length).replace(/\.[a-z0-9]{2,5}$/, "").split("_");
         return Boolean(nonce && mac && extra === undefined && safeEqual(mac, idMac(scopeId, userId, nonce)));
     };
 
-    const cloudinaryTicket = (scopeId, userId, kind) => {
+    const cloudinaryTicket = (scopeId, userId, kind, ext) => {
         const params = {
-            public_id: issuePublicId(scopeId, userId, kind),
+            public_id: issuePublicId(scopeId, userId, kind, kind === KINDS.DOCUMENT ? docExt(ext) : undefined),
             tags: config.tag,
             timestamp: Math.floor(Date.now() / 1000)
         };
@@ -143,8 +187,11 @@ const createMediaStore = (config) => {
         };
     };
 
-    const clampDuration = (kind, duration) =>
-        kind === KINDS.VIDEO ? Math.min(Number(duration) || limits().maxVideoSeconds, limits().maxVideoSeconds) : null;
+    const clampDuration = (kind, duration) => {
+        if (kind === KINDS.VIDEO) return Math.min(Number(duration) || limits().maxVideoSeconds, limits().maxVideoSeconds);
+        if (kind === KINDS.AUDIO) return Math.min(Number(duration) || 0, limits().maxAudioSeconds || 600) || null;
+        return null;
+    };
 
     // Checks the upload response the browser got back from Cloudinary. Cloudinary signs public_id + version
     // with our API secret, so a forged or altered response is rejected.
@@ -161,10 +208,8 @@ const createMediaStore = (config) => {
         if (!safeEqual(signature, signParams({ public_id: publicId, version: numericVersion }))) {
             throw uploadError("The upload could not be verified");
         }
-        if (format && !FORMATS[kind].includes(String(format).toLowerCase())) {
-            throw uploadError("Unsupported file format");
-        }
-        if (kind === KINDS.DOCUMENT && !publicId.endsWith(".pdf")) {
+        const extension = kind === KINDS.DOCUMENT ? (/\.([a-z0-9]{2,5})$/.exec(publicId) || [])[1] : null;
+        if (kind === KINDS.DOCUMENT ? !documentFormats.includes(extension) : format && !FORMATS[kind].includes(String(format).toLowerCase())) {
             throw uploadError("Unsupported file format");
         }
 
@@ -173,7 +218,7 @@ const createMediaStore = (config) => {
             provider: "cloudinary",
             key: publicId,
             version: numericVersion,
-            format: kind === KINDS.DOCUMENT ? "pdf" : format ? String(format).toLowerCase() : null,
+            format: kind === KINDS.DOCUMENT ? extension : format ? String(format).toLowerCase() : null,
             width: Number(media.width) || null,
             height: Number(media.height) || null,
             duration: clampDuration(kind, media.duration),
@@ -227,22 +272,26 @@ const createMediaStore = (config) => {
         expiresIn: TICKET_TTL_SECONDS
     });
 
-    const saveLocalFile = async (file, scopeId, userId) => {
+    // `hint` ({ kind, ext }) settles look-alikes: a WebM voice note vs a WebM video, an Office file vs any ZIP.
+    const saveLocalFile = async (file, scopeId, userId, hint = {}) => {
         if (!file?.buffer) {
             throw uploadError("A photo or video is required");
         }
 
+        const ext = String(hint.ext || (file.originalname || "").split(".").pop() || "").toLowerCase();
         const image = accepted.includes(KINDS.IMAGE) ? detectImage(file.buffer) : null;
-        const video = !image && accepted.includes(KINDS.VIDEO) ? detectVideo(file.buffer) : null;
-        const pdf = !image && !video && accepted.includes(KINDS.DOCUMENT) ? detectDocument(file.buffer) : null;
-        const detected = image || video || pdf;
+        const audio = !image && accepted.includes(KINDS.AUDIO) && hint.kind === KINDS.AUDIO ? detectAudio(file.buffer) : null;
+        const video = !image && !audio && accepted.includes(KINDS.VIDEO) ? detectVideo(file.buffer) : null;
+        const document = !image && !audio && !video && accepted.includes(KINDS.DOCUMENT) ? detectDocument(file.buffer, ext) : null;
+        const detected = image || audio || video || (document && documentFormats.includes(document.ext) ? document : null);
         if (!detected) {
             throw uploadError(`Only ${acceptedLabel()} are allowed`);
         }
 
-        const kind = image ? KINDS.IMAGE : video ? KINDS.VIDEO : KINDS.DOCUMENT;
+        const kind = image ? KINDS.IMAGE : audio ? KINDS.AUDIO : video ? KINDS.VIDEO : KINDS.DOCUMENT;
         if (file.buffer.length > maxBytesFor(kind)) {
-            throw uploadError(`${kind === KINDS.VIDEO ? "Videos" : kind === KINDS.DOCUMENT ? "Files" : "Photos"} must be ${Math.round(maxBytesFor(kind) / (1024 * 1024))} MB or smaller`, 413);
+            const noun = { VIDEO: "Videos", AUDIO: "Voice notes", DOCUMENT: "Files", IMAGE: "Photos" }[kind];
+            throw uploadError(`${noun} must be ${Math.round(maxBytesFor(kind) / (1024 * 1024))} MB or smaller`, 413);
         }
 
         const relative = `${config.localDir}/${scopeId}/${Date.now()}-${crypto.randomBytes(8).toString("hex")}.${detected.ext}`;
@@ -298,7 +347,10 @@ const createMediaStore = (config) => {
 
     // ------------------------------------------------------------ Shared
 
-    const createUploadTicket = (scopeId, userId, kind) => (useCloudinary() ? cloudinaryTicket(scopeId, userId, kind) : localTicket(scopeId, kind));
+    const createUploadTicket = (scopeId, userId, kind, ext) => {
+        if (kind === KINDS.DOCUMENT) docExt(ext);
+        return useCloudinary() ? cloudinaryTicket(scopeId, userId, kind, ext) : localTicket(scopeId, kind);
+    };
 
     const verifyUpload = (media, scopeId, userId) => {
         if (media?.provider === "cloudinary") {
@@ -318,6 +370,9 @@ const createMediaStore = (config) => {
         const { transforms } = config;
         if (media.kind === KINDS.DOCUMENT) {
             return { url: media.provider === "cloudinary" ? documentUrl(media) : localUrl(media.key), poster: null, thumb: null };
+        }
+        if (media.kind === KINDS.AUDIO) {
+            return { url: media.provider === "cloudinary" ? cloudinaryUrl("video", transforms.audio || "q_auto", media.version, media.key, ".mp3") : localUrl(media.key), poster: null, thumb: null };
         }
         if (media.provider === "cloudinary") {
             if (media.kind === KINDS.VIDEO) {
@@ -384,4 +439,4 @@ const createMediaStore = (config) => {
     };
 };
 
-module.exports = { createMediaStore, KINDS, FORMATS, signParams, transformUrl, detectVideo, detectDocument, providerName };
+module.exports = { createMediaStore, KINDS, FORMATS, signParams, transformUrl, detectVideo, detectAudio, detectDocument, providerName };

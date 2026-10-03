@@ -19,7 +19,9 @@ const CLUB_PERMISSIONS = Object.freeze({
     // Running recruitment drives (form, rounds, results, final selection): the president only.
     MANAGE_RECRUITMENT: "MANAGE_RECRUITMENT",
     // Sending reminder emails about an event (registration closing, event starting). Grantable.
-    SEND_REMINDERS: "SEND_REMINDERS"
+    SEND_REMINDERS: "SEND_REMINDERS",
+    // The club group chat: announce-only mode and pinned messages. Grantable.
+    MANAGE_CHAT: "MANAGE_CHAT"
 });
 
 // Which roles hold which authorities is decided per club: see utils/ClubRoles.js and Club.roles.

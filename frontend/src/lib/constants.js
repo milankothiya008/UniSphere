@@ -67,6 +67,7 @@ export const PERMISSION_GROUPS = [
         items: [
             ["POST_UPDATES", "Post updates", "Announcements and stories"],
             ["SEND_REMINDERS", "Send reminders", "Email reminders about registration deadlines and event start"],
+            ["MANAGE_CHAT", "Manage club chat", "Announce-only mode and pinned messages in the club group"],
             ["MODERATE_GALLERY", "Approve gallery uploads", "Review photos and videos from events"]
         ]
     }

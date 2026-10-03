@@ -1,16 +1,67 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { KeyRound, Save } from "lucide-react";
-import { authApi, userApi } from "../api/endpoints";
+import { authApi, chatApi, userApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { ApiErrorAlert, Badge, Button, Card, Input, PageHeader } from "../components/ui";
+import { ApiErrorAlert, Avatar as ChatAvatar, Badge, Button, Card, Input, PageHeader, Switch } from "../components/ui";
 import { ROLE_LABELS } from "../lib/constants";
 import { batchLabel, formatDate } from "../lib/format";
 import { passwordProblems } from "../lib/validation";
 import { AvatarUpload } from "../components/profile/AvatarUpload";
 import { PushSetting } from "../components/layout/PushPrompt";
 import { useTheme } from "../lib/theme";
+
+// Chat privacy: "Active now" status (shown only if you show yours, like Instagram) and blocked accounts.
+const ChatPrivacy = () => {
+    const [settings, setSettings] = useState(null);
+    const [blocked, setBlocked] = useState([]);
+    useEffect(() => {
+        chatApi
+            .settings()
+            .then((response) => setSettings(response.data))
+            .catch(() => {});
+        chatApi
+            .blocks()
+            .then((response) => setBlocked(response.data))
+            .catch(() => {});
+    }, []);
+    if (!settings) return null;
+    return (
+        <div className="stack">
+            <Switch
+                checked={settings.showActivityStatus}
+                onChange={async (value) => setSettings((await chatApi.updateSettings({ showActivityStatus: value })).data)}
+                label="Show activity status"
+                description="People you chat with see when you're active. Turn it off and you won't see theirs either."
+            />
+            <div className="stack-sm">
+                <strong className="small">Blocked accounts</strong>
+                {blocked.length ? (
+                    blocked.map((person) => (
+                        <div key={person._id} className="row" style={{ justifyContent: "space-between" }}>
+                            <span className="row" style={{ gap: 10 }}>
+                                <ChatAvatar name={person.name} src={person.avatar} size="sm" /> {person.name}
+                            </span>
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={async () => {
+                                    await chatApi.setBlocked(person._id, false);
+                                    setBlocked((current) => current.filter((item) => item._id !== person._id));
+                                }}
+                            >
+                                Unblock
+                            </Button>
+                        </div>
+                    ))
+                ) : (
+                    <span className="subtle small">You haven't blocked anyone.</span>
+                )}
+            </div>
+        </div>
+    );
+};
 import { Monitor, Moon, Sun } from "lucide-react";
 
 // Light, dark, or the same as the phone/computer.
@@ -23,7 +74,14 @@ const ThemeSetting = () => {
                 ["dark", "Dark", Moon],
                 ["system", "Same as device", Monitor]
             ].map(([value, label, Icon]) => (
-                <button key={value} type="button" role="radio" aria-checked={theme === value} className={`theme-choice is-${value} ${theme === value ? "is-on" : ""}`} onClick={() => setTheme(value)}>
+                <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={theme === value}
+                    className={`theme-choice is-${value} ${theme === value ? "is-on" : ""}`}
+                    onClick={() => setTheme(value)}
+                >
                     <span className="theme-preview" aria-hidden="true">
                         <span />
                         <span />
@@ -102,7 +160,12 @@ const SettingsPage = () => {
                     <Card title="Profile">
                         <form className="stack" onSubmit={saveName}>
                             <Input label="Full name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} required />
-                            <Input label="University email" value={user.email} disabled hint="Your email identifies your account and role and cannot be changed." />
+                            <Input
+                                label="University email"
+                                value={user.email}
+                                disabled
+                                hint="Your email identifies your account and role and cannot be changed."
+                            />
                             <div id="mobile">
                                 <Input
                                     label="Mobile number"
@@ -113,7 +176,13 @@ const SettingsPage = () => {
                                     value={phone}
                                     onChange={(e) => setPhone(e.target.value)}
                                     required={phoneRequired}
-                                    error={phoneInvalid ? "Enter a 10-digit Indian mobile number" : phoneMissing && user.phone ? "Your mobile number can be changed but not removed" : null}
+                                    error={
+                                        phoneInvalid
+                                            ? "Enter a 10-digit Indian mobile number"
+                                            : phoneMissing && user.phone
+                                              ? "Your mobile number can be changed but not removed"
+                                              : null
+                                    }
                                     hint={
                                         user.accountType === "STUDENT"
                                             ? "Shown to members of clubs, club mentors and the admin — never to other students."
@@ -136,6 +205,9 @@ const SettingsPage = () => {
                     </Card>
                     <Card title="Notifications">
                         <PushSetting />
+                    </Card>
+                    <Card title="Chat privacy">
+                        <ChatPrivacy />
                     </Card>
                     <Card title="Change password">
                         <form className="stack" onSubmit={changePassword}>
@@ -169,7 +241,11 @@ const SettingsPage = () => {
                             </div>
                             <ApiErrorAlert error={passwordError} />
                             <div className="form-actions">
-                                <Button type="submit" loading={savingPassword} disabled={!passwords.currentPassword || problems.length > 0 || !passwords.confirm || mismatch}>
+                                <Button
+                                    type="submit"
+                                    loading={savingPassword}
+                                    disabled={!passwords.currentPassword || problems.length > 0 || !passwords.confirm || mismatch}
+                                >
                                     <KeyRound size={16} /> Change password
                                 </Button>
                             </div>

@@ -12,6 +12,8 @@ import {
     Home,
     MapPin,
     Menu,
+    MessageCircle,
+    Flag,
     PlusSquare,
     Settings,
     Settings2,
@@ -31,12 +33,12 @@ import { ActionMenu, Avatar } from "../ui";
 import { CreateSheet, useCreateOptions } from "./CreateSheet";
 import { ActivityBubble } from "./ActivityBubble";
 import { PhoneRequired } from "./PhoneRequired";
+import { useChat } from "../../context/ChatContext";
+import { BrandMark } from "./BrandMark";
 
 const Brand = () => (
     <Link to="/feed" className="brand" aria-label="CampusConnect home">
-        <span className="brand-mark" aria-hidden="true">
-            C
-        </span>
+        <BrandMark className="brand-mark" />
         <span className="brand-name">CampusConnect</span>
     </Link>
 );
@@ -47,29 +49,47 @@ const Count = ({ value, dot }) => {
     return dot ? <span className="nav-dot" aria-hidden="true" /> : <span className="nav-badge">{value > 99 ? "99+" : value}</span>;
 };
 
-// The main destinations: the same five on the side bar and the phone's bottom tabs.
-const usePrimaryNav = () => {
-    const { user, isFaculty, isAdmin } = useAuth();
-    const unread = useUnreadCount();
+// What the "+" / role spot holds: Create for students who can create, the role's home for faculty and the admin.
+const useRoleItem = () => {
+    const { isFaculty, isAdmin } = useAuth();
     const canCreate = useCreateOptions().length > 0;
-    const { pathname } = useLocation();
-
-    const role = isAdmin
+    return isAdmin
         ? { key: "role", to: "/dashboard", icon: ShieldCheck, label: "Admin" }
         : isFaculty
           ? { key: "role", to: "/dashboard", icon: ClipboardCheck, label: "Reviews" }
           : canCreate
             ? { key: "create", icon: PlusSquare, label: "Create" }
             : null;
+};
+
+// The main destinations on the side bar (computers).
+const usePrimaryNav = () => {
+    const { user } = useAuth();
+    const unread = useUnreadCount();
+    const { unread: chats } = useChat();
+    const role = useRoleItem();
+    const { pathname } = useLocation();
 
     return [
         { key: "home", to: "/feed", icon: Home, label: "Home", active: pathname === "/feed" },
         { key: "explore", to: "/explore", icon: Compass, label: "Explore" },
         role,
-        { key: "activity", to: "/activity", icon: Heart, label: "Activity", count: unread, dot: true, active: ["/activity", "/notifications"].includes(pathname) },
+        { key: "messages", to: "/messages", icon: MessageCircle, label: "Messages", count: chats.chats, active: pathname.startsWith("/messages") },
+        {
+            key: "activity",
+            to: "/activity",
+            icon: Heart,
+            label: "Activity",
+            count: unread,
+            dot: true,
+            active: ["/activity", "/notifications"].includes(pathname)
+        },
         { key: "profile", to: "/profile", label: "Profile", avatar: user }
     ].filter(Boolean);
 };
+
+// The phone's bottom tabs, like Instagram: Messages in the middle; Create moves to the top bar.
+const tabItems = (primary) => primary.filter((item) => !["create", "role"].includes(item.key));
 
 // Everything else: role pages, settings and sign-out. A list on wide screens, a menu on phones.
 const useSecondaryNav = () => {
@@ -78,7 +98,9 @@ const useSecondaryNav = () => {
     const managesEvents = isFaculty || eventClubs.length > 0 || officerClubs.length > 0;
     // The campus-wide planner: mentors, the admin and officers who create or publish events.
     const plansEvents =
-        isFaculty || isAdmin || officerClubs.some((m) => m.permissions?.includes(PERMISSIONS.MANAGE_EVENTS) || m.permissions?.includes(PERMISSIONS.PUBLISH_EVENTS));
+        isFaculty ||
+        isAdmin ||
+        officerClubs.some((m) => m.permissions?.includes(PERMISSIONS.MANAGE_EVENTS) || m.permissions?.includes(PERMISSIONS.PUBLISH_EVENTS));
 
     return [
         managesEvents && { to: "/events/manage", icon: Wrench, label: "Manage events" },
@@ -88,6 +110,7 @@ const useSecondaryNav = () => {
         ...(isAdmin
             ? [
                   { to: "/admin/club-requests", icon: ShieldCheck, label: "Club approvals" },
+                  { to: "/admin/chat-reports", icon: Flag, label: "Chat reports" },
                   { to: "/admin/clubs", icon: Building2, label: "All clubs" },
                   { to: "/admin/users", icon: Users, label: "Users" },
                   { to: "/admin/faculty", icon: GraduationCap, label: "Faculty & mentors" },
@@ -172,7 +195,15 @@ const SideNav = ({ primary, secondary, account, onCreate }) => (
             label="More"
             className="sidenav-more"
             trigger={({ open, toggle, menuId }) => (
-                <button type="button" className="nav-item" onClick={toggle} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} title="More">
+                <button
+                    type="button"
+                    className="nav-item"
+                    onClick={toggle}
+                    aria-haspopup="menu"
+                    aria-expanded={open}
+                    aria-controls={open ? menuId : undefined}
+                    title="More"
+                >
                     <span className="nav-icon">
                         <Menu size={24} strokeWidth={1.9} />
                     </span>
@@ -183,17 +214,43 @@ const SideNav = ({ primary, secondary, account, onCreate }) => (
     </aside>
 );
 
-const TopBar = ({ secondary, account }) => {
+// Phones: "+" (or the role's page) on the left, the name in the middle, the menu on the right.
+const TopBar = ({ secondary, account, role, onCreate }) => {
     const navigate = useNavigate();
-    const items = [...secondary.map((item) => ({ label: item.label, icon: item.icon, onClick: () => navigate(item.to) })), ...(secondary.length ? ["divider"] : []), ...account];
+    const items = [
+        ...secondary.map((item) => ({ label: item.label, icon: item.icon, onClick: () => navigate(item.to) })),
+        ...(secondary.length ? ["divider"] : []),
+        ...account
+    ];
     return (
         <header className="topbar">
-            <Brand />
+            <span className="topbar-left">
+                {role?.key === "create" ? (
+                    <button type="button" className="icon-button" onClick={onCreate} aria-label="Create">
+                        <PlusSquare size={25} strokeWidth={1.9} />
+                    </button>
+                ) : role ? (
+                    <Link to={role.to} className="icon-button" aria-label={role.label} title={role.label}>
+                        <role.icon size={24} strokeWidth={1.9} />
+                    </Link>
+                ) : null}
+            </span>
+            <Link to="/feed" className="topbar-title" aria-label="CampusConnect home">
+                CampusConnect
+            </Link>
             <ActionMenu
                 items={items}
                 label="Menu"
                 trigger={({ open, toggle, menuId }) => (
-                    <button type="button" className="icon-button" onClick={toggle} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} aria-label="Menu">
+                    <button
+                        type="button"
+                        className="icon-button"
+                        onClick={toggle}
+                        aria-haspopup="menu"
+                        aria-expanded={open}
+                        aria-controls={open ? menuId : undefined}
+                        aria-label="Menu"
+                    >
                         <Menu size={24} strokeWidth={1.9} />
                     </button>
                 )}
@@ -204,7 +261,7 @@ const TopBar = ({ secondary, account }) => {
 
 const TabBar = ({ primary, onCreate }) => (
     <nav className="tabbar" aria-label="Tabs">
-        {primary.map((item) => (
+        {tabItems(primary).map((item) => (
             <PrimaryLink key={item.key} item={item} onCreate={onCreate} />
         ))}
     </nav>
@@ -215,16 +272,20 @@ export const AppShell = () => {
     const primary = usePrimaryNav();
     const secondary = useSecondaryNav();
     const account = useAccountMenu();
+    const role = useRoleItem();
     const [creating, setCreating] = useState(false);
+    // Messages fill the screen; an open chat on a phone hides the top bar and tabs, like Instagram.
+    const inMessages = location.pathname.startsWith("/messages");
+    const chatOpen = /^\/messages\/[^/]+/.test(location.pathname);
 
     useEffect(() => {
         window.scrollTo(0, 0);
     }, [location.pathname]);
 
     return (
-        <div className="shell">
+        <div className={`shell ${inMessages ? "is-messages" : ""} ${chatOpen ? "is-chat-open" : ""}`}>
             <SideNav primary={primary} secondary={secondary} account={account} onCreate={() => setCreating(true)} />
-            <TopBar secondary={secondary} account={account} />
+            <TopBar secondary={secondary} account={account} role={role} onCreate={() => setCreating(true)} />
             <main className="content">
                 <Outlet />
             </main>

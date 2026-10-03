@@ -80,4 +80,22 @@ const singleRecruitmentFile = (field = "file") => (req, res, next) => {
     });
 };
 
-module.exports = { singleImage, singleStoryFile, singleGalleryFile, singleRecruitmentFile };
+// Chat attachments (development storage only, like stories).
+const chatUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: Math.max(env.chat.maxImageBytes, env.chat.maxVideoBytes, env.chat.maxDocumentBytes, env.chat.maxAudioBytes), files: 1 }
+});
+
+const singleChatFile = (field = "file") => (req, res, next) => {
+    chatUpload.single(field)(req, res, (error) => {
+        if (!error) {
+            return next();
+        }
+        if (error.code === "LIMIT_FILE_SIZE") {
+            return next(new AppError("This file is too large to send", 413, ERROR_CODES.UPLOAD_ERROR));
+        }
+        return next(new AppError("Invalid upload", 400, ERROR_CODES.UPLOAD_ERROR));
+    });
+};
+
+module.exports = { singleImage, singleStoryFile, singleGalleryFile, singleRecruitmentFile, singleChatFile };

@@ -241,6 +241,40 @@ export const galleryApi = {
     remove: (eventId, mediaId) => api.delete(`/events/${eventId}/gallery/${mediaId}`)
 };
 
+// Chat: conversations, messages, groups, uploads, blocking. Live updates come over the socket (lib/chatSocket).
+export const chatApi = {
+    conversations: (filter) => api.fresh("/chat/conversations", { filter }),
+    unread: () => api.fresh("/chat/unread"),
+    people: (q) => api.fresh("/chat/people", { q }),
+    openDirect: (userId) => api.post("/chat/direct", { userId }),
+    createGroup: (body) => api.post("/chat/groups", body),
+    get: (id) => api.fresh(`/chat/conversations/${id}`),
+    update: (id, body) => api.patch(`/chat/conversations/${id}`, body),
+    messages: (id, before) => api.fresh(`/chat/conversations/${id}/messages`, { before }),
+    send: (id, body) => api.post(`/chat/conversations/${id}/messages`, body),
+    read: (id) => api.post(`/chat/conversations/${id}/read`),
+    mute: (id, duration) => api.put(`/chat/conversations/${id}/mute`, { duration }),
+    clear: (id) => api.post(`/chat/conversations/${id}/clear`),
+    leave: (id) => api.post(`/chat/conversations/${id}/leave`),
+    addMembers: (id, userIds) => api.post(`/chat/conversations/${id}/members`, { userIds }),
+    removeMember: (id, userId) => api.delete(`/chat/conversations/${id}/members/${userId}`),
+    setAdmin: (id, userId, admin) => api.put(`/chat/conversations/${id}/members/${userId}/admin`, { admin }),
+    pin: (id, messageId, pinned) => api.put(`/chat/conversations/${id}/pins/${messageId}`, { pinned }),
+    shared: (id, kind) => api.fresh(`/chat/conversations/${id}/shared`, { kind }),
+    uploadTicket: (id, kind, ext) => api.post(`/chat/conversations/${id}/uploads`, { kind, ext }),
+    edit: (messageId, text) => api.patch(`/chat/messages/${messageId}`, { text }),
+    remove: (messageId, scope) => api.delete(`/chat/messages/${messageId}?for=${scope}`),
+    react: (messageId, emoji) => api.put(`/chat/messages/${messageId}/reaction`, { emoji }),
+    forward: (messageId, conversationIds) => api.post(`/chat/messages/${messageId}/forward`, { conversationIds }),
+    report: (messageId, reason) => api.post(`/chat/messages/${messageId}/report`, { reason }),
+    blocks: () => api.fresh("/chat/blocks"),
+    setBlocked: (userId, blocked) => api.put(`/chat/blocks/${userId}`, { blocked }),
+    settings: () => api.fresh("/chat/settings"),
+    updateSettings: (body) => api.put("/chat/settings", body),
+    reports: (status) => api.fresh("/chat/reports", { status }),
+    resolveReport: (id, note) => api.put(`/chat/reports/${id}`, { note })
+};
+
 // Likes on event posts ("event") and gallery photos ("media").
 export const likeApi = {
     set: (type, id, liked) => api.put(`/likes/${type}/${id}`, { liked }),

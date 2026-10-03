@@ -1,5 +1,6 @@
 import { Link, Outlet } from "react-router-dom";
-import { Award, CalendarCheck2, Megaphone, Sparkles, Users } from "lucide-react";
+import { Award, CalendarCheck2, Megaphone, Users } from "lucide-react";
+import { BrandMark } from "./BrandMark";
 
 const POINTS = [
     [Users, "Start or join clubs with faculty mentors and clear roles."],
@@ -17,9 +18,7 @@ export const AuthLayout = () => (
                 <i />
             </span>
             <Link to="/login" className="brand" style={{ padding: 0, height: "auto" }}>
-                <span className="brand-mark">
-                    <Sparkles size={18} />
-                </span>
+                <BrandMark className="brand-mark" />
                 <span className="brand-name">
                     Campus<span>Connect</span>
                 </span>

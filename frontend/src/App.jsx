@@ -5,6 +5,7 @@ import { AuthLayout } from "./components/layout/AuthLayout";
 import { GuestRoute, ProtectedRoute } from "./routes/ProtectedRoute";
 import { PageLoader } from "./components/ui";
 import { WorkspaceProvider } from "./context/WorkspaceContext";
+import { ChatProvider } from "./context/ChatContext";
 import { ROLES } from "./lib/constants";
 
 const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
@@ -64,6 +65,8 @@ const AdminClubsPage = lazy(() => import("./pages/admin/AdminClubsPage"));
 const AdminFacultyPage = lazy(() => import("./pages/admin/AdminFacultyPage"));
 const AdminAcademicsPage = lazy(() => import("./pages/admin/AdminAcademicsPage"));
 const AdminVenuesPage = lazy(() => import("./pages/admin/AdminVenuesPage"));
+const AdminChatReportsPage = lazy(() => import("./pages/admin/AdminChatReportsPage"));
+const MessagesPage = lazy(() => import("./pages/messages/MessagesPage"));
 
 const { STUDENT, FACULTY, ADMIN } = ROLES;
 
@@ -92,7 +95,9 @@ const App = () => (
                 element={
                     <ProtectedRoute>
                         <WorkspaceProvider>
-                            <AppShell />
+                            <ChatProvider>
+                                <AppShell />
+                            </ChatProvider>
                         </WorkspaceProvider>
                     </ProtectedRoute>
                 }
@@ -102,6 +107,8 @@ const App = () => (
                 <Route path="/explore" element={<ExplorePage />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/activity" element={<NotificationsPage />} />
+                <Route path="/messages" element={<MessagesPage />} />
+                <Route path="/messages/:id" element={<MessagesPage />} />
                 <Route path="/notifications" element={<Navigate to="/activity" replace />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/settings/notifications" element={<NotificationSettingsPage />} />
@@ -160,6 +167,7 @@ const App = () => (
                     <Route path="/admin/faculty" element={<AdminFacultyPage />} />
                     <Route path="/admin/academics" element={<AdminAcademicsPage />} />
                     <Route path="/admin/venues" element={<AdminVenuesPage />} />
+                    <Route path="/admin/chat-reports" element={<AdminChatReportsPage />} />
                 </Route>
 
                 <Route path="*" element={<NotFoundPage />} />
