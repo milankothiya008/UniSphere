@@ -21,8 +21,8 @@ self.addEventListener("push", (event) => {
             if (data.kind === "chat" && tabs.some((tab) => tab.visibilityState === "visible" && tab.focused)) return;
             await self.registration.showNotification(title, {
                 body: data.body || "",
-                icon: data.icon || "/icons/icon-192.png",
-                badge: "/icons/badge-96.png",
+                icon: data.icon || "/icons/v2/icon-192.png",
+                badge: "/icons/v2/badge-96.png",
                 tag: data.tag || undefined,
                 renotify: Boolean(data.tag),
                 vibrate: data.kind === "chat" ? [80, 40, 80] : undefined,
