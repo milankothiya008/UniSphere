@@ -20,7 +20,7 @@ router.get("/conversations", query("filter").optional().isIn(["all", "unread", "
 router.get("/unread", ok((req) => chat.unreadSummary(req.user)));
 router.get("/people", query("q").optional().isString().isLength({ max: 80 }), validate, ok((req) => chat.searchPeople(req.user, req.query.q)));
 router.get("/settings", ok((req) => chat.getSettings(req.user)));
-router.put("/settings", body("showActivityStatus").optional().isBoolean(), validate, ok((req) => chat.updateSettings(req.user, req.body)));
+router.put("/settings", body("showActivityStatus").optional().isBoolean(), body("chatNotifications").optional().isBoolean(), validate, ok((req) => chat.updateSettings(req.user, req.body)));
 router.get("/blocks", ok((req) => chat.listBlocked(req.user)));
 router.put("/blocks/:userId", id("userId"), body("blocked").isBoolean(), validate, ok((req) => chat.setBlocked(req.user, req.params.userId, req.body.blocked)));
 
@@ -58,7 +58,7 @@ router.post(
     ok((req) => chat.sendMessage(req.user, req.params.id, req.body), "Sent")
 );
 router.post("/conversations/:id/read", id(), validate, ok((req) => chat.markRead(req.user, req.params.id)));
-router.put("/conversations/:id/mute", id(), body("duration").optional({ values: "null" }).isIn(["8h", "1w", "always"]), validate, ok((req) => chat.mute(req.user, req.params.id, req.body.duration)));
+router.put("/conversations/:id/mute", id(), body("duration").optional({ values: "null" }).isIn(["15m", "1h", "8h", "24h", "1w", "always"]), validate, ok((req) => chat.mute(req.user, req.params.id, req.body.duration)));
 router.post("/conversations/:id/clear", id(), validate, ok((req) => chat.clearChat(req.user, req.params.id)));
 router.post("/conversations/:id/leave", id(), validate, ok((req) => chat.leaveGroup(req.user, req.params.id)));
 router.post("/conversations/:id/members", id(), body("userIds").isArray({ min: 1, max: 100 }), body("userIds.*").isMongoId(), validate, ok((req) => chat.addMembers(req.user, req.params.id, req.body.userIds)));

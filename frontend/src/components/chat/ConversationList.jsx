@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { BellOff, MessageCirclePlus, Megaphone, Search, Users } from "lucide-react";
+import { BellOff, MessageCirclePlus, Megaphone, MoreHorizontal, Search, Users } from "lucide-react";
 import { useChat } from "../../context/ChatContext";
 import { Avatar, EmptyState, Skeleton } from "../ui";
 import { listTime } from "../../lib/chat";
@@ -12,8 +12,19 @@ const FILTERS = [
     ["clubs", "Clubs"]
 ];
 
-/** One row: avatar (with an online dot), name, last message, time and unread badge. */
-const Row = ({ row, active, presence }) => {
+/** One row: avatar (with an online dot), name, last message, time and unread badge. Long-press for options. */
+const Row = ({ row, active, presence, onOptions }) => {
+    const press = useRef(null);
+    const longPressed = useRef(false);
+    const startPress = () => {
+        longPressed.current = false;
+        press.current = setTimeout(() => {
+            longPressed.current = true;
+            navigator.vibrate?.(15);
+            onOptions(row);
+        }, 500);
+    };
+    const endPress = () => clearTimeout(press.current);
     const online = row.type === "DIRECT" && presence?.[row.other?._id]?.online;
     const typing = row.typing;
     const preview = typing
@@ -26,8 +37,22 @@ const Row = ({ row, active, presence }) => {
     return (
         <Link
             to={`/messages/${row._id}`}
-            className={`chat-row ${active ? "is-active" : ""} ${row.unread ? "is-unread" : ""}`}
+            className={`chat-row ${active ? "is-active" : ""} ${row.unread ? "is-unread" : ""} ${row.muted ? "is-muted" : ""}`}
             aria-current={active ? "page" : undefined}
+            onTouchStart={startPress}
+            onTouchEnd={endPress}
+            onTouchMove={endPress}
+            onClick={(event) => {
+                // The long-press opened the options: don't also open the chat.
+                if (longPressed.current) {
+                    event.preventDefault();
+                    longPressed.current = false;
+                }
+            }}
+            onContextMenu={(event) => {
+                event.preventDefault();
+                onOptions(row);
+            }}
         >
             <span className="chat-row-avatar">
                 <Avatar name={row.title} src={row.avatar} size="lg" square={row.type === "CLUB"} />
@@ -44,12 +69,24 @@ const Row = ({ row, active, presence }) => {
             <span className="chat-row-meta">
                 {row.muted && <BellOff size={14} aria-label="Muted" />}
                 {row.unread > 0 && <span className={`chat-badge ${row.muted ? "is-muted" : ""}`}>{row.unread > 99 ? "99+" : row.unread}</span>}
+                <button
+                    type="button"
+                    className="chat-row-more"
+                    aria-label={`Options for ${row.title}`}
+                    onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onOptions(row);
+                    }}
+                >
+                    <MoreHorizontal size={18} />
+                </button>
             </span>
         </Link>
     );
 };
 
-export const ConversationList = ({ rows, loading, activeId, filter, onFilter, onNew, typingByChat }) => {
+export const ConversationList = ({ rows, loading, activeId, filter, onFilter, onNew, typingByChat, onOptions, notice }) => {
     const { presence, watchPresence } = useChat();
     const [search, setSearch] = useState("");
 
@@ -89,6 +126,7 @@ export const ConversationList = ({ rows, loading, activeId, filter, onFilter, on
                     </button>
                 ))}
             </div>
+            {notice}
             <div className="chat-rows">
                 {loading && !rows.length ? (
                     Array.from({ length: 6 }, (_, index) => (
@@ -101,7 +139,9 @@ export const ConversationList = ({ rows, loading, activeId, filter, onFilter, on
                         </div>
                     ))
                 ) : visible.length ? (
-                    visible.map((row) => <Row key={row._id} row={row} active={String(row._id) === String(activeId)} presence={presence} />)
+                    visible.map((row) => (
+                        <Row key={row._id} row={row} active={String(row._id) === String(activeId)} presence={presence} onOptions={onOptions} />
+                    ))
                 ) : (
                     <EmptyState
                         icon={MessageCirclePlus}

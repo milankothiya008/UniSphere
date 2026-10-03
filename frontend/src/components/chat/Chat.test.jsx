@@ -1,10 +1,11 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route } from "react-router-dom";
 import { renderWithRouter, authValue } from "../../test/renderWithProviders";
 import MessagesPage from "../../pages/messages/MessagesPage";
 import { useAuth } from "../../context/AuthContext";
 import { chatApi } from "../../api/endpoints";
+import { ChatProvider } from "../../context/ChatContext";
 
 vi.mock("../../context/AuthContext", () => ({ useAuth: vi.fn() }));
 vi.mock("../../api/endpoints", () => ({
@@ -19,9 +20,22 @@ vi.mock("../../api/endpoints", () => ({
         openDirect: vi.fn(),
         createGroup: vi.fn(),
         unread: vi.fn().mockResolvedValue({ data: { chats: 0, messages: 0 } }),
-        shared: vi.fn().mockResolvedValue({ data: [] })
+        shared: vi.fn().mockResolvedValue({ data: [] }),
+        mute: vi.fn(),
+        settings: vi.fn().mockResolvedValue({ data: { showActivityStatus: true, chatNotifications: true } })
     }
 }));
+
+// A pretend socket for the live-update tests.
+const socketHandlers = {};
+const fakeSocket = {
+    connected: true,
+    on: (event, handler) => ((socketHandlers[event] = socketHandlers[event] || new Set()).add(handler)),
+    off: (event, handler) => socketHandlers[event]?.delete(handler),
+    emit: vi.fn(),
+    fire: (event, payload) => socketHandlers[event]?.forEach((handler) => handler(payload))
+};
+vi.mock("../../lib/chatSocket", () => ({ connectChat: () => fakeSocket, disconnectChat: vi.fn(), chatSocket: () => fakeSocket }));
 
 const me = { _id: "u1", name: "Asha Patel" };
 const rows = [
@@ -149,5 +163,56 @@ describe("Messages", () => {
         await userEvent.click(await within(dialog).findByRole("option", { name: /Dr Mentor/ }));
         await waitFor(() => expect(chatApi.openDirect).toHaveBeenCalledWith("u9"));
         expect(await screen.findByLabelText("Message")).toBeInTheDocument();
+    });
+
+    test("chats can be muted from the list like Instagram (right-click or long-press)", async () => {
+        chatApi.mute.mockResolvedValue({ data: { muted: true, mutedUntil: new Date(Date.now() + 3600000).toISOString() } });
+        renderWithRouter(<MessagesPage />, { route: "/messages", path: "/messages" });
+        const row = await screen.findByRole("link", { name: /Dr Mentor/ });
+        fireEvent.contextMenu(row);
+        const sheet = screen.getByRole("dialog", { name: "Dr Mentor" });
+        await userEvent.click(within(sheet).getByRole("button", { name: /Mute messages/ }));
+        expect(within(screen.getByRole("dialog", { name: "Mute messages" })).getAllByRole("button").map((button) => button.textContent)).toEqual(
+            expect.arrayContaining(["For 15 minutes", "For 1 hour", "For 8 hours", "For 24 hours", "Until I change it"])
+        );
+        await userEvent.click(screen.getByRole("button", { name: "For 1 hour" }));
+        expect(chatApi.mute).toHaveBeenCalledWith("c1", "1h");
+        expect(await within(screen.getByRole("link", { name: /Dr Mentor/ })).findByLabelText("Muted")).toBeInTheDocument();
+    });
+});
+
+describe("new-message banners", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        useAuth.mockReturnValue(authValue({ user: me }));
+        chatApi.unread.mockResolvedValue({ data: { chats: 1, messages: 1 } });
+    });
+
+    const incoming = (extra = {}) => ({
+        conversationId: "c1",
+        message: { _id: `m${Math.random()}`, type: "TEXT", text: "See you at 5", sender: { _id: "u9", name: "Dr Mentor" }, attachments: [] },
+        conversation: { _id: "c1", type: "DIRECT", title: "Dr Mentor" },
+        mutedFor: [],
+        ...extra
+    });
+
+    test("a message for another chat shows a banner that opens the chat; muted chats stay quiet", async () => {
+        renderWithRouter(
+            <ChatProvider>
+                <p>Feed</p>
+            </ChatProvider>,
+            { route: "/feed", path: "/feed", extraRoutes: <Route path="/messages/:id" element={<p>Chat opened</p>} /> }
+        );
+        await waitFor(() => expect(fakeSocket.emit).toHaveBeenCalledWith("viewing", expect.anything()));
+
+        act(() => fakeSocket.fire("message:new", incoming({ mutedFor: ["u1"] })));
+        expect(screen.queryByText("See you at 5")).not.toBeInTheDocument();
+        expect(fakeSocket.emit).toHaveBeenCalledWith("delivered", { conversationId: "c1" });
+
+        act(() => fakeSocket.fire("message:new", incoming()));
+        const banner = await screen.findByText("See you at 5");
+        expect(screen.getByText("Dr Mentor")).toBeInTheDocument();
+        await userEvent.click(banner);
+        expect(await screen.findByText("Chat opened")).toBeInTheDocument();
     });
 });

@@ -12,12 +12,20 @@ const logger = require("../utils/Logger");
 
 let io = null;
 const online = new Map(); // userId -> open sockets
+const viewing = new Map(); // socketId -> { userId, conversationId } for tabs showing a chat on screen
 const handlers = {}; // set by ChatService: typing, delivered, access checks
 
 const userRoom = (id) => `user:${id}`;
 const presenceRoom = (id) => `presence:${id}`;
 
 const isOnline = (userId) => (online.get(String(userId)) || 0) > 0;
+
+/** People who have this chat open on screen right now (they don't need a notification for it). */
+const viewersOf = (conversationId) => {
+    const ids = new Set();
+    viewing.forEach((entry) => entry.conversationId === String(conversationId) && ids.add(entry.userId));
+    return ids;
+};
 
 /** Sends an event to every open tab of these users (no-op when sockets aren't running, e.g. tests). */
 const emitToUsers = (userIds, event, payload) => {
@@ -69,10 +77,17 @@ const onConnection = (socket) => {
         }
     });
 
+    // The tab says which chat it shows while it's visible (null when hidden or on another page).
+    socket.on("viewing", (payload) => {
+        const conversationId = payload?.conversationId ? String(payload.conversationId).slice(0, 40) : null;
+        if (conversationId && payload.visible !== false) viewing.set(socket.id, { userId: id, conversationId });
+        else viewing.delete(socket.id);
+    });
     socket.on("typing", (payload) => handlers.typing?.(user, payload).catch(() => {}));
     socket.on("delivered", (payload) => handlers.delivered?.(user, payload).catch(() => {}));
 
     socket.on("disconnect", async () => {
+        viewing.delete(socket.id);
         const left = (online.get(id) || 1) - 1;
         if (left > 0) {
             online.set(id, left);
@@ -105,4 +120,4 @@ const init = (server, { origin }) => {
 
 const registerHandlers = (next) => Object.assign(handlers, next);
 
-module.exports = { init, emitToUsers, isOnline, presencePayload, registerHandlers };
+module.exports = { init, emitToUsers, isOnline, viewersOf, presencePayload, registerHandlers };

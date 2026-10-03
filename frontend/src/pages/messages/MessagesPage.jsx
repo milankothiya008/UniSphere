@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { MessageCircle } from "lucide-react";
+import { BellRing, MessageCircle, X } from "lucide-react";
 import { chatApi } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
 import { useChat } from "../../context/ChatContext";
@@ -8,6 +8,69 @@ import { ConversationList } from "../../components/chat/ConversationList";
 import { ChatThread } from "../../components/chat/ChatThread";
 import { NewChatDialog } from "../../components/chat/NewChatDialog";
 import { Button } from "../../components/ui";
+import { ChatOptionsSheet } from "../../components/chat/ChatOptionsSheet";
+import { useToast } from "../../context/ToastContext";
+import { currentSubscription, enablePush, permission, pushSupported } from "../../lib/push";
+
+const PROMPT_KEY = "cc.chatPushPrompt";
+
+/** "Turn on notifications" above the chat list, until this device has them (or the person says no). */
+const NotificationPrompt = () => {
+    const toast = useToast();
+    const [show, setShow] = useState(false);
+    useEffect(() => {
+        let alive = true;
+        const dismissed = (() => {
+            try {
+                return localStorage.getItem(PROMPT_KEY) === "dismissed";
+            } catch {
+                return false;
+            }
+        })();
+        if (!pushSupported() || dismissed || permission() === "denied") return undefined;
+        currentSubscription()
+            .then((subscription) => alive && setShow(!subscription))
+            .catch(() => {});
+        return () => {
+            alive = false;
+        };
+    }, []);
+    if (!show) return null;
+    const dismiss = () => {
+        setShow(false);
+        try {
+            localStorage.setItem(PROMPT_KEY, "dismissed");
+        } catch {
+            // ignore
+        }
+    };
+    return (
+        <div className="chat-notice">
+            <BellRing size={20} />
+            <span>
+                <strong>Turn on notifications</strong>
+                <span>Know when you get a message, even when CampusConnect is closed.</span>
+            </span>
+            <Button
+                size="sm"
+                onClick={async () => {
+                    try {
+                        await enablePush();
+                        toast.success("Notifications are on");
+                        setShow(false);
+                    } catch (error) {
+                        toast.error(error.message || error);
+                    }
+                }}
+            >
+                Turn on
+            </Button>
+            <button type="button" className="icon-button" onClick={dismiss} aria-label="Not now">
+                <X size={16} />
+            </button>
+        </div>
+    );
+};
 
 /**
  * Messages, like Instagram: chats on the left and the open chat on the right (on phones, one at a time).
@@ -16,7 +79,9 @@ import { Button } from "../../components/ui";
 const MessagesPage = () => {
     const { id } = useParams();
     const { user } = useAuth();
-    const { on } = useChat();
+    const { on, refreshUnread } = useChat();
+    const toast = useToast();
+    const [options, setOptions] = useState(null);
     const [rows, setRows] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState("all");
@@ -87,6 +152,11 @@ const MessagesPage = () => {
                 );
             }),
             on("conversation:updated", load),
+            on("conversation:muted", ({ conversationId, mutedUntil }) =>
+                setRows((current) =>
+                    current.map((row) => (String(row._id) === String(conversationId) ? { ...row, muted: Boolean(mutedUntil), mutedUntil } : row))
+                )
+            ),
             on("conversation:removed", ({ conversationId }) => setRows((current) => current.filter((row) => String(row._id) !== String(conversationId)))),
             on("connect", load)
         ];
@@ -103,6 +173,36 @@ const MessagesPage = () => {
         },
         [load]
     );
+
+    const patchRow = (id, patch) => setRows((current) => current.map((row) => (String(row._id) === String(id) ? { ...row, ...patch } : row)));
+
+    const muteRow = async (row, duration) => {
+        try {
+            const response = await chatApi.mute(row._id, duration);
+            patchRow(row._id, { muted: response.data.muted, mutedUntil: response.data.mutedUntil });
+            refreshUnread();
+            toast.success(duration ? `${row.title} is muted` : `${row.title} is unmuted`);
+        } catch (error) {
+            toast.error(error);
+        }
+    };
+
+    const readRow = async (row) => {
+        await chatApi.read(row._id).catch(() => {});
+        patchRow(row._id, { unread: 0 });
+        refreshUnread();
+    };
+
+    const clearRow = async (row) => {
+        try {
+            await chatApi.clear(row._id);
+            if (row.type === "DIRECT") setRows((current) => current.filter((item) => item._id !== row._id));
+            else patchRow(row._id, { lastMessage: null, unread: 0 });
+            refreshUnread();
+        } catch (error) {
+            toast.error(error);
+        }
+    };
 
     const shown =
         filter === "all"
@@ -123,6 +223,8 @@ const MessagesPage = () => {
                 onFilter={setFilter}
                 onNew={() => setCreating(true)}
                 typingByChat={typingByChat}
+                onOptions={setOptions}
+                notice={<NotificationPrompt />}
             />
             {id ? (
                 <ChatThread key={id} conversationId={id} onChanged={onChanged} />
@@ -137,6 +239,7 @@ const MessagesPage = () => {
                 </section>
             )}
             <NewChatDialog open={creating} onClose={() => setCreating(false)} />
+            <ChatOptionsSheet row={options} onClose={() => setOptions(null)} onMute={muteRow} onRead={readRow} onClear={clearRow} />
         </div>
     );
 };

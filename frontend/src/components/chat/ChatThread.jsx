@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowDown, ChevronLeft, Info, Megaphone, Pin, Users } from "lucide-react";
+import { ArrowDown, BellOff, ChevronLeft, Info, Megaphone, Pin, Users } from "lucide-react";
 import { chatApi } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
 import { useChat } from "../../context/ChatContext";
@@ -150,6 +150,9 @@ export const ChatThread = ({ conversationId, onChanged }) => {
                 setTyping((current) => ({ ...current, [who._id]: { name: who.name, recording, until: Date.now() + 4500 } }));
             }),
             on("conversation:updated", ({ conversationId: id }) => String(id) === String(conversationId) && loadDetail()),
+            on("conversation:muted", ({ conversationId: id, mutedUntil }) => {
+                if (String(id) === String(conversationId)) setDetail((current) => (current ? { ...current, muted: Boolean(mutedUntil), mutedUntil } : current));
+            }),
             on("conversation:removed", ({ conversationId: id }) => {
                 if (String(id) !== String(conversationId)) return;
                 toast.info("You're no longer in this chat");
@@ -400,7 +403,10 @@ export const ChatThread = ({ conversationId, onChanged }) => {
                             {detail.type === "DIRECT" && presence[detail.other?._id]?.online && <span className="online-dot" />}
                         </span>
                         <span>
-                            <strong>{detail.title}</strong>
+                            <strong>
+                                {detail.title}
+                                {detail.muted && <BellOff size={13} className="chat-head-muted" aria-label="Muted" />}
+                            </strong>
                             <small className={typers.length ? "is-typing" : ""}>
                                 {detail.type === "CLUB" && !typers.length && <Megaphone size={11} />}
                                 {detail.type === "GROUP" && !typers.length && <Users size={11} />} {subtitle}

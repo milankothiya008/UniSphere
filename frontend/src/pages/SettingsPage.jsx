@@ -11,6 +11,7 @@ import { passwordProblems } from "../lib/validation";
 import { AvatarUpload } from "../components/profile/AvatarUpload";
 import { PushSetting } from "../components/layout/PushPrompt";
 import { useTheme } from "../lib/theme";
+import { useChat } from "../context/ChatContext";
 
 // Chat privacy: "Active now" status (shown only if you show yours, like Instagram) and blocked accounts.
 const ChatPrivacy = () => {
@@ -26,9 +27,22 @@ const ChatPrivacy = () => {
             .then((response) => setBlocked(response.data))
             .catch(() => {});
     }, []);
+    const chat = useChat();
     if (!settings) return null;
     return (
         <div className="stack">
+            <Switch
+                checked={settings.chatNotifications}
+                onChange={async (value) => setSettings(await chat.updateSettings({ chatNotifications: value }))}
+                label="Message notifications"
+                description="A notification on this phone or computer when someone messages you. You can also mute single chats."
+            />
+            <Switch
+                checked={chat.sound}
+                onChange={chat.setSound}
+                label="Message sounds"
+                description="A soft sound when a message arrives while you're using the app."
+            />
             <Switch
                 checked={settings.showActivityStatus}
                 onChange={async (value) => setSettings((await chatApi.updateSettings({ showActivityStatus: value })).data)}
@@ -206,7 +220,7 @@ const SettingsPage = () => {
                     <Card title="Notifications">
                         <PushSetting />
                     </Card>
-                    <Card title="Chat privacy">
+                    <Card title="Messages">
                         <ChatPrivacy />
                     </Card>
                     <Card title="Change password">

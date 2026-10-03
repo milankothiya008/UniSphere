@@ -454,17 +454,35 @@ const typeOf = (attachments) => {
     return MESSAGE_TYPES.MEDIA;
 };
 
+/** Members who muted this chat (mute lasts until the chosen time). */
+const mutedIn = (conversation) =>
+    conversation.members.filter((entry) => entry.mutedUntil && new Date(entry.mutedUntil) > new Date()).map((entry) => idOf(entry.user));
+
+/**
+ * Phone / computer notifications for a new message, like Instagram: "Asha" — "See you at 5", or for groups
+ * "Coding Club" — "Asha: See you at 5". Everyone in the chat gets one on every device where they turned
+ * notifications on, except whoever sent it, people who have this chat open on screen, people who muted the
+ * chat, and people who switched message notifications off.
+ */
 const notifyPush = async (conversation, message, actor, recipients, view) => {
-    const others = recipients.filter((id) => id !== idOf(actor) && !realtime.isOnline(id));
-    if (!others.length) return;
-    const muted = new Set(conversation.members.filter((entry) => entry.mutedUntil && new Date(entry.mutedUntil) > new Date()).map((entry) => idOf(entry.user)));
-    const targets = others.filter((id) => !muted.has(id));
+    const skip = new Set([idOf(actor), ...mutedIn(conversation), ...realtime.viewersOf(conversation._id)]);
+    const candidates = recipients.filter((id) => !skip.has(id));
+    if (!candidates.length) return;
+    const optedOut = new Set((await User.find({ _id: { $in: candidates }, chatNotifications: false }).select("_id").lean()).map((user) => idOf(user)));
+    const targets = candidates.filter((id) => !optedOut.has(id));
     if (!targets.length) return;
-    const title = conversation.type === TYPES.DIRECT ? actor.name : `${view.title}`;
+    const title = conversation.type === TYPES.DIRECT ? actor.name : view.title;
     const body = conversation.type === TYPES.DIRECT ? previewOf(message) : `${actor.name}: ${previewOf(message)}`;
-    require("./PushService")
-        .pushToUsers(targets, { title, body: body.slice(0, 140), url: `/messages/${conversation._id}`, tag: `chat-${conversation._id}` })
-        ?.catch?.(() => {});
+    const icon = typeof actor.avatar === "string" && actor.avatar.startsWith("https://") ? actor.avatar : null;
+    require("./PushService").pushToUsers(targets, {
+        title,
+        body: body.slice(0, 140),
+        url: `/messages/${conversation._id}`,
+        tag: `chat-${conversation._id}`,
+        icon,
+        kind: "chat",
+        conversationId: String(conversation._id)
+    });
 };
 
 const attachLinkPreview = async (message, recipients) => {
@@ -517,7 +535,13 @@ const sendMessage = async (actor, conversationId, { clientId = null, text = "", 
     const view = await serializeOne(message, actor);
     const conversationRow = await conversationView(conversation, actor, access);
     // Each person gets the message with "mine" set for them; the client works it out from sender id.
-    realtime.emitToUsers(recipients, "message:new", { conversationId: String(conversation._id), message: { ...view, mine: undefined }, conversation: { _id: conversationRow._id, type: conversationRow.type } });
+    realtime.emitToUsers(recipients, "message:new", {
+        conversationId: String(conversation._id),
+        message: { ...view, mine: undefined },
+        conversation: { _id: conversationRow._id, type: conversationRow.type, title: conversationRow.title, avatar: conversationRow.avatar },
+        // Each tab hides the in-app banner when its person muted this chat.
+        mutedFor: mutedIn(conversation)
+    });
     notifyPush(conversation, message, actor, recipients, conversationRow).catch(() => {});
     if (body && !verified.length) attachLinkPreview(message, recipients).catch((error) => logger.warn("Link preview failed", { message: error.message }));
     return view;
@@ -622,7 +646,14 @@ const forward = async (actor, messageId, conversationIds = []) => {
         });
         await touchConversation(conversation, copy);
         const recipients = await recipientIds(conversation);
-        realtime.emitToUsers(recipients, "message:new", { conversationId: String(conversation._id), message: { ...(await serializeOne(copy, actor)), mine: undefined } });
+        const row = await conversationView(conversation, actor, access);
+        realtime.emitToUsers(recipients, "message:new", {
+            conversationId: String(conversation._id),
+            message: { ...(await serializeOne(copy, actor)), mine: undefined },
+            conversation: { _id: row._id, type: row.type, title: row.title, avatar: row.avatar },
+            mutedFor: mutedIn(conversation)
+        });
+        notifyPush(conversation, copy, actor, recipients, row).catch(() => {});
         sent.push(String(conversation._id));
     }
     return { forwardedTo: sent };
@@ -786,13 +817,16 @@ const leaveGroup = async (actor, conversationId) => {
     return { left: true };
 };
 
-const MUTE_FOR = { "8h": 8 * 3600000, "1w": 7 * 86400000, always: 100 * 365 * 86400000 };
+// Instagram's choices: 15 minutes, 1 hour, 8 hours, 24 hours, or until you change it.
+const MUTE_FOR = { "15m": 15 * 60000, "1h": 3600000, "8h": 8 * 3600000, "24h": 24 * 3600000, "1w": 7 * 86400000, always: 100 * 365 * 86400000 };
 
 const mute = async (actor, conversationId, duration) => {
     const { conversation } = await loadAccessible(actor, conversationId);
     const until = duration && MUTE_FOR[duration] ? new Date(Date.now() + MUTE_FOR[duration]) : null;
     await Conversation.updateOne({ _id: conversation._id, "members.user": actor._id }, { $set: { "members.$.mutedUntil": until } });
-    return { mutedUntil: until };
+    // Their other tabs and devices update the bell icon and badge.
+    realtime.emitToUsers([idOf(actor)], "conversation:muted", { conversationId: String(conversation._id), mutedUntil: until });
+    return { mutedUntil: until, muted: Boolean(until) };
 };
 
 /** "Delete chat" / "Clear chat": hides everything so far, for the actor only. */
@@ -875,13 +909,14 @@ const listBlocked = async (actor) => {
 };
 
 const getSettings = async (actor) => {
-    const me = await User.findById(actor._id).select("showActivityStatus").lean();
-    return { showActivityStatus: me?.showActivityStatus !== false };
+    const me = await User.findById(actor._id).select("showActivityStatus chatNotifications").lean();
+    return { showActivityStatus: me?.showActivityStatus !== false, chatNotifications: me?.chatNotifications !== false };
 };
 
-const updateSettings = async (actor, { showActivityStatus }) => {
+const updateSettings = async (actor, { showActivityStatus, chatNotifications }) => {
     const update = {};
     if (showActivityStatus !== undefined) update.showActivityStatus = Boolean(showActivityStatus);
+    if (chatNotifications !== undefined) update.chatNotifications = Boolean(chatNotifications);
     await User.updateOne({ _id: actor._id }, { $set: update });
     userCache.delete?.(idOf(actor));
     return getSettings(actor);

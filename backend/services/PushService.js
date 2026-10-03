@@ -64,12 +64,12 @@ const sendOne = async (subscription, payload) => {
  * Pushes one notification to every device of these users. Runs in the background: callers never wait for
  * the browser vendors, and a failure never affects the action that caused the notification.
  */
-const pushToUsers = (userIds, { title, body = "", url = "/activity", tag = null }) => {
+const pushToUsers = (userIds, { title, body = "", url = "/activity", tag = null, icon = null, kind = null, conversationId = null }) => {
     if (!isEnabled() || !userIds?.length) return;
     setImmediate(async () => {
         try {
             const subscriptions = await PushSubscription.find({ user: { $in: userIds } }).lean();
-            const payload = JSON.stringify({ title, body: String(body || "").slice(0, 240), url: url || "/activity", tag });
+            const payload = JSON.stringify({ title, body: String(body || "").slice(0, 240), url: url || "/activity", tag, icon, kind, conversationId });
             for (let i = 0; i < subscriptions.length; i += CONCURRENCY) {
                 await Promise.all(subscriptions.slice(i, i + CONCURRENCY).map((subscription) => sendOne(subscription, payload)));
             }

@@ -1968,3 +1968,227 @@
 .bubble-media.count-1 .bubble-media-item {
     background: transparent;
 }
+
+/* ---------------------------------------------------------------- New-message banners (Instagram style) */
+.msg-banners {
+    position: fixed;
+    top: calc(12px + env(safe-area-inset-top));
+    left: 50%;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: min(420px, calc(100vw - 24px));
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+.msg-banner {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    box-shadow: 0 14px 36px -12px rgba(0, 0, 0, 0.35);
+    backdrop-filter: saturate(160%) blur(14px);
+    -webkit-backdrop-filter: saturate(160%) blur(14px);
+    pointer-events: auto;
+    animation: banner-in 0.32s var(--ease-spring, ease-out) both;
+}
+
+.msg-banner-open {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 10px 6px 10px 12px;
+    font: inherit;
+    color: var(--text);
+    text-align: left;
+    background: none;
+    border: 0;
+    cursor: pointer;
+}
+
+.msg-banner-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.msg-banner-text strong {
+    font-size: 0.9rem;
+}
+
+.msg-banner-text span {
+    overflow: hidden;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.msg-banner-open small {
+    align-self: flex-start;
+    margin-top: 2px;
+    font-size: 0.72rem;
+    color: var(--text-subtle);
+}
+
+.msg-banner-close {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    margin-right: 6px;
+    color: var(--text-muted);
+    background: none;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+@keyframes banner-in {
+    from {
+        opacity: 0;
+        transform: translateY(-16px) scale(0.97);
+    }
+}
+
+/* ---------------------------------------------------------------- Muting */
+.chat-row.is-muted strong {
+    color: var(--text-muted);
+}
+
+.chat-row-more {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    margin-left: 2px;
+    color: var(--text-muted);
+    background: none;
+    border: 0;
+    border-radius: 50%;
+    opacity: 0;
+    cursor: pointer;
+    transition: opacity 0.12s ease;
+}
+
+.chat-row:hover .chat-row-more,
+.chat-row-more:focus-visible {
+    opacity: 1;
+}
+
+.chat-row-more:hover {
+    color: var(--text);
+    background: var(--neutral-100);
+}
+
+@media (pointer: coarse) {
+    .chat-row-more {
+        display: none;
+    }
+
+    .chat-row {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+}
+
+.chat-head-muted {
+    margin-left: 6px;
+    vertical-align: -1px;
+    color: var(--text-muted);
+}
+
+.info-muted {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 4px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.sheet-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.sheet-who {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 0 0 12px;
+}
+
+.sheet-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 14px 6px;
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+    text-align: left;
+    background: none;
+    border: 0;
+    border-top: 1px solid var(--hairline);
+    cursor: pointer;
+}
+
+.sheet-item:hover {
+    background: var(--surface-muted);
+}
+
+.sheet-item.is-danger {
+    color: var(--danger-600);
+}
+
+.sheet-back {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+/* "Turn on notifications" above the chat list */
+.chat-notice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 16px 10px;
+    padding: 10px 6px 10px 12px;
+    background: color-mix(in srgb, var(--ink-500) 9%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--ink-500) 22%, transparent);
+    border-radius: 14px;
+}
+
+.chat-notice > svg {
+    flex: none;
+    color: var(--ink-600);
+}
+
+.chat-notice > span {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    font-size: 0.8rem;
+}
+
+.chat-notice > span > span {
+    color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .msg-banner {
+        animation: none;
+    }
+}

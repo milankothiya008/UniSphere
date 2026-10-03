@@ -24,13 +24,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { ActionMenu, Avatar, Button, ConfirmDialog, Input, Modal, Switch, useLightbox } from "../ui";
 import { PeoplePicker } from "./NewChatDialog";
-import { fileSize, listTime, uploadChatFile } from "../../lib/chat";
-
-const MUTES = [
-    ["8h", "For 8 hours"],
-    ["1w", "For 1 week"],
-    ["always", "Until I turn it back on"]
-];
+import { MUTE_OPTIONS, fileSize, listTime, mutedLabel, uploadChatFile } from "../../lib/chat";
 
 /** Photos and videos, links and documents shared in the chat. */
 const Shared = ({ conversationId }) => {
@@ -149,8 +143,8 @@ export const ChatInfo = ({ detail, onClose, onUpdated, onCleared }) => {
     };
 
     const muteTo = async (duration) => {
-        await run(() => chatApi.mute(detail._id, duration), duration ? "Notifications muted" : "Notifications on");
-        onUpdated({ ...detail, muted: Boolean(duration) });
+        const result = await run(() => chatApi.mute(detail._id, duration), duration ? "Messages muted" : "Messages unmuted");
+        if (result) onUpdated({ ...detail, muted: Boolean(duration), mutedUntil: result.data.mutedUntil });
     };
 
     const changePhoto = async (event) => {
@@ -218,6 +212,11 @@ export const ChatInfo = ({ detail, onClose, onUpdated, onCleared }) => {
                         </h2>
                     )}
                     <span className="subtle small">{isClub ? "Club group" : isGroup ? "Group" : other?.accountType === "FACULTY" ? "Faculty" : "Student"}</span>
+                    {detail.muted && (
+                        <span className="info-muted">
+                            <BellOff size={13} /> {mutedLabel(detail.mutedUntil)}
+                        </span>
+                    )}
                     <div className="info-actions">
                         {other && (
                             <Link to={`/people/${other._id}`} className="info-action">
@@ -234,8 +233,8 @@ export const ChatInfo = ({ detail, onClose, onUpdated, onCleared }) => {
                         <ActionMenu
                             items={
                                 detail.muted
-                                    ? [{ label: "Unmute", icon: Bell, onClick: () => muteTo(null) }]
-                                    : MUTES.map(([value, label]) => ({ label, icon: BellOff, onClick: () => muteTo(value) }))
+                                    ? [{ label: "Unmute messages", icon: Bell, onClick: () => muteTo(null) }]
+                                    : MUTE_OPTIONS.map(([value, label]) => ({ label, icon: BellOff, onClick: () => muteTo(value) }))
                             }
                             label="Mute"
                             align="left"

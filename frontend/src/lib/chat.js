@@ -126,3 +126,21 @@ export const EMOJI_SETS = [
     ["Hearts", "❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 ✨ ⭐ 🌟 💫 🔥 💯 ✅ ❌ ⚡ 🎉 🎊"],
     ["Campus", "📚 📖 📝 ✏️ 🖊️ 📌 📎 📅 🗓️ ⏰ 💻 🖥️ ⌨️ 🖱️ 📱 🎓 🏫 🧪 🔬 🧮 📊 📈 🏆 🥇 🥈 🥉 🎤 🎧 🎸 🎨 📸 🎬 ⚽ 🏏 🏀 🎯 🍕 🍔 ☕ 🍵 🚀"]
 ];
+
+// Instagram's mute choices.
+export const MUTE_OPTIONS = [
+    ["15m", "For 15 minutes"],
+    ["1h", "For 1 hour"],
+    ["8h", "For 8 hours"],
+    ["24h", "For 24 hours"],
+    ["always", "Until I change it"]
+];
+
+/** "Muted until 5:30 pm", "Muted until Mon", "Muted". */
+export const mutedLabel = (until) => {
+    if (!until) return "";
+    const date = new Date(until);
+    if (date.getFullYear() - new Date().getFullYear() > 5) return "Muted";
+    const sameDay = date.toDateString() === new Date().toDateString();
+    return `Muted until ${new Intl.DateTimeFormat("en-IN", { timeZone: tz, ...(sameDay ? { hour: "numeric", minute: "2-digit" } : { weekday: "short", hour: "numeric", minute: "2-digit" }) }).format(date)}`;
+};

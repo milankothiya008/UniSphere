@@ -129,6 +129,8 @@ const userSchema = new mongoose.Schema(
         // and people this user has blocked from messaging them.
         lastSeenAt: { type: Date, default: null },
         showActivityStatus: { type: Boolean, default: true },
+        // Phone / computer notifications for new messages (individual chats can also be muted).
+        chatNotifications: { type: Boolean, default: true },
         blockedUsers: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], default: [] }
     },
     { timestamps: true }

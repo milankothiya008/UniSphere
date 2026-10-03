@@ -14,17 +14,21 @@ self.addEventListener("push", (event) => {
     const title = data.title || "CampusConnect";
     event.waitUntil(
         (async () => {
+            const tabs = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+            // Open tabs update their red dot and unread badge straight away.
+            tabs.forEach((tab) => tab.postMessage({ type: "push", kind: data.kind || null, conversationId: data.conversationId || null }));
+            // A message while the app is open in front of you shows as an in-app banner instead.
+            if (data.kind === "chat" && tabs.some((tab) => tab.visibilityState === "visible" && tab.focused)) return;
             await self.registration.showNotification(title, {
                 body: data.body || "",
-                icon: "/icons/icon-192.png",
+                icon: data.icon || "/icons/icon-192.png",
                 badge: "/icons/badge-96.png",
                 tag: data.tag || undefined,
                 renotify: Boolean(data.tag),
+                vibrate: data.kind === "chat" ? [80, 40, 80] : undefined,
+                timestamp: Date.now(),
                 data: { url: data.url || "/activity" }
             });
-            // Open tabs update their red dot straight away.
-            const tabs = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-            tabs.forEach((tab) => tab.postMessage({ type: "push" }));
         })()
     );
 });

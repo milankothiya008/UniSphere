@@ -206,6 +206,36 @@ describe("chat", () => {
         expect(shared).toHaveLength(1);
     });
 
+    test("new messages notify everyone in the chat except the sender, people who muted it and people who turned notifications off", async () => {
+        const push = jest.spyOn(require("../../services/PushService"), "pushToUsers").mockImplementation(() => {});
+        const group = (await api(asha).post("/api/chat/groups", { name: "Notify test", members: [String(bina._id), String(chirag._id), String(dev._id)] })).body.data;
+        push.mockClear();
+
+        // Instagram's mute choices; the bell state comes back on the chat.
+        expect((await api(bina).put(`/api/chat/conversations/${group._id}/mute`, { duration: "15m" })).body.data.muted).toBe(true);
+        expect((await api(bina).put(`/api/chat/conversations/${group._id}/mute`, { duration: "2d" })).status).toBe(400);
+        expect((await api(bina).get(`/api/chat/conversations/${group._id}`)).body.data.muted).toBe(true);
+        await api(dev).put("/api/chat/settings", { chatNotifications: false });
+
+        await api(asha).post(`/api/chat/conversations/${group._id}/messages`, { text: "Standup at 10" });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(push).toHaveBeenCalledTimes(1);
+        const [targets, payload] = push.mock.calls[0];
+        expect(targets).toEqual([String(chirag._id)]);
+        expect(payload).toMatchObject({ title: "Notify test", body: "Asha: Standup at 10", url: `/messages/${group._id}`, kind: "chat", conversationId: String(group._id) });
+
+        // Unmuting brings notifications back; one-to-one chats are titled with the sender's name.
+        await api(bina).put(`/api/chat/conversations/${group._id}/mute`, { duration: null });
+        push.mockClear();
+        const direct = (await api(chirag).post("/api/chat/direct", { userId: String(bina._id) })).body.data;
+        await api(chirag).post(`/api/chat/conversations/${direct._id}/messages`, { text: "Hi Bina" });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(push.mock.calls[0]).toEqual([[String(bina._id)], expect.objectContaining({ title: "Chirag", body: "Hi Bina" })]);
+
+        await api(dev).put("/api/chat/settings", { chatNotifications: true });
+        push.mockRestore();
+    });
+
     test("reports reach the university admin with the message text", async () => {
         const chatId = (await api(dev).post("/api/chat/direct", { userId: String(asha._id) })).body.data._id;
         const rude = await api(dev).post(`/api/chat/conversations/${chatId}/messages`, { text: "something rude" });
@@ -226,7 +256,7 @@ describe("chat", () => {
         expect(everyone).not.toContain("Asha");
         expect(everyone.some((name) => /admin/i.test(name))).toBe(false);
 
-        expect((await api(asha).put("/api/chat/settings", { showActivityStatus: false })).body.data).toEqual({ showActivityStatus: false });
+        expect((await api(asha).put("/api/chat/settings", { showActivityStatus: false })).body.data).toEqual({ showActivityStatus: false, chatNotifications: true });
     });
 });
 
