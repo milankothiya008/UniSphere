@@ -6,9 +6,11 @@ import { ApiErrorAlert, Button, Input, Modal } from "../ui";
 import { StudentPicker } from "./StudentPicker";
 import { QuestionFields, missingAnswer, toAnswers } from "../forms/QuestionFields";
 import { formQuestions } from "../events/RegistrationFormDialog";
+import { switchedText, useClashSwitch } from "../events/ScheduleClash";
 
 // Registering a team: the student becomes the leader, names the team and invites teammates (who accept later).
-export const TeamRegisterDialog = ({ open, onClose, event, onRegistered }) => {
+export const TeamRegisterDialog = ({ open, onClose, event, onRegistered, replace = [] }) => {
+    const { attempt, dialog: clashDialog } = useClashSwitch({ eventTitle: event.title, full: event.registrationState === "FULL" });
     const toast = useToast();
     const formId = useId();
     const [name, setName] = useState("");
@@ -42,11 +44,20 @@ export const TeamRegisterDialog = ({ open, onClose, event, onRegistered }) => {
         setError(null);
         try {
             const answers = team.length || member.length ? { teamAnswers: toAnswers(team, teamValues), answers: toAnswers(member, values) } : {};
-            const response = await eventApi.register(event._id, { teamName: name.trim(), invitees: invitees.map((user) => user._id), ...answers });
+            const response = await attempt((extra) =>
+                eventApi.register(event._id, {
+                    teamName: name.trim(),
+                    invitees: invitees.map((user) => user._id),
+                    ...answers,
+                    ...(replace.length ? { replace } : {}),
+                    ...extra
+                })
+            );
+            if (!response) return;
             if (response.data?.waitlisted) {
                 toast.info(response.message);
             } else {
-                toast.success(response.message);
+                toast.success(`${response.message}${switchedText(response)}`);
             }
             onRegistered?.(response.data);
             onClose();
@@ -109,6 +120,7 @@ export const TeamRegisterDialog = ({ open, onClose, event, onRegistered }) => {
                 )}
                 <ApiErrorAlert error={error} />
             </form>
+            {clashDialog}
         </Modal>
     );
 };

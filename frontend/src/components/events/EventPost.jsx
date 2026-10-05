@@ -13,6 +13,7 @@ import { categoryStyle, categoryVars, startsInLabel } from "../../lib/eventVisua
 import { downloadIcs } from "../../lib/calendar";
 import { useClubFollow } from "../../hooks/useClubFollow";
 import { DoubleTapLike, LikeButton, LikeCount, useLike } from "../social/Likes";
+import { switchedText, useClashSwitch } from "./ScheduleClash";
 
 // "Follow" beside the club's name, like Instagram's post header: shown only while the viewer doesn't
 // follow the club, and gone as soon as they do (on every post from that club).
@@ -129,6 +130,7 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
     const CategoryIcon = categoryStyle(event.category).icon;
     const like = useLike("event", event._id, initial.likedByMe, initial.likeCount);
 
+    const { attempt, dialog: clashDialog } = useClashSwitch({ eventTitle: event.title, full: event.registrationState === "FULL" });
     const hasForm = Boolean(event.registrationForm?.enabled && event.registrationForm.questions?.length);
     const register = async () => {
         if (hasForm) {
@@ -137,7 +139,9 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
         }
         setPending(true);
         try {
-            const response = await eventApi.register(event._id);
+            // Same time as another event? The student is asked to switch (or keeps what they have).
+            const response = await attempt((extra) => (Object.keys(extra).length ? eventApi.register(event._id, extra) : eventApi.register(event._id)));
+            if (!response) return;
             const joinedWaitlist = Boolean(response.data.waitlisted);
             setEvent((prev) => ({
                 ...prev,
@@ -146,10 +150,10 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
                 waitlistCount: response.data.waitlistCount ?? prev.waitlistCount
             }));
             if (joinedWaitlist) {
-                toast.info(`${event.title} is full — you're #${response.data.waitlistPosition} on the waitlist`);
+                toast.info(`${event.title} is full — you're #${response.data.waitlistPosition} on the waitlist.${switchedText(response)}`);
             } else {
                 setCelebrate(true);
-                toast.success(`You're registered for ${event.title}`);
+                toast.success(`You're registered for ${event.title}.${switchedText(response)}`);
                 onRegistered?.(event);
             }
         } catch (error) {
@@ -335,6 +339,7 @@ export const EventPost = ({ event: initial, onRegistered, index = 0 }) => {
                     </div>
                 )}
             </div>
+            {clashDialog}
         </article>
     );
 };

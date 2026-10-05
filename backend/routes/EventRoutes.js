@@ -115,6 +115,9 @@ router.post(
     body("invitees.*").isMongoId().withMessage("Invalid student"),
     body("answers").optional().isArray({ max: 25 }),
     body("teamAnswers").optional().isArray({ max: 25 }),
+    // Events at the same time the student agreed to give up (switch).
+    body("replace").optional().isArray({ max: 10 }),
+    body("replace.*").isMongoId(),
     validate,
     registration.register
 );
@@ -127,7 +130,7 @@ router.put("/:id/register/answers", ...auth, id, body("answers").optional().isAr
 router.get("/:id/team/candidates", ...auth, id, validate, team.candidates);
 router.post("/:id/team/invites", ...auth, id, body("users").isArray({ min: 1, max: 19 }).withMessage("Choose students to invite"), body("users.*").isMongoId(), validate, team.invite);
 router.delete("/:id/team/members/:userId", ...auth, id, mongoIdParam("userId"), validate, team.removeMember);
-router.post("/:id/teams/:teamId/accept", ...auth, id, mongoIdParam("teamId"), validate, team.accept);
+router.post("/:id/teams/:teamId/accept", ...auth, id, mongoIdParam("teamId"), body("replace").optional().isArray({ max: 10 }), body("replace.*").isMongoId(), validate, team.accept);
 router.post("/:id/teams/:teamId/decline", ...auth, id, mongoIdParam("teamId"), validate, team.decline);
 router.delete("/:id/register", ...auth, id, validate, registration.unregister);
 router.get("/:id/registrations", ...auth, id, validate, registration.list);

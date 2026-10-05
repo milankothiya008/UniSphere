@@ -172,22 +172,30 @@ const registerForEvent = async (actor, eventId, body = {}) => {
     }
 
     const forms = require("./RegistrationFormService");
+    const clashes = require("./ScheduleClashService");
     if (event.participationMode !== PARTICIPATION_MODES.TEAM) {
         const { answers } = forms.answersFor(event, null, body);
-        return takePlace(actor, event, existing, { team: null, teamRole: null, answers });
+        // Same time as another event: refused, or switched when the student agreed (body.replace).
+        const switchedFrom = await clashes.resolveClashes(actor, event, body.replace);
+        const result = await takePlace(actor, event, existing, { team: null, teamRole: null, answers });
+        return switchedFrom.length ? { ...result, switchedFrom } : result;
     }
 
     const { answers, teamAnswers } = forms.answersFor(event, "LEADER", body);
+    // Checked before the team exists, so a refused switch leaves nothing behind.
+    await clashes.assertResolvable(actor, event, body.replace);
     const { team, invitees } = await teams.createTeam(actor, event, { teamName: body.teamName, invitees: body.invitees, answers: teamAnswers });
     let result;
+    let switchedFrom = [];
     try {
+        switchedFrom = await clashes.resolveClashes(actor, event, body.replace);
         result = await takePlace(actor, event, existing, { team: team._id, teamRole: "LEADER", answers }, team);
     } catch (error) {
         await teams.discardTeam(team);
         throw error;
     }
     await teams.afterTeamCreated(team, event, actor, invitees);
-    return { ...result, team: await teams.getTeamView(team._id, event) };
+    return { ...result, team: await teams.getTeamView(team._id, event), ...(switchedFrom.length ? { switchedFrom } : {}) };
 };
 
 // Takes a place (or a waitlist spot) for one registration: a student, or a team through its leader.

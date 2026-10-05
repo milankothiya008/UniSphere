@@ -391,6 +391,10 @@ const getEventDetail = async (actor, eventId) => {
             ? {
                   ...viewerFor(context, event, registration),
                   ...teamInfo,
+                  // Other events this student holds a place for at the same time (they'd have to switch).
+                  ...(actor.accountType === "STUDENT" && !active && event.status === EVENT_STATUS.PUBLISHED && event.startAt > new Date()
+                      ? { clashes: await require("./ScheduleClashService").clashesFor(actor._id, event) }
+                      : {}),
                   ...(contextHas(context, CLUB_PERMISSIONS.SEND_REMINDERS) ? { reminders: require("./EventReminderService").reminderStatus(event) } : {})
               }
             : null,

@@ -23,7 +23,9 @@ const ERROR_CODES = Object.freeze({
     CLUB_NOT_ACTIVE: "CLUB_NOT_ACTIVE",
     UPLOAD_ERROR: "UPLOAD_ERROR",
     RATE_LIMITED: "RATE_LIMITED",
-    PHONE_REQUIRED: "PHONE_REQUIRED"
+    PHONE_REQUIRED: "PHONE_REQUIRED",
+    // Registering for an event at the same time as one the student already holds a place for.
+    SCHEDULE_CONFLICT: "SCHEDULE_CONFLICT"
 });
 
 module.exports = ERROR_CODES;

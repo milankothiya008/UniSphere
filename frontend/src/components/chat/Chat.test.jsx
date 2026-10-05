@@ -72,7 +72,7 @@ const detail = {
         { _id: "u9", name: "Dr Mentor", role: "MEMBER" }
     ],
     pinned: [],
-    receipts: [{ userId: "u9", readAt: new Date(Date.now() + 1000).toISOString(), deliveredAt: null }],
+    receipts: [{ userId: "u9", readAt: new Date(Date.now() + 86400000).toISOString(), deliveredAt: null }],
     presence: { userId: "u9", online: true },
     canSend: true,
     sendBlockedReason: null,

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CalendarCheck2, CalendarX2, Hourglass, Info, ListPlus, LogOut, Users } from "lucide-react";
+import { CalendarCheck2, CalendarX2, Hourglass, Info, ListPlus, LogOut, Repeat, Users } from "lucide-react";
 import { eventApi } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -11,6 +11,7 @@ import { TeamRegisterDialog } from "../teams/TeamRegisterDialog";
 import { TeamCard, TeamInvites } from "../teams/TeamCard";
 import { TicketButton } from "./TicketButton";
 import { MyAnswersButton, RegistrationFormDialog, formQuestions } from "./RegistrationFormDialog";
+import { ClashList, switchedText, useClashSwitch } from "./ScheduleClash";
 
 const STATE_MESSAGES = {
     NOT_OPEN: (event) => `Registration opens ${formatDateTime(event.registrationStart)}.`,
@@ -38,6 +39,11 @@ export const RegistrationPanel = ({ event, onChange }) => {
     const invites = event.viewer?.invites || [];
     const canSignUp = ["OPEN", "FULL"].includes(state) && !problem;
     const [params, setParams] = useSearchParams();
+    // Other events this student holds a place for at the same time (switching gives them up).
+    const clashes = event.viewer?.clashes || [];
+    const switchable = clashes.length > 0 && clashes.every((clash) => clash.canSwitch);
+    const { attempt, confirm, dialog: clashDialog } = useClashSwitch({ eventTitle: event.title, full });
+    const [replace, setReplace] = useState([]);
 
     const hasForm = formQuestions(event, null).member.length > 0;
     // The feed links here with ?register=team (or ?register=form) to open the registration form straight away.
@@ -53,6 +59,13 @@ export const RegistrationPanel = ({ event, onChange }) => {
     }, [params]);
 
     const register = async () => {
+        // Same time as something else: ask first, then carry on with the places to give up.
+        let agreed = [];
+        if (clashes.length) {
+            agreed = await confirm(clashes);
+            if (!agreed) return;
+        }
+        setReplace(agreed);
         if (isTeamEvent) {
             setDialog("team");
             return;
@@ -63,11 +76,17 @@ export const RegistrationPanel = ({ event, onChange }) => {
         }
         setPending(true);
         try {
-            const response = await eventApi.register(event._id);
+            const response = await attempt((extra) => {
+                const payload = { ...(agreed.length ? { replace: agreed } : {}), ...extra };
+                return Object.keys(payload).length ? eventApi.register(event._id, payload) : eventApi.register(event._id);
+            });
+            if (!response) return;
             if (response.data?.waitlisted) {
-                toast.info(`The event is full — you're #${response.data.waitlistPosition} on the waitlist. We'll email you if a seat opens up.`);
+                toast.info(
+                    `The event is full — you're #${response.data.waitlistPosition} on the waitlist. We'll email you if a seat opens up.${switchedText(response)}`
+                );
             } else {
-                toast.success("You're registered! A confirmation was sent to your email.");
+                toast.success(`You're registered! A confirmation was sent to your email.${switchedText(response)}`);
             }
             onChange();
         } catch (error) {
@@ -170,6 +189,19 @@ export const RegistrationPanel = ({ event, onChange }) => {
                         {invites.length > 0 && <TeamInvites event={event} invites={invites} onChange={onChange} />}
                         {!["OPEN", "FULL"].includes(state) && <Alert type="warning">{STATE_MESSAGES[state]?.(event)}</Alert>}
                         {["OPEN", "FULL"].includes(state) && problem && <Alert type="warning">{problem}</Alert>}
+                        {clashes.length > 0 && canSignUp && (
+                            <Alert
+                                type="warning"
+                                title={clashes.length === 1 ? "You have another event at this time" : `You have ${clashes.length} events at this time`}
+                            >
+                                <ClashList clashes={clashes} compact />
+                                <span className="small">
+                                    {switchable
+                                        ? "You can switch: your place there is given up when you register here."
+                                        : "One of them has already started, so you can't register here."}
+                                </span>
+                            </Alert>
+                        )}
                         {full && !problem && (
                             <Alert type="info" title="All seats are taken">
                                 Join the waitlist{waiting ? ` (${plural(waiting, "student")} ahead of you)` : ""}. If someone cancels, the first person waiting
@@ -181,19 +213,29 @@ export const RegistrationPanel = ({ event, onChange }) => {
                             block
                             variant={full || invites.length ? "secondary" : "primary"}
                             loading={pending}
-                            disabled={!["OPEN", "FULL"].includes(state) || Boolean(problem)}
+                            disabled={!["OPEN", "FULL"].includes(state) || Boolean(problem) || (clashes.length > 0 && !switchable)}
                             onClick={register}
                         >
-                            {isTeamEvent ? <Users size={17} /> : full ? <ListPlus size={17} /> : <CalendarCheck2 size={17} />}{" "}
-                            {isTeamEvent
-                                ? invites.length
-                                    ? "Register your own team instead"
-                                    : full
-                                      ? "Join waitlist as a team"
-                                      : "Register a team"
-                                : full
-                                  ? "Join waitlist"
-                                  : "Register now"}
+                            {switchable ? (
+                                <Repeat size={17} />
+                            ) : isTeamEvent ? (
+                                <Users size={17} />
+                            ) : full ? (
+                                <ListPlus size={17} />
+                            ) : (
+                                <CalendarCheck2 size={17} />
+                            )}{" "}
+                            {switchable
+                                ? "Switch to this event"
+                                : isTeamEvent
+                                  ? invites.length
+                                      ? "Register your own team instead"
+                                      : full
+                                        ? "Join waitlist as a team"
+                                        : "Register a team"
+                                  : full
+                                    ? "Join waitlist"
+                                    : "Register now"}
                         </Button>
                         {isTeamEvent && !invites.length && (
                             <p className="subtle small" style={{ margin: 0 }}>
@@ -220,8 +262,13 @@ export const RegistrationPanel = ({ event, onChange }) => {
                 confirmLabel={team ? (isLeader ? "Cancel team registration" : "Leave team") : "Cancel registration"}
                 variant="danger"
             />
-            {!isTeamEvent && <RegistrationFormDialog open={dialog === "form"} onClose={() => setDialog(null)} event={event} onDone={onChange} />}
-            {isTeamEvent && <TeamRegisterDialog open={dialog === "team"} onClose={() => setDialog(null)} event={event} onRegistered={onChange} />}
+            {!isTeamEvent && (
+                <RegistrationFormDialog open={dialog === "form"} onClose={() => setDialog(null)} event={event} onDone={onChange} replace={replace} />
+            )}
+            {isTeamEvent && (
+                <TeamRegisterDialog open={dialog === "team"} onClose={() => setDialog(null)} event={event} onRegistered={onChange} replace={replace} />
+            )}
+            {clashDialog}
             <ConfirmDialog
                 open={dialog === "leave"}
                 onClose={() => setDialog(null)}

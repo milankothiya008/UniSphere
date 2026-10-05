@@ -773,3 +773,71 @@ svg.brand-mark,
     border-radius: 9px;
     box-shadow: 0 6px 14px -8px rgba(44, 70, 176, 0.7);
 }
+
+/* ---------------------------------------------------------------- Same-time events (switch) */
+.clash-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.clash-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.clash-list.is-compact li {
+    padding: 8px 10px;
+    margin: 6px 0;
+}
+
+.clash-list li.is-locked {
+    border-color: color-mix(in srgb, var(--danger-600) 40%, transparent);
+}
+
+.clash-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    color: var(--warning-600);
+    background: var(--warning-100);
+    border-radius: 10px;
+}
+
+.clash-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.clash-body a {
+    color: var(--text);
+}
+
+.clash-effect {
+    color: var(--text-muted);
+}
+
+.clash-list li.is-locked .clash-effect {
+    color: var(--danger-600);
+}
+
+.clash-note {
+    margin: 0;
+    padding: 10px 12px;
+    color: var(--text);
+    background: var(--warning-100);
+    border-radius: 10px;
+}

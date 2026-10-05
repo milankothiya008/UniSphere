@@ -96,7 +96,10 @@ export const StudentPicker = ({ eventId, selected, onChange, max, exclude = [] }
                             <Avatar name={user.name} src={user.avatar} size="sm" />
                             <span className="grow">
                                 <strong>{user.name}</strong>
-                                <small>{user.available ? `${user.email} · ${detail(user)}` : "Already registered for this event"}</small>
+                                <small>
+                                    {user.available ? `${user.email} · ${detail(user)}` : "Already registered for this event"}
+                                    {user.available && user.busyWith ? ` · Busy then: ${user.busyWith}` : ""}
+                                </small>
                             </span>
                             {user.available && <UserPlus size={16} />}
                         </button>

@@ -6,6 +6,7 @@ import { batchLabel, timeAgo } from "../../lib/format";
 import { Avatar, Badge, Button, ConfirmDialog, Modal } from "../ui";
 import { StudentPicker } from "./StudentPicker";
 import { RegistrationFormDialog, formQuestions } from "../events/RegistrationFormDialog";
+import { switchedText, useClashSwitch } from "../events/ScheduleClash";
 
 const detail = (user) => [user.departmentCode, user.batchCode && `Batch ${batchLabel(user.batchCode)}`].filter(Boolean).join(" · ");
 
@@ -185,21 +186,29 @@ export const TeamInvites = ({ event, invites, onChange }) => {
     const [busy, setBusy] = useState(null);
 
     const [answering, setAnswering] = useState(null);
+    const { attempt, dialog: clashDialog } = useClashSwitch({ eventTitle: event.title, full: event.registrationState === "FULL" });
     const memberQuestions = formQuestions(event, "MEMBER").member;
     const respond = async (invite, accept, body) => {
         if (accept && memberQuestions.length && !body) {
             setAnswering(invite);
-            return;
+            return false;
         }
         setBusy(`${invite.team._id}-${accept}`);
         try {
+            // Busy at the same time? Ask to switch, then accept again giving that place up.
             const response = accept
-                ? await (body ? eventApi.acceptTeamInvite(event._id, invite.team._id, body) : eventApi.acceptTeamInvite(event._id, invite.team._id))
+                ? await attempt((extra) => {
+                      const payload = { ...(body || {}), ...extra };
+                      return Object.keys(payload).length
+                          ? eventApi.acceptTeamInvite(event._id, invite.team._id, payload)
+                          : eventApi.acceptTeamInvite(event._id, invite.team._id);
+                  })
                 : await eventApi.declineTeamInvite(event._id, invite.team._id);
+            if (!response) return false;
             if (accept && response.data?.waitlisted) {
-                toast.info(response.message);
+                toast.info(`${response.message}${switchedText(response)}`);
             } else {
-                toast.success(response.message);
+                toast.success(`${response.message}${switchedText(response)}`);
             }
             onChange();
         } catch (error) {
@@ -241,6 +250,7 @@ export const TeamInvites = ({ event, invites, onChange }) => {
                     </div>
                 </div>
             ))}
+            {clashDialog}
             <RegistrationFormDialog
                 open={Boolean(answering)}
                 onClose={() => setAnswering(null)}
@@ -249,7 +259,7 @@ export const TeamInvites = ({ event, invites, onChange }) => {
                 title={answering ? `Join "${answering.team.name}"` : ""}
                 onSubmit={async (body) => {
                     const invite = answering;
-                    await respond(invite, true, body);
+                    return respond(invite, true, body);
                 }}
             />
         </div>

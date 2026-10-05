@@ -298,6 +298,8 @@ const respondToInvite = async (actor, eventId, teamId, accept, input = {}) => {
     if (!leaderRegistration) {
         throw new AppError("This team is no longer registered", 409, ERROR_CODES.INVALID_STATE);
     }
+    // Busy at the same time: refused, or switched when the student agreed (input.replace).
+    const switchedFrom = await require("./ScheduleClashService").resolveClashes(actor, event, input.replace);
 
     // Claim a spot on the team atomically, so two people accepting at once can't overfill it.
     const now = new Date();
@@ -372,7 +374,7 @@ const respondToInvite = async (actor, eventId, teamId, accept, input = {}) => {
         await sendTicketEmail(registration._id, { reason: "team" });
     }
 
-    return { accepted: true, waitlisted, registration, team: await getTeamView(team._id) };
+    return { accepted: true, waitlisted, registration, team: await getTeamView(team._id), ...(switchedFrom.length ? { switchedFrom } : {}) };
 };
 
 // A member leaving on their own (called from RegistrationService.cancelRegistration).
@@ -525,7 +527,17 @@ const searchCandidates = async (actor, eventId, search) => {
     const taken = new Set(
         (await EventRegistration.find({ event: event._id, user: { $in: users.map((user) => user._id) }, status: { $in: ACTIVE } }).select("user").lean()).map((row) => String(row.user))
     );
-    return users.map((user) => ({ ...user, available: !taken.has(String(user._id)) })).slice(0, 10);
+    // Students with another event at the same time can still be invited; they'll be asked to switch when accepting.
+    const busy = new Map();
+    const others = await EventRegistration.find({ user: { $in: users.map((user) => user._id) }, status: { $in: ACTIVE }, event: { $ne: event._id } }).select("user event").lean();
+    if (others.length) {
+        const overlapping = await Event.find({ _id: { $in: others.map((row) => row.event) }, status: EVENT_STATUS.PUBLISHED, startAt: { $lt: event.endAt }, endAt: { $gt: event.startAt } })
+            .select("title")
+            .lean();
+        const titles = new Map(overlapping.map((other) => [String(other._id), other.title]));
+        others.forEach((row) => titles.has(String(row.event)) && busy.set(String(row.user), titles.get(String(row.event))));
+    }
+    return users.map((user) => ({ ...user, available: !taken.has(String(user._id)), busyWith: busy.get(String(user._id)) || null })).slice(0, 10);
 };
 
 module.exports = {

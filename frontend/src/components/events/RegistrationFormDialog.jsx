@@ -7,6 +7,7 @@ import { ApiErrorAlert, Button, Modal } from "../ui";
 import { QuestionFields, answersMap, missingAnswer, toAnswers } from "../forms/QuestionFields";
 import { batchLabel } from "../../lib/format";
 import { formatPhone } from "../../lib/phone";
+import { switchedText, useClashSwitch } from "./ScheduleClash";
 
 /** The registration form's questions for one person: everything on individual events; per role on team events. */
 export const formQuestions = (event, role) => {
@@ -38,8 +39,9 @@ export const AccountDetails = () => {
  * Individual events with a registration form: answer the questions, then register (or, already registered,
  * change the answers until the event starts). Team members use it to join a team (`onSubmit` given).
  */
-export const RegistrationFormDialog = ({ open, onClose, event, mode = "register", role = null, initial = null, onDone, onSubmit, title }) => {
+export const RegistrationFormDialog = ({ open, onClose, event, mode = "register", role = null, initial = null, onDone, onSubmit, title, replace = [] }) => {
     const toast = useToast();
+    const { attempt, dialog: clashDialog } = useClashSwitch({ eventTitle: event.title, full: event.registrationState === "FULL" });
     const formId = useId();
     const { member, team } = formQuestions(event, role);
     const [values, setValues] = useState({});
@@ -66,15 +68,19 @@ export const RegistrationFormDialog = ({ open, onClose, event, mode = "register"
         const body = { answers: toAnswers(member, values), ...(team.length ? { teamAnswers: toAnswers(team, teamValues) } : {}) };
         try {
             if (onSubmit) {
-                await onSubmit(body);
+                // false: nothing happened (e.g. they chose to keep another event at the same time).
+                if ((await onSubmit(body)) === false) return;
             } else if (mode === "edit") {
                 await eventApi.updateMyAnswers(event._id, body);
                 toast.success("Your answers were updated");
             } else {
-                const response = await eventApi.register(event._id, body);
+                const response = await attempt((extra) => eventApi.register(event._id, { ...body, ...(replace.length ? { replace } : {}), ...extra }));
+                if (!response) return;
                 if (response.data?.waitlisted)
-                    toast.info(`The event is full — you're #${response.data.waitlistPosition} on the waitlist. We'll email you if a seat opens up.`);
-                else toast.success("You're registered! A confirmation was sent to your email.");
+                    toast.info(
+                        `The event is full — you're #${response.data.waitlistPosition} on the waitlist. We'll email you if a seat opens up.${switchedText(response)}`
+                    );
+                else toast.success(`You're registered! A confirmation was sent to your email.${switchedText(response)}`);
             }
             onDone?.();
             onClose();
@@ -125,6 +131,7 @@ export const RegistrationFormDialog = ({ open, onClose, event, mode = "register"
                 )}
                 <ApiErrorAlert error={error} />
             </form>
+            {clashDialog}
         </Modal>
     );
 };
