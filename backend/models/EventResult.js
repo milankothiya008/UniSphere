@@ -1,4 +1,6 @@
 const mongoose = require("mongoose");
+const { clearOnWrite } = require("../utils/TtlCache");
+const { eventFeedCache } = require("../utils/Caches");
 const { RESULT_STATUS } = require("../constants/Statuses");
 
 const awardSchema = new mongoose.Schema(
@@ -117,5 +119,8 @@ const eventResultSchema = new mongoose.Schema(
 eventResultSchema.index({ status: 1, publishedAt: -1 });
 eventResultSchema.index({ club: 1, status: 1 });
 eventResultSchema.index({ lastPublishedAt: -1 });
+
+// Any write refreshes the cached events feed (utils/Caches.js).
+clearOnWrite(eventResultSchema, () => eventFeedCache.clear());
 
 module.exports = mongoose.model("EventResult", eventResultSchema);

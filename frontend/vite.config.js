@@ -11,7 +11,7 @@ export default defineConfig({
                 // React and the router change far less often than the app, so they get their own
                 // long-cached file and a deploy only re-downloads the app code.
                 codeSplitting: {
-                    groups: [{ name: "vendor", test: /node_modules[\/](react|react-dom|react-router|react-router-dom|scheduler)[\/]/, priority: 20 }]
+                    groups: [{ name: "vendor", test: /node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/, priority: 20 }]
                 }
             }
         }

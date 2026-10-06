@@ -52,16 +52,18 @@ const clubMembershipChanged = async (clubId, userId) => {
  * What the actor may do in a conversation. CLUB chats are checked against the club's approved memberships
  * on every call; DIRECT and GROUP chats against the embedded member list.
  */
-const accessFor = async (actor, conversation) => {
+const accessFor = async (actor, conversation, prefetched = null) => {
     const me = idOf(actor);
     let member = conversation.members.find((entry) => idOf(entry.user) === me) || null;
     let isAdmin = false;
     let club = null;
 
     if (conversation.type === TYPES.CLUB) {
-        club = await Club.findById(conversation.club).select("name logo status roles").lean();
+        club = prefetched ? prefetched.clubs.get(idOf(conversation.club)) : await Club.findById(conversation.club).select("name logo status roles").lean();
         if (!club || club.status !== CLUB_STATUS.ACTIVE) return null;
-        const membership = await ClubMembership.findOne({ club: club._id, user: actor._id, status: MEMBERSHIP_STATUS.APPROVED }).select("role joinedAt createdAt").lean();
+        const membership = prefetched
+            ? prefetched.memberships.get(idOf(club._id))
+            : await ClubMembership.findOne({ club: club._id, user: actor._id, status: MEMBERSHIP_STATUS.APPROVED }).select("role joinedAt createdAt").lean();
         if (!membership) return null;
         isAdmin = permissionsFor(club, membership.role).includes(CLUB_PERMISSIONS.MANAGE_CHAT);
         if (!member) {
@@ -231,24 +233,25 @@ const conversationView = async (conversation, actor, access, { users, club, unre
         unread,
         muted: Boolean(member.mutedUntil && new Date(member.mutedUntil) > new Date()),
         mutedUntil: member.mutedUntil || null,
-        announceOnly: conversation.announceOnly,
+        announceOnly: Boolean(conversation.announceOnly),
         isAdmin: access.isAdmin,
         createdAt: conversation.createdAt
     };
 };
 
+const UNREAD_CAP = 100;
 const unreadIn = async (conversation, actor, access) => {
     const since = new Date(Math.max(access.visibleFrom.getTime(), new Date(access.member.lastReadAt || 0).getTime()));
     if (!conversation.lastMessage?.at || new Date(conversation.lastMessage.at) <= since) return 0;
-    return Message.countDocuments({ conversation: conversation._id, createdAt: { $gt: since }, sender: { $ne: actor._id }, hiddenFor: { $ne: actor._id }, type: { $ne: MESSAGE_TYPES.SYSTEM } }).limit(100);
+    return Message.countDocuments({ conversation: conversation._id, createdAt: { $gt: since }, sender: { $ne: actor._id }, hiddenFor: { $ne: actor._id }, type: { $ne: MESSAGE_TYPES.SYSTEM } }).limit(UNREAD_CAP);
 };
 
 // ---------------------------------------------------------------- Club chats
 
 /** Makes sure each active club the actor belongs to has its group chat. */
 const ensureClubChats = async (actor) => {
-    const memberships = await ClubMembership.find({ user: actor._id, status: MEMBERSHIP_STATUS.APPROVED }).select("club").lean();
-    if (!memberships.length) return [];
+    const memberships = await ClubMembership.find({ user: actor._id, status: MEMBERSHIP_STATUS.APPROVED }).select("club role joinedAt createdAt").lean();
+    if (!memberships.length) return { clubs: [], memberships: new Map() };
     const clubs = await Club.find({ _id: { $in: memberships.map((row) => row.club) }, status: CLUB_STATUS.ACTIVE }).select("name logo status roles").lean();
     const existing = new Set((await Conversation.find({ club: { $in: clubs.map((club) => club._id) } }).select("club").lean()).map((row) => String(row.club)));
     for (const club of clubs.filter((item) => !existing.has(String(item._id)))) {
@@ -258,38 +261,61 @@ const ensureClubChats = async (actor) => {
             if (error.code !== 11000) throw error; // created at the same moment by another request
         }
     }
-    return clubs;
+    return { clubs, memberships: new Map(memberships.map((row) => [idOf(row.club), row])) };
 };
 
 // ---------------------------------------------------------------- Listing
 
 const FILTERS = { all: null, unread: "unread", groups: [TYPES.GROUP, TYPES.CLUB], clubs: [TYPES.CLUB], direct: [TYPES.DIRECT] };
 
-const listConversations = async (actor, { filter = "all" } = {}) => {
-    const clubs = await ensureClubChats(actor);
-    const clubMap = new Map(clubs.map((club) => [String(club._id), club]));
-    const conversations = await Conversation.find({
-        $or: [{ type: { $in: [TYPES.DIRECT, TYPES.GROUP] }, "members.user": actor._id }, { type: TYPES.CLUB, club: { $in: clubs.map((club) => club._id) } }]
-    })
-        .sort({ lastMessageAt: -1, updatedAt: -1 })
-        .limit(200);
+const LIST_LIMIT = 200;
+const byRecent = (a, b) => {
+    const at = (conversation) => (conversation.lastMessageAt ? new Date(conversation.lastMessageAt).getTime() : -Infinity);
+    return at(b) - at(a) || new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+};
 
-    const directIds = conversations.filter((conversation) => conversation.type === TYPES.DIRECT).map((conversation) => otherMemberId(conversation, actor));
-    const users = await loadUsers(directIds);
-    const rows = [];
+/** The actor's chats with their access, newest first; also marks waiting messages as delivered. */
+const accessibleChats = async (actor) => {
+    const { clubs, memberships } = await ensureClubChats(actor);
+    const prefetched = { clubs: new Map(clubs.map((club) => [idOf(club._id), club])), memberships };
+    const [own, clubChats] = await Promise.all([
+        Conversation.find({ type: { $in: [TYPES.DIRECT, TYPES.GROUP] }, "members.user": actor._id })
+            .sort({ lastMessageAt: -1, updatedAt: -1 })
+            .limit(LIST_LIMIT)
+            .lean(),
+        clubs.length
+            ? Conversation.find({ type: TYPES.CLUB, club: { $in: clubs.map((club) => club._id) } })
+                  .select({ members: { $elemMatch: { user: actor._id } }, type: 1, club: 1, name: 1, avatar: 1, lastMessage: 1, lastMessageAt: 1, announceOnly: 1, createdAt: 1, updatedAt: 1 })
+                  .lean()
+            : []
+    ]);
+    const conversations = [...own, ...clubChats.map((conversation) => ({ ...conversation, members: conversation.members || [] }))].sort(byRecent).slice(0, LIST_LIMIT);
+
+    const entries = [];
     for (const conversation of conversations) {
-        const access = await accessFor(actor, conversation);
+        const access = await accessFor(actor, conversation, prefetched);
         if (!access) continue;
         // One-to-one chats show up once there's a message to show (or for whoever started them).
         const hasVisible = conversation.lastMessage?.at && new Date(conversation.lastMessage.at) >= access.visibleFrom;
         if (conversation.type === TYPES.DIRECT && !hasVisible) continue;
-        const unread = await unreadIn(conversation, actor, access);
-        rows.push(await conversationView(conversation, actor, access, { users, club: clubMap.get(idOf(conversation.club)), unread }));
+        entries.push({ conversation, access });
     }
-    rows.sort((a, b) => new Date(b.lastMessageAt || b.createdAt) - new Date(a.lastMessageAt || a.createdAt));
+    const unread = await Promise.all(entries.map(({ conversation, access }) => unreadIn(conversation, actor, access)));
+    entries.forEach((entry, index) => (entry.unread = unread[index]));
 
     // Opening the chat list counts as "delivered" for everything waiting.
     markDeliveredMany(actor, conversations).catch(() => {});
+    return { entries, clubs: prefetched.clubs };
+};
+
+const listConversations = async (actor, { filter = "all" } = {}) => {
+    const { entries, clubs } = await accessibleChats(actor);
+    const directIds = entries.filter(({ conversation }) => conversation.type === TYPES.DIRECT).map(({ conversation }) => otherMemberId(conversation, actor));
+    const users = await loadUsers(directIds);
+    const rows = await Promise.all(
+        entries.map(({ conversation, access, unread }) => conversationView(conversation, actor, access, { users, club: clubs.get(idOf(conversation.club)), unread }))
+    );
+    rows.sort((a, b) => new Date(b.lastMessageAt || b.createdAt) - new Date(a.lastMessageAt || a.createdAt));
 
     const wanted = FILTERS[filter];
     if (wanted === "unread") return rows.filter((row) => row.unread > 0);
@@ -297,10 +323,20 @@ const listConversations = async (actor, { filter = "all" } = {}) => {
     return rows;
 };
 
+const isMuted = (member) => Boolean(member.mutedUntil && new Date(member.mutedUntil) > new Date());
+
 /** Number of chats with unread messages (the badge on the Messages icon). */
 const unreadSummary = async (actor) => {
-    const rows = await listConversations(actor);
-    return { chats: rows.filter((row) => row.unread > 0 && !row.muted).length, messages: rows.reduce((sum, row) => sum + (row.muted ? 0 : row.unread), 0) };
+    const { entries } = await accessibleChats(actor);
+    const counted = entries.filter(({ access, unread }) => unread > 0 && !isMuted(access.member));
+    return {
+        chats: counted.length,
+        messages: counted.reduce((sum, { unread }) => sum + unread, 0),
+        // Unread count per chat, so the app can keep the badge right as messages arrive without asking again.
+        counts: Object.fromEntries(counted.map(({ conversation, unread }) => [String(conversation._id), unread])),
+        cap: UNREAD_CAP,
+        mutedIds: entries.filter(({ access }) => isMuted(access.member)).map(({ conversation }) => String(conversation._id))
+    };
 };
 
 // ---------------------------------------------------------------- Starting chats
@@ -708,14 +744,19 @@ const markDeliveredMany = async (actor, conversations) => {
 realtime.registerHandlers({
     typing: async (user, payload = {}) => {
         if (!isId(payload.conversationId)) return;
-        const { conversation } = await loadAccessible(user, payload.conversationId);
-        const recipients = (await recipientIds(conversation)).filter((id) => id !== idOf(user));
+        const conversation = await Conversation.findById(payload.conversationId).select({ type: 1, club: 1, members: { $elemMatch: { user: user._id } } }).lean();
+        if (!conversation) return;
+        conversation.members = conversation.members || [];
+        if (!(await accessFor(user, conversation))) return;
+        const recipients = (
+            conversation.type === TYPES.CLUB ? await clubMemberIds(conversation.club) : (await Conversation.findById(conversation._id).select("members.user").lean()).members.map((entry) => idOf(entry.user))
+        ).filter((id) => id !== idOf(user));
         realtime.emitToUsers(recipients, "typing", { conversationId: String(conversation._id), user: { _id: idOf(user), name: user.name }, recording: Boolean(payload.recording) });
     },
     delivered: async (user, payload = {}) => {
         if (!isId(payload.conversationId)) return;
-        const conversation = await Conversation.findById(payload.conversationId);
-        if (conversation && conversation.members.some((entry) => idOf(entry.user) === idOf(user))) await markDeliveredMany(user, [conversation]);
+        const conversation = await Conversation.findOne({ _id: payload.conversationId, type: { $ne: TYPES.CLUB }, "members.user": user._id }).select("type lastMessage members").lean();
+        if (conversation) await markDeliveredMany(user, [conversation]);
     }
 });
 

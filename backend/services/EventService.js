@@ -28,6 +28,7 @@ const {
 } = require("../constants/Statuses");
 const { CLUB_PERMISSIONS } = require("../constants/Permissions");
 const { searchRegex, parsePagination, paginationMeta } = require("../utils/Query");
+const { eventFeedCache } = require("../utils/Caches");
 const { combineDateAndTime, dateKeyToDate, toDateKey } = require("../utils/UniversityRules");
 const {
     isFaculty,
@@ -342,29 +343,32 @@ const getEventDetail = async (actor, eventId) => {
         throw new AppError("Event not found", 404, ERROR_CODES.NOT_FOUND);
     }
 
-    const context = await getClubContext(actor, event.club._id);
+    const [context, found] = await Promise.all([getClubContext(actor, event.club._id), actor ? EventRegistration.findOne({ event: event._id, user: actor._id }) : null]);
     const isPublic = PUBLIC_EVENT_STATUSES.includes(event.status) || (event.status === EVENT_STATUS.CANCELLED && Boolean(event.publishedAt));
 
     if (!isPublic && !context.isMentor && !contextHas(context, CLUB_PERMISSIONS.MANAGE_EVENTS) && !contextHas(context, CLUB_PERMISSIONS.PUBLISH_EVENTS)) {
         throw new AppError("Event not found", 404, ERROR_CODES.NOT_FOUND);
     }
 
-    const found = actor ? await EventRegistration.findOne({ event: event._id, user: actor._id }) : null;
-    const registration = found ? { ...found.toObject(), waitlistPosition: await waitlistPosition(found) } : null;
     const isTeamEvent = event.participationMode === PARTICIPATION_MODES.TEAM;
     const active = found && [REGISTRATION_STATUS.REGISTERED, REGISTRATION_STATUS.WAITLISTED].includes(found.status);
-    const teamInfo =
-        actor && isTeamEvent
-            ? {
-                  team: active && found.team ? await teams.getTeamView(found.team, event) : null,
-                  teamRole: active ? found.teamRole : null,
-                  invites: active ? [] : await teams.invitesFor(actor, { eventId: event._id })
-              }
-            : {};
-
     const isStaff = context.isMentor || contextHas(context, CLUB_PERMISSIONS.MANAGE_EVENTS) || contextHas(context, CLUB_PERMISSIONS.PUBLISH_EVENTS);
 
-    const galleryCount = PUBLIC_EVENT_STATUSES.includes(event.status) ? await EventMedia.countDocuments({ event: event._id, status: "APPROVED" }) : 0;
+    // Everything below depends only on the event and the viewer's registration, so it's looked up together.
+    const [position, team, invites, galleryCount, myAnswers, liked, clashes, revision] = await Promise.all([
+        found ? waitlistPosition(found) : null,
+        actor && isTeamEvent && active && found.team ? teams.getTeamView(found.team, event) : null,
+        actor && isTeamEvent && !active ? teams.invitesFor(actor, { eventId: event._id }) : [],
+        PUBLIC_EVENT_STATUSES.includes(event.status) ? EventMedia.countDocuments({ event: event._id, status: "APPROVED" }) : 0,
+        active ? require("./RegistrationFormService").myAnswers(event, found) : null,
+        actor ? require("./LikeService").likedAmong(actor, "EVENT", [event._id]) : null,
+        actor && actor.accountType === "STUDENT" && !active && event.status === EVENT_STATUS.PUBLISHED && event.startAt > new Date()
+            ? require("./ScheduleClashService").clashesFor(actor._id, event)
+            : null,
+        isStaff && event.revision ? describeRevision(event) : null
+    ]);
+    const registration = found ? { ...found.toObject(), waitlistPosition: position } : null;
+    const teamInfo = actor && isTeamEvent ? { team, teamRole: active ? found.teamRole : null, invites } : {};
 
     const budget =
         isStaff || context.isAdmin
@@ -377,13 +381,12 @@ const getEventDetail = async (actor, eventId) => {
                   expensesTotal: (event.expenses?.items || []).reduce((sum, row) => sum + row.amount, 0)
               }
             : {};
-    const myAnswers = found && [REGISTRATION_STATUS.REGISTERED, REGISTRATION_STATUS.WAITLISTED].includes(found.status) ? await require("./RegistrationFormService").myAnswers(event, found) : null;
 
     return serialize(event, {
         galleryCount,
         ...budget,
         myAnswers,
-        likedByMe: actor ? (await require("./LikeService").likedAmong(actor, "EVENT", [event._id])).has(String(event._id)) : false,
+        likedByMe: liked ? liked.has(String(event._id)) : false,
         // On hold while the club is suspended or archived: visible to those involved, closed to registration.
         onHold: event.club.status !== CLUB_STATUS.ACTIVE,
         ...(event.club.status !== CLUB_STATUS.ACTIVE && event.status === EVENT_STATUS.PUBLISHED ? { registrationState: "ON_HOLD" } : {}),
@@ -392,13 +395,11 @@ const getEventDetail = async (actor, eventId) => {
                   ...viewerFor(context, event, registration),
                   ...teamInfo,
                   // Other events this student holds a place for at the same time (they'd have to switch).
-                  ...(actor.accountType === "STUDENT" && !active && event.status === EVENT_STATUS.PUBLISHED && event.startAt > new Date()
-                      ? { clashes: await require("./ScheduleClashService").clashesFor(actor._id, event) }
-                      : {}),
+                  ...(clashes ? { clashes } : {}),
                   ...(contextHas(context, CLUB_PERMISSIONS.SEND_REMINDERS) ? { reminders: require("./EventReminderService").reminderStatus(event) } : {})
               }
             : null,
-        ...(isStaff && event.revision ? { revision: await describeRevision(event) } : {})
+        ...(isStaff && event.revision ? { revision } : {})
     });
 };
 
@@ -1295,12 +1296,12 @@ const attachResults = async (items) => {
     });
 };
 
-const attachRegistrations = async (actor, events) => {
-    const serialized = events.map((event) => serialize(event));
-    // Results and the viewer's own registrations are looked up at the same time.
+// The viewer's own registration, follow and like on each (already serialized) event; `pending` is the same
+// list being completed meanwhile (e.g. with results), used in its place once ready.
+const attachViewer = async (actor, serialized, pending = serialized) => {
     const clubIds = [...new Set(serialized.map((event) => String(event.club?._id || event.club)).filter(Boolean))];
     const [items, registrations, followed, liked] = await Promise.all([
-        attachResults(serialized),
+        pending,
         actor && serialized.length ? EventRegistration.find({ user: actor._id, event: { $in: serialized.map((event) => event._id) } }).select("event status").lean() : [],
         actor ? followedAmong(actor._id, clubIds) : new Set(),
         require("./LikeService").likedAmong(actor, "EVENT", serialized.map((event) => event._id))
@@ -1319,6 +1320,12 @@ const attachRegistrations = async (actor, events) => {
         followingClub: followed.has(String(event.club?._id || event.club)),
         likedByMe: liked.has(String(event._id))
     }));
+};
+
+const attachRegistrations = async (actor, events) => {
+    const serialized = events.map((event) => serialize(event));
+    // Results and the viewer's own registrations are looked up at the same time.
+    return attachViewer(actor, serialized, attachResults(serialized));
 };
 
 const TIMEFRAMES = {
@@ -1362,33 +1369,50 @@ const timeframeCounts = async (query, now, paused = []) => {
 
 const listEvents = async (actor, query = {}) => {
     const pagination = parsePagination(query, { defaultLimit: 12 });
-    const now = new Date();
     const timeframe = TIMEFRAMES[query.timeframe] ? query.timeframe : "upcoming";
-    const { filter, sort } = TIMEFRAMES[timeframe](now);
-
-    const paused = await pausedClubIds();
-    Object.assign(filter, discoveryFilters(query, paused));
-    if (query.registrationOpen === "true") {
-        filter.status = EVENT_STATUS.PUBLISHED;
-        filter.registrationClosed = false;
-        filter.registrationStart = { $lte: now };
-        filter.registrationEnd = { $gte: now };
-        filter.$expr = {
-            $or: [{ $eq: ["$maxParticipants", null] }, { $lt: ["$registeredCount", "$maxParticipants"] }]
-        };
-    }
-
-    const [events, total, counts] = await Promise.all([
-        populateEvent(Event.find(filter).sort(sort).skip(pagination.skip).limit(pagination.limit)),
-        Event.countDocuments(filter),
-        query.withCounts === "true" ? timeframeCounts(query, now, paused) : null
+    const key = JSON.stringify([
+        timeframe,
+        pagination.skip,
+        pagination.limit,
+        query.category || "",
+        query.club ? String(query.club) : "",
+        query.search || "",
+        query.registrationOpen === "true",
+        query.withCounts === "true"
     ]);
 
+    // The page itself is the same for every viewer, so it's shared for a few seconds (cleared on any event,
+    // result, club or venue write); only the viewer's own registration, follow and like are looked up each time.
+    const shared = await eventFeedCache.remember(key, async () => {
+        const now = new Date();
+        const { filter, sort } = TIMEFRAMES[timeframe](now);
+        const paused = await pausedClubIds();
+        Object.assign(filter, discoveryFilters(query, paused));
+        if (query.registrationOpen === "true") {
+            filter.status = EVENT_STATUS.PUBLISHED;
+            filter.registrationClosed = false;
+            filter.registrationStart = { $lte: now };
+            filter.registrationEnd = { $gte: now };
+            filter.$expr = {
+                $or: [{ $eq: ["$maxParticipants", null] }, { $lt: ["$registeredCount", "$maxParticipants"] }]
+            };
+        }
+
+        const [events, total, counts] = await Promise.all([
+            populateEvent(Event.find(filter).sort(sort).skip(pagination.skip).limit(pagination.limit)),
+            Event.countDocuments(filter),
+            query.withCounts === "true" ? timeframeCounts(query, now, paused) : null
+        ]);
+        return { items: await attachResults(events.map((event) => serialize(event))), total, counts };
+    });
+
+    // Registration windows open and close by the clock, so their state is worked out fresh.
+    const items = shared.items.map((event) => ({ ...event, registrationState: registrationWindowState(event) }));
     return {
-        items: await attachRegistrations(actor, events),
+        items: await attachViewer(actor, items),
         timeframe,
-        ...(counts ? { counts } : {}),
-        ...paginationMeta(pagination, total)
+        ...(shared.counts ? { counts: shared.counts } : {}),
+        ...paginationMeta(pagination, shared.total)
     };
 };
 

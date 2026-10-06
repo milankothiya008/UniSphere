@@ -1,4 +1,6 @@
 const mongoose = require("mongoose");
+const { clearOnWrite } = require("../utils/TtlCache");
+const { clubDirectoryCache } = require("../utils/Caches");
 const { RECRUITMENT_STATUS, ROUND_STATUS, ROUND_MODES, ROUND_TIMING, QUESTION_TYPES } = require("../constants/Statuses");
 
 // One question of a role's application form. The applicant's name, email, department and batch come from
@@ -90,5 +92,8 @@ recruitmentDriveSchema.index({ club: 1, status: 1 });
 recruitmentDriveSchema.index({ status: 1, applicationEnd: 1 });
 // Venue bookings held by scheduled offline rounds.
 recruitmentDriveSchema.index({ "positions.rounds.venue": 1, "positions.rounds.startAt": 1 });
+
+// Any write refreshes the cached clubs directory (utils/Caches.js).
+clearOnWrite(recruitmentDriveSchema, () => clubDirectoryCache.clear());
 
 module.exports = mongoose.model("RecruitmentDrive", recruitmentDriveSchema);

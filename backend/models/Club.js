@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const { clearOnWrite } = require("../utils/TtlCache");
-const { pausedClubsCache } = require("../utils/Caches");
+const { pausedClubsCache, eventFeedCache, clubDirectoryCache } = require("../utils/Caches");
 const { CLUB_STATUS } = require("../constants/Statuses");
 const { CLUB_CATEGORIES } = require("../constants/Categories");
 
@@ -145,6 +145,10 @@ clubSchema.index({ departmentCodes: 1, status: 1 });
 clubSchema.index({ mentor: 1 });
 
 // Suspending or reactivating (or any club write) refreshes the paused-clubs list.
-clearOnWrite(clubSchema, () => pausedClubsCache.clear());
+clearOnWrite(clubSchema, () => {
+    pausedClubsCache.clear();
+    eventFeedCache.clear();
+    clubDirectoryCache.clear();
+});
 
 module.exports = mongoose.model("Club", clubSchema);

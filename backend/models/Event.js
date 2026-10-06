@@ -1,4 +1,6 @@
 const mongoose = require("mongoose");
+const { clearOnWrite } = require("../utils/TtlCache");
+const { eventFeedCache } = require("../utils/Caches");
 const { EVENT_STATUS, REVISION_STATUS, PARTICIPATION_MODES, CHECK_IN_STATUS } = require("../constants/Statuses");
 const { EVENT_CATEGORIES } = require("../constants/Categories");
 const { formQuestionSchema } = require("./FormSchemas");
@@ -299,5 +301,8 @@ eventSchema.pre("validate", function () {
         this.invalidate("registrationEnd", "Registration deadline must be after registration start");
     }
 });
+
+// Any write refreshes the cached events feed (utils/Caches.js).
+clearOnWrite(eventSchema, () => eventFeedCache.clear());
 
 module.exports = mongoose.model("Event", eventSchema);

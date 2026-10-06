@@ -23,17 +23,30 @@ const parseExpiryToMs = (value, fallbackMs) => {
     return amount * multipliers[unit];
 };
 
+// The secrets as ready-made key objects. Given a plain string, jsonwebtoken first tries (and fails) to read it
+// as a public key on every call, which is costly when every request checks a token. Same secrets, same tokens.
+const keyCache = new Map();
+const keyFor = (secret) => {
+    if (typeof secret !== "string" || !secret) return secret;
+    let key = keyCache.get(secret);
+    if (!key) {
+        key = crypto.createSecretKey(Buffer.from(secret));
+        keyCache.set(secret, key);
+    }
+    return key;
+};
+
 const signAccessToken = (payload) => {
-    return jwt.sign(payload, env.jwtAccessSecret, { expiresIn: env.accessTokenExpiry });
+    return jwt.sign(payload, keyFor(env.jwtAccessSecret), { expiresIn: env.accessTokenExpiry });
 };
 
 const signRefreshToken = (payload) => {
-    return jwt.sign(payload, env.jwtRefreshSecret, { expiresIn: env.refreshTokenExpiry });
+    return jwt.sign(payload, keyFor(env.jwtRefreshSecret), { expiresIn: env.refreshTokenExpiry });
 };
 
-const verifyAccessToken = (token) => jwt.verify(token, env.jwtAccessSecret);
+const verifyAccessToken = (token) => jwt.verify(token, keyFor(env.jwtAccessSecret));
 
-const verifyRefreshToken = (token) => jwt.verify(token, env.jwtRefreshSecret);
+const verifyRefreshToken = (token) => jwt.verify(token, keyFor(env.jwtRefreshSecret));
 
 const hashToken = (token) => crypto.createHash("sha256").update(token).digest("hex");
 

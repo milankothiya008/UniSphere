@@ -1,4 +1,6 @@
 const mongoose = require("mongoose");
+const { clearOnWrite } = require("../utils/TtlCache");
+const { eventFeedCache } = require("../utils/Caches");
 const { VENUE_STATUS, VENUE_TYPES } = require("../constants/Statuses");
 
 const venueSchema = new mongoose.Schema(
@@ -49,5 +51,8 @@ const venueSchema = new mongoose.Schema(
     },
     { timestamps: true }
 );
+
+// Any write refreshes the cached events feed (utils/Caches.js).
+clearOnWrite(venueSchema, () => eventFeedCache.clear());
 
 module.exports = mongoose.model("Venue", venueSchema);

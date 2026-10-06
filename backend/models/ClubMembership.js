@@ -1,4 +1,6 @@
 const mongoose = require("mongoose");
+const { clearOnWrite } = require("../utils/TtlCache");
+const { clubDirectoryCache } = require("../utils/Caches");
 const { MEMBERSHIP_STATUS } = require("../constants/Statuses");
 
 const clubMembershipSchema = new mongoose.Schema(
@@ -59,5 +61,8 @@ clubMembershipSchema.index(
     { club: 1, role: 1 },
     { name: "one_president_one_vice_president", unique: true, partialFilterExpression: { role: { $in: ["PRESIDENT", "VICE_PRESIDENT"] }, status: "APPROVED" } }
 );
+
+// Any write refreshes the cached clubs directory (utils/Caches.js).
+clearOnWrite(clubMembershipSchema, () => clubDirectoryCache.clear());
 
 module.exports = mongoose.model("ClubMembership", clubMembershipSchema);

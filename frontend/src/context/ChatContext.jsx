@@ -53,16 +53,47 @@ export const ChatProvider = ({ children }) => {
     pathRef.current = pathname;
     prefs.current = { settings, sound };
 
+    const unreadRef = useRef(unread);
+    unreadRef.current = unread;
+    const arrivals = useRef(0);
+
     const refreshUnread = useCallback(() => {
         clearTimeout(timer.current);
         // Several events in a burst (a busy group) cause one request.
-        timer.current = setTimeout(() => {
+        timer.current = setTimeout(function load() {
+            const seen = arrivals.current;
             chatApi
                 .unread()
-                .then((response) => setUnread(response.data))
+                .then((response) => {
+                    setUnread(response.data);
+                    // A message counted here while the request was on its way may be missing from the answer.
+                    if (arrivals.current !== seen) timer.current = setTimeout(load, 400);
+                })
                 .catch(() => {});
         }, 400);
     }, []);
+
+    // A new message in a chat that isn't open: when the server told us the per-chat counts, the badge is
+    // updated right here (the same rules the server counts by); otherwise it's fetched again.
+    const countIncoming = useCallback(
+        (conversationId, message, mutedFor) => {
+            if (!unreadRef.current.counts) {
+                refreshUnread();
+                return;
+            }
+            const id = String(conversationId);
+            const muted = mutedFor.map(String).includes(String(user?._id));
+            if (muted || message?.type === "SYSTEM") return;
+            arrivals.current += 1;
+            setUnread((current) => {
+                if (!current.counts) return current;
+                const before = current.counts[id] || 0;
+                const after = Math.min(before + 1, current.cap || 100);
+                return { ...current, chats: current.chats + (before ? 0 : 1), messages: current.messages + (after - before), counts: { ...current.counts, [id]: after } };
+            });
+        },
+        [user, refreshUnread]
+    );
 
     // Tell the server which chat is on screen, so it doesn't send a notification for it.
     const reportViewing = useCallback(() => {
@@ -77,17 +108,22 @@ export const ChatProvider = ({ children }) => {
             .catch(() => {});
         const socket = connectChat();
         socketRef.current = socket;
+        let wasConnected = false;
         const onConnect = () => {
             setConnected(true);
             reportViewing();
+            // Back after a drop: messages may have arrived meanwhile.
+            if (wasConnected) refreshUnread();
+            wasConnected = true;
         };
         const onDisconnect = () => setConnected(false);
         const onMessage = ({ conversationId, message, conversation, mutedFor = [] }) => {
             const mine = String(message?.sender?._id) === String(user._id);
             if (mine) return;
-            socket.emit("delivered", { conversationId });
+            // Club chats have no per-person delivery ticks, so there's nothing to report for them.
+            if (conversation?.type !== "CLUB") socket.emit("delivered", { conversationId });
             const open = openRef.current === String(conversationId);
-            if (!open) refreshUnread();
+            if (!open) countIncoming(conversationId, message, mutedFor);
 
             // A banner when the message is for a chat that isn't on screen — not for muted chats, while
             // the chat list itself is showing, or with message notifications switched off.
@@ -143,7 +179,7 @@ export const ChatProvider = ({ children }) => {
             socketRef.current = null;
             clearTimeout(timer.current);
         };
-    }, [user, refreshUnread, reportViewing]);
+    }, [user, refreshUnread, reportViewing, countIncoming]);
 
     // "(3) CampusConnect" in the browser tab while messages wait.
     useEffect(() => {

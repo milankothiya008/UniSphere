@@ -16,6 +16,7 @@ const { GLOBAL_ROLES, ACCOUNT_TYPES, CLUB_ROLES } = require("../constants/Roles"
 const { CLUB_PERMISSIONS } = require("../constants/Permissions");
 const { permissionsFor, roleName, roleRank } = require("../utils/ClubRoles");
 const { escapeRegex, searchRegex, parsePagination, paginationMeta } = require("../utils/Query");
+const { clubDirectoryCache } = require("../utils/Caches");
 const {
     isAdmin,
     assertAdmin,
@@ -79,17 +80,38 @@ const listClubs = async (actor, query = {}) => {
         Object.assign(filter, scopeIncludes(query.department));
     }
 
-    const [clubs, total] = await Promise.all([
-        populateClub(Club.find(filter).sort({ name: 1 }).skip(pagination.skip).limit(pagination.limit)),
-        Club.countDocuments(filter)
-    ]);
+    const load = async () => {
+        const [clubs, total] = await Promise.all([
+            populateClub(Club.find(filter).sort({ name: 1 }).skip(pagination.skip).limit(pagination.limit)),
+            Club.countDocuments(filter)
+        ]);
+        return { items: await withCounts(clubs), total };
+    };
 
-    const items = await withCounts(clubs);
-    // The admin's status notes are for the admin, the club's leaders and its mentor only.
-    if (!isAdmin(actor)) {
-        items.forEach((item) => delete item.statusNote);
+    if (isAdmin(actor)) {
+        const { items, total } = await load();
+        return { items, ...paginationMeta(pagination, total) };
     }
-    return { items, ...paginationMeta(pagination, total) };
+
+    // The public directory is the same for everyone, so a page of it is shared for a few seconds.
+    const key = JSON.stringify([pagination.skip, pagination.limit, query.search || "", query.category || "", query.department || ""]);
+    const { items, total } = await clubDirectoryCache.remember(key, async () => {
+        const page = await load();
+        // The admin's status notes are for the admin, the club's leaders and its mentor only.
+        page.items.forEach((item) => delete item.statusNote);
+        return page;
+    });
+    // Recruitment drives open and close by the clock, so that part is worked out fresh.
+    const now = new Date();
+    return {
+        items: items.map((item) => {
+            const drive = item.recruiting;
+            if (!drive) return { ...item };
+            if (new Date(drive.applicationEnd) <= now) return { ...item, recruiting: null };
+            return { ...item, recruiting: { ...drive, open: new Date(drive.applicationStart) <= now } };
+        }),
+        ...paginationMeta(pagination, total)
+    };
 };
 
 const viewerSummary = (context, applications = []) => ({
