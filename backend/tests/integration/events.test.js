@@ -215,7 +215,7 @@ describe("event lifecycle", () => {
         await Event.deleteOne({ _id: draft.body.data._id });
     });
 
-    test("only roles with PUBLISH_EVENTS can publish; publishing shows it in the event feed and notifies everyone", async () => {
+    test("only roles with PUBLISH_EVENTS can publish; publishing shows it in the event feed and notifies the people it's for", async () => {
         expect((await api(coordinator).post(`/api/events/${eventId}/publish`)).status).toBe(403);
 
         const res = await api(president).post(`/api/events/${eventId}/publish`);
@@ -224,8 +224,12 @@ describe("event lifecycle", () => {
 
         expect(await FeedPost.exists({ event: eventId, type: "EVENT" })).toBeNull();
         // Everyone on campus hears about it, not just club members.
-        for (const user of [member, outsider, otherFaculty, admin]) {
+        // The club's members and the students it's open to hear about it; nobody else on campus is notified.
+        for (const user of [member, outsider]) {
             expect(await Notification.exists({ user: user._id, type: "EVENT_PUBLISHED" })).toBeTruthy();
+        }
+        for (const user of [otherFaculty, admin]) {
+            expect(await Notification.exists({ user: user._id, type: "EVENT_PUBLISHED" })).toBeNull();
         }
         expect(await Notification.exists({ user: president._id, type: "EVENT_PUBLISHED" })).toBeNull();
 

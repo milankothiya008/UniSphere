@@ -27,7 +27,7 @@ const {
     assertClubMentor
 } = require("./AuthorizationService");
 const { recordAudit } = require("./AuditService");
-const { notify, notifyAllUsers } = require("./NotificationService");
+const { notify } = require("./NotificationService");
 const { withTransaction, maybeSession } = require("../utils/Transaction");
 const { scopeIncludes, assertMentorMatchesScope, assertStudentsMatchScope } = require("../utils/DepartmentScope");
 const { normalizeUrl, normalizeSocialLinks } = require("../utils/ClubLinks");
@@ -421,13 +421,15 @@ const assignPresident = async (actor, clubId, userId) => {
         });
     }
 
+    // A new club is news for the departments it's open to (everyone, for all-department clubs).
     if (firstActivation) {
-        await notifyAllUsers({
+        await notify(await require("./AudienceService").clubScopeAudience(club), {
             type: NOTIFICATION_TYPES.NEW_CLUB,
             title: `New club: ${club.name}`,
             message: club.description.slice(0, 200),
             link: `/clubs/${club._id}`,
-            exclude: [actor._id, user._id]
+            exclude: [actor._id, user._id],
+            push: false
         });
     }
 

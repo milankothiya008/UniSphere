@@ -252,6 +252,18 @@ const roundRules = (optional) => {
     ];
 };
 
+// Who an announcement goes to (services/AudienceService).
+const audienceRules = [
+    body("audience").optional().isObject().withMessage("Choose who should get this"),
+    body("audience.mode").optional().isIn(["EVERYONE", "FOLLOWERS", "MEMBERS", "CUSTOM"]).withMessage("Choose who should get this"),
+    body("audience.roles").optional().isArray({ max: 30 }),
+    body("audience.departments").optional().isArray({ max: 30 }),
+    body("audience.batches").optional().isArray({ max: 30 }),
+    body("audience.users").optional().isArray({ max: 200 }).withMessage("Choose at most 200 people"),
+    body("audience.users.*").optional().isMongoId(),
+    body("audience.includeMentor").optional().isBoolean()
+];
+
 const feedPostRules = [
     body("club").isMongoId().withMessage("Club is required"),
     body("type")
@@ -261,7 +273,9 @@ const feedPostRules = [
     body("title").isString().trim().isLength({ min: 3, max: 200 }).withMessage("Title must be 3-200 characters"),
     body("body").optional().isString().isLength({ max: 4000 }),
     body("event").optional({ values: "falsy" }).isMongoId(),
-    body("visibility").optional().isIn(Object.values(FEED_VISIBILITY)),
+    body("visibility").optional().isIn([FEED_VISIBILITY.PUBLIC, FEED_VISIBILITY.MEMBERS]),
+    ...audienceRules,
+    body("sendEmail").optional().isBoolean(),
     optionalUrl("image")
 ];
 
@@ -304,6 +318,7 @@ module.exports = {
     resultRules,
     roundRules,
     feedPostRules,
+    audienceRules,
     userStatusRules,
     userSearchRules
 };

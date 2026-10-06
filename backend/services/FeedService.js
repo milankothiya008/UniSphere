@@ -19,8 +19,8 @@ const { getClubContext, contextHas, assertClubPermission } = require("./Authoriz
 const { recordAudit } = require("./AuditService");
 const { notify, notifyAllUsers } = require("./NotificationService");
 const { sendAnnouncementEmails } = require("./CampusMailer");
-const { approvedMemberIds } = require("./MembershipService");
-const { clubFollowerIds } = require("./SubscriptionService");
+const { clubIdsWithAnyPermission } = require("./MembershipService");
+const { parseAudience, resolveAudience, describeAudience, countAudience } = require("./AudienceService");
 const logger = require("../utils/Logger");
 
 const MANUAL_POST_TYPES = [FEED_POST_TYPES.ANNOUNCEMENT, FEED_POST_TYPES.CLUB_UPDATE, FEED_POST_TYPES.EVENT_UPDATE];
@@ -63,7 +63,6 @@ const createSystemPost = async ({ type, club, event = null, result = null, autho
 
 const createPost = async (actor, payload) => {
     const { club: clubId, type = FEED_POST_TYPES.ANNOUNCEMENT, title, body = "", event: eventId = null, image = null } = payload;
-    const visibility = payload.visibility === FEED_VISIBILITY.MEMBERS ? FEED_VISIBILITY.MEMBERS : FEED_VISIBILITY.PUBLIC;
 
     if (!MANUAL_POST_TYPES.includes(type)) {
         throw new AppError("Invalid post type", 400, ERROR_CODES.VALIDATION_ERROR);
@@ -78,6 +77,15 @@ const createPost = async (actor, payload) => {
     if (context.club.status !== CLUB_STATUS.ACTIVE) {
         throw new AppError("Only active clubs can post updates", 409, ERROR_CODES.CLUB_NOT_ACTIVE);
     }
+
+    // Who it goes to: the club picks the audience, so nobody else is notified or emailed.
+    const audience = parseAudience(context.club, payload);
+    const reach = await resolveAudience(context.club, audience);
+    if (reach.notifyTo && !reach.notifyTo.some((id) => id !== String(actor._id))) {
+        throw new AppError("Nobody matches this audience yet — choose other roles, departments or people", 400, ERROR_CODES.VALIDATION_ERROR);
+    }
+    const visibility = reach.visibility;
+    const sendEmail = payload.sendEmail !== false;
 
     let event = null;
     if (type === FEED_POST_TYPES.EVENT_UPDATE || eventId) {
@@ -98,7 +106,18 @@ const createPost = async (actor, payload) => {
         title: String(title).trim(),
         body,
         image,
-        visibility
+        visibility,
+        audience: {
+            mode: audience.mode,
+            roles: audience.roles || [],
+            departments: audience.departments || [],
+            batches: audience.batches || [],
+            people: audience.users?.length || 0,
+            includeMentor: Boolean(audience.includeMentor),
+            label: describeAudience(context.club, audience)
+        },
+        recipients: reach.recipients ? [...new Set([...reach.recipients, String(actor._id)])] : undefined,
+        recipientCount: reach.notifyTo ? reach.notifyTo.filter((id) => id !== String(actor._id)).length : null
     });
 
     await recordAudit({
@@ -118,14 +137,14 @@ const createPost = async (actor, payload) => {
         exclude: [actor._id]
     };
 
-    const membersOnly = visibility === FEED_VISIBILITY.MEMBERS;
-    if (membersOnly) {
-        await notify([...(await approvedMemberIds(context.club._id)), context.club.mentor], notification);
+    if (reach.notifyTo) {
+        await notify(reach.notifyTo, { ...notification, push: reach.pushTo });
     } else {
-        await notifyAllUsers({ ...notification, pushTo: await clubFollowerIds(context.club._id) });
+        await notifyAllUsers({ ...notification, pushTo: reach.pushTo });
     }
-    // Followers of the club (bell on) also get it by email.
-    await sendAnnouncementEmails(post, context.club, actor, { membersOnly, link: notification.link });
+    if (sendEmail) {
+        await sendAnnouncementEmails(post, context.club, actor, { audience: audience.mode, recipients: reach.emailTo, link: notification.link });
+    }
 
     return populatePost(FeedPost.findById(post._id));
 };
@@ -162,9 +181,17 @@ const listFeed = async (actor, query = {}) => {
     // Members-only posts are visible to that club's members and mentor only (not the university admin).
     const insideClubs = [...memberships.map((m) => m.club), ...mentored.map((c) => c._id)];
 
+    // Announcements for a chosen audience: those people, plus the club's posting team and mentor.
+    const postingClubs = actor ? await clubIdsWithAnyPermission(actor._id, [CLUB_PERMISSIONS.POST_UPDATES]) : [];
     filter.$or = [
         { visibility: FEED_VISIBILITY.PUBLIC },
-        { visibility: FEED_VISIBILITY.MEMBERS, club: { $in: insideClubs } }
+        { visibility: FEED_VISIBILITY.MEMBERS, club: { $in: insideClubs } },
+        ...(actor
+            ? [
+                  { visibility: FEED_VISIBILITY.AUDIENCE, recipients: actor._id },
+                  { visibility: FEED_VISIBILITY.AUDIENCE, club: { $in: [...postingClubs, ...mentored.map((c) => c._id)] } }
+              ]
+            : [])
     ];
     // Suspended or archived clubs' posts stay visible to their own members and mentor only.
     if (paused.length) {
@@ -206,4 +233,12 @@ const deletePost = async (actor, id) => {
     });
 };
 
-module.exports = { createSystemPost, createPost, listFeed, deletePost, MANUAL_POST_TYPES };
+/** How many people an announcement would reach, for the composer. */
+const previewAudience = async (actor, payload = {}) => {
+    const context = await assertClubPermission(actor, payload.club, CLUB_PERMISSIONS.POST_UPDATES, "You cannot post on behalf of this club");
+    const audience = parseAudience(context.club, payload);
+    const { count, email } = await countAudience(context.club, audience);
+    return { count, email, label: describeAudience(context.club, audience) };
+};
+
+module.exports = { createSystemPost, createPost, listFeed, deletePost, previewAudience, MANUAL_POST_TYPES };

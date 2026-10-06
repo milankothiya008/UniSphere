@@ -56,6 +56,11 @@ export const FeedCard = ({ post, canDelete = false, onDelete }) => {
                         <Lock size={11} /> Members
                     </Badge>
                 )}
+                {post.visibility === "AUDIENCE" && (
+                    <Badge title={`Sent to: ${post.audience?.label || "a chosen audience"}`}>
+                        <Lock size={11} /> {post.audience?.label || "Chosen people"}
+                    </Badge>
+                )}
                 <Badge tone={tone}>
                     <Icon size={12} /> {FEED_TYPE_LABELS[post.type]}
                 </Badge>

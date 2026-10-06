@@ -1,4 +1,4 @@
-import { api, downloadFile, request } from "./client";
+import { API_BASE, api, downloadFile, request } from "./client";
 
 export const authApi = {
     register: (body) => api.post("/auth/register", body),
@@ -170,7 +170,28 @@ export const resultApi = {
 export const feedApi = {
     list: (query) => api.get("/feed", query),
     create: (body) => api.post("/feed", body),
-    remove: (id) => api.delete(`/feed/${id}`)
+    remove: (id) => api.delete(`/feed/${id}`),
+    // How many people an announcement would reach.
+    audiencePreview: (body) => api.post("/feed/audience-preview", body)
+};
+
+// Club elections: anonymous votes among a club's members for its roles.
+export const electionApi = {
+    list: (clubId) => api.fresh("/elections", { club: clubId }),
+    get: (id) => api.fresh(`/elections/${id}`),
+    create: (body) => api.post("/elections", body),
+    update: (id, body) => api.patch(`/elections/${id}`, body),
+    vote: (id, candidate) => api.post(`/elections/${id}/vote`, { candidate }),
+    close: (id) => api.post(`/elections/${id}/close`),
+    cancel: (id, reason) => api.post(`/elections/${id}/cancel`, { reason }),
+    runoff: (id, body) => api.post(`/elections/${id}/runoff`, body)
+};
+
+// Calendar: one event as an .ics file (a plain link), and the person's private feed address.
+export const calendarApi = {
+    eventFileUrl: (eventId) => `${API_BASE}/calendar/events/${eventId}.ics`,
+    link: () => api.fresh("/calendar/link"),
+    resetLink: () => api.post("/calendar/link/reset")
 };
 
 export const notificationApi = {

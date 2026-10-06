@@ -220,8 +220,16 @@ const sendRoundResultEmails = async (event, round, club, actor) => {
 };
 
 // Announcements go to the club's followers (members only, for members-only posts).
-const sendAnnouncementEmails = async (post, club, actor, { membersOnly = false, link }) => {
-    const followers = await clubFollowerIds(club._id, { membersOnly });
+// recipients: who to email (chosen by AudienceService); audience: how they were chosen, for the footer.
+const AUDIENCE_REASON = {
+    EVERYONE: (club) => `You're receiving this because notifications are on for ${club.name}.`,
+    FOLLOWERS: (club) => `You're receiving this because notifications are on for ${club.name}.`,
+    MEMBERS: (club) => `You're receiving this members-only update because you're in ${club.name}.`,
+    CUSTOM: (club) => `${club.name} sent this to you directly.`
+};
+
+const sendAnnouncementEmails = async (post, club, actor, { audience = "EVERYONE", recipients = null, link }) => {
+    const followers = recipients || (await clubFollowerIds(club._id, { membersOnly: audience === "MEMBERS" }));
     const paragraphs = String(post.body || "")
         .split(/\n{2,}/)
         .map((paragraph) => paragraph.trim())
@@ -238,9 +246,7 @@ const sendAnnouncementEmails = async (post, club, actor, { membersOnly = false, 
             paragraphs,
             image: post.image,
             action: { label: "Open in CampusConnect", url: link },
-            reason: membersOnly
-                ? `You're receiving this members-only update because you're in ${club.name}.`
-                : `You're receiving this because notifications are on for ${club.name}.`,
+            reason: (AUDIENCE_REASON[audience] || AUDIENCE_REASON.EVERYONE)(club),
             club
         })
     });

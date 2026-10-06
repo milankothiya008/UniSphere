@@ -42,7 +42,7 @@ const { sendEventLaunchEmails } = require("./CampusMailer");
 const { promoteFromWaitlist, waitlistPosition } = require("./WaitlistService");
 const { EMAIL_CATEGORIES } = require("../constants/EmailCategories");
 const { recordAudit } = require("./AuditService");
-const { notify, notifyAllUsers } = require("./NotificationService");
+const { notify } = require("./NotificationService");
 const { createSystemPost } = require("./FeedService");
 const { followedAmong, clubFollowerIds } = require("./SubscriptionService");
 const { clubUsersWithPermission, clubIdsWithAnyPermission } = require("./MembershipService");
@@ -256,13 +256,15 @@ const registeredUserIds = async (eventId) => {
     return registrations.map((registration) => registration.user);
 };
 
-// Registered students hear about it by email as well (unless they muted "Your events"); everyone else in-app.
+// Registered students hear about it by email as well (unless they muted "Your events"); the club's
+// followers and members, and the students it is open to, in-app — not the whole campus.
 const broadcastEventNews = async (event, actor, { type, title, message }) => {
     const registrants = await registeredUserIds(event._id);
     const link = EVENT_LINK(event);
 
     await notify(registrants, { type, title, message, link, email: true, emailCategory: EMAIL_CATEGORIES.EVENT_ACTIVITY, exclude: [actor._id] });
-    await notifyAllUsers({ type, title, message, link, exclude: [actor._id, ...registrants] });
+    const interested = await require("./AudienceService").eventAudience(event, event.club?._id || event.club);
+    await notify(interested, { type, title, message, link, exclude: [actor._id, ...registrants], push: false });
 };
 
 const audit = (event, action, actor, fromState, reason = null, metadata = {}) =>
@@ -1146,16 +1148,17 @@ const publishEvent = async (actor, eventId) => {
 
     await audit(event, AUDIT_ACTIONS.EVENT_PUBLISHED, actor, EVENT_STATUS.APPROVED);
 
-    // Published events appear in the campus event feed; everyone on campus is told about them in-app,
-    // and the club's followers plus eligible students are emailed (see CampusMailer).
-    await notifyAllUsers({
+    // Published events appear in the campus event feed for everyone. In-app, it's announced to the people
+    // it's for — the club's followers and members and the students it's open to — and the followers plus
+    // eligible students are emailed (see CampusMailer).
+    await notify(await require("./AudienceService").eventAudience(event, club._id), {
         type: NOTIFICATION_TYPES.EVENT_PUBLISHED,
         title: `New event: ${event.title}`,
         message: `${club.name} · ${event.shortDescription}`,
         link: EVENT_LINK(event),
         exclude: [actor._id],
         // Followers get it on their phone too.
-        pushTo: await clubFollowerIds(club._id)
+        push: await clubFollowerIds(club._id)
     });
     await sendEventLaunchEmails(event, club, actor);
 

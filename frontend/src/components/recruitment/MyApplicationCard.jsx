@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarPlus, Check, ChevronDown, Clock, Gift, Hourglass, Info, MapPin, PartyPopper, PencilLine, Send, Undo2, Video, X } from "lucide-react";
+import { Check, ChevronDown, Clock, Gift, Hourglass, Info, MapPin, PartyPopper, PencilLine, Send, Undo2, Video, X } from "lucide-react";
 import { recruitmentApi } from "../../api/endpoints";
 import { useToast } from "../../context/ToastContext";
 import { useAuth } from "../../context/AuthContext";
@@ -8,6 +8,7 @@ import { useOptionalWorkspace } from "../../context/WorkspaceContext";
 import { ActionMenu, Alert, Badge, ButtonLink, Button, ConfirmDialog, Input } from "../ui";
 import { normalizePhone } from "../../lib/phone";
 import { ApplicationBadge } from "./RecruitmentParts";
+import { AddToCalendar } from "../calendar/AddToCalendar";
 import { ROUND_MODES } from "../../lib/constants";
 import { countdownParts, dateParts, formatDate, formatDateTime, formatTimeRange, timeAgo } from "../../lib/format";
 
@@ -66,9 +67,16 @@ const InterviewCard = ({ drive, round }) => {
                             <Video size={15} /> Join meeting
                         </a>
                     )}
-                    <a className="btn btn-secondary btn-sm" href={icsFor(drive, round)} download={`${round.name}.ics`}>
-                        <CalendarPlus size={15} /> Add to calendar
-                    </a>
+                    <AddToCalendar
+                        icsUrl={icsFor(drive, round)}
+                        item={{
+                            title: `${round.name} (${round.positionTitle}) — ${drive.club.name}`,
+                            start: round.slot.startAt,
+                            end: round.slot.endAt,
+                            details: round.instructions || drive.title,
+                            location: round.mode === "ONLINE" ? round.meetingLink || "Online" : [round.venue?.name, round.venue?.location].filter(Boolean).join(", ")
+                        }}
+                    />
                 </div>
                 <span className="subtle small">We'll remind you 1 hour and 10 minutes before.</span>
             </div>

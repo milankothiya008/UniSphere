@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Check, CheckCheck, Copy, Download, FileText, Flag, Forward, Pause, Pencil, Pin, PinOff, Play, Reply, Smile, Trash2, Undo2 } from "lucide-react";
 import { ActionMenu, Avatar, useLightbox } from "../ui";
 import { QUICK_REACTIONS, bubbleTime, duration, fileSize, linkify, tickState } from "../../lib/chat";
+import { ChatElectionCard } from "../elections/ChatElectionCard";
 
 const EDIT_MINUTES = 15;
 
@@ -176,6 +177,10 @@ export const MessageBubble = memo(function MessageBubble({ message, first, last,
                 <span>{message.text}</span>
             </div>
         );
+    }
+
+    if (message.type === "POLL" && !message.deleted) {
+        return <ChatElectionCard message={message} />;
     }
 
     const mine = message.mine;

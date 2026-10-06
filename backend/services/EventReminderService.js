@@ -220,8 +220,9 @@ const startEventSweeper = () => {
             const reminders = await sweepEventReminders();
             const hackathon = await require("./HackathonService").sweepHackathons();
             const feedback = await require("./FeedbackService").sweepFeedbackRequests();
-            if (reminders || hackathon || feedback) {
-                logger.info("Event sweep", { reminders, hackathon, feedback });
+            const elections = await require("./ElectionService").sweepElections();
+            if (reminders || hackathon || feedback || elections) {
+                logger.info("Event sweep", { reminders, hackathon, feedback, elections });
             }
         } catch (error) {
             logger.error("Event sweep failed", { message: error.message });

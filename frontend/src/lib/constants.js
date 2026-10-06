@@ -24,7 +24,8 @@ export const PERMISSIONS = {
     MARK_ATTENDANCE: "MARK_ATTENDANCE",
     MODERATE_GALLERY: "MODERATE_GALLERY",
     MANAGE_RECRUITMENT: "MANAGE_RECRUITMENT",
-    POST_UPDATES: "POST_UPDATES"
+    POST_UPDATES: "POST_UPDATES",
+    RUN_ELECTIONS: "RUN_ELECTIONS"
 };
 
 // What each club authority allows, grouped for the roles editor. President-only authorities can't be
@@ -59,6 +60,7 @@ export const PERMISSION_GROUPS = [
             ["MANAGE_MEMBERS", "Manage members", "Add and remove members"],
             ["ASSIGN_ROLES", "Roles & appointments", "Create roles and appoint members", true],
             ["MANAGE_RECRUITMENT", "Run recruitment", "Recruitment drives and selection", true],
+            ["RUN_ELECTIONS", "Run elections", "Hold anonymous member votes for club roles"],
             ["MANAGE_CLUB", "Club settings", "Edit the club profile", true]
         ]
     },

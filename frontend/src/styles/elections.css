@@ -1,0 +1,350 @@
+/* Club elections, the announcement audience picker and "Add to calendar". Colours come from the tokens,
+   so dark mode follows by itself. */
+
+.stack-xs {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+/* ---------------------------------------------------------------- Add to calendar */
+
+.cal-add {
+    position: relative;
+    display: inline-flex;
+}
+
+.cal-add-row {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--hairline);
+}
+
+.cal-add-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 30;
+    min-width: 230px;
+    max-width: calc(100vw - 32px);
+    display: flex;
+    flex-direction: column;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-lg);
+}
+
+.cal-add-menu a {
+    padding: 9px 12px;
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 0.92rem;
+    text-decoration: none;
+}
+
+.cal-add-menu a:hover,
+.cal-add-menu a:focus-visible {
+    background: var(--ink-50);
+}
+
+/* ---------------------------------------------------------------- Announcement audience */
+
+/* The "Send to" choices share the full width, so all four fit on a phone. */
+.audience-picker .segmented,
+.election-timing .segmented {
+    display: flex;
+    width: 100%;
+    max-width: 520px;
+}
+
+.audience-picker .segmented button,
+.election-timing .segmented button {
+    flex: 1;
+    padding-inline: 6px;
+    white-space: nowrap;
+}
+
+.audience-custom {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-muted);
+}
+
+.audience-reach {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    align-self: flex-start;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: var(--ink-50);
+    color: var(--ink-700);
+}
+
+.chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* ---------------------------------------------------------------- Elections */
+
+.election-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+}
+
+.election-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: var(--surface);
+}
+
+.election-summary.is-open {
+    border-color: var(--success-600);
+}
+
+.election-summary-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.election-icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--violet-100);
+    color: var(--violet-600);
+}
+
+.election-voted {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--success-600);
+    font-weight: 600;
+}
+
+.election-turnout {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.election-turnout-bar,
+.election-result-bar {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--hairline);
+    overflow: hidden;
+}
+
+.election-turnout-bar span,
+.election-result-bar span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--ink-600);
+    transition: width 0.4s ease;
+}
+
+.election-title {
+    margin: 0;
+    font-size: 1.35rem;
+}
+
+.election-page {
+    max-width: 720px;
+}
+
+.election-ballot {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.election-option,
+.election-pick {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.election-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.election-option:focus-within {
+    box-shadow: var(--focus-ring);
+}
+
+.election-option.is-chosen,
+.election-pick-list li.is-chosen .election-pick {
+    border-color: var(--ink-600);
+    background: var(--ink-50);
+}
+
+.election-option.is-disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.election-candidate-face {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+
+.election-radio {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    margin-left: auto;
+    border: 2px solid var(--border-strong);
+    border-radius: 50%;
+    color: #fff;
+}
+
+.election-option.is-chosen .election-radio,
+.election-pick-list li.is-chosen .election-radio {
+    border-color: var(--ink-600);
+    background: var(--ink-600);
+}
+
+.election-privacy {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 0;
+}
+
+.election-note {
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    background: var(--warning-100);
+    color: var(--warning-600);
+}
+
+.election-results {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.election-results li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+}
+
+/* Every candidate's bar is measured against the same full width. */
+.election-candidate-face > .stack-xs {
+    flex: 1;
+}
+
+.election-results li .election-result-bar {
+    margin-top: 6px;
+}
+
+.election-results li.is-leading {
+    border-color: var(--gold-500);
+    background: var(--gold-100);
+}
+
+.election-results li.is-leading .election-result-bar span {
+    background: var(--gold-600);
+}
+
+.election-result-count {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex: none;
+    color: var(--gold-600);
+}
+
+.election-result-count strong {
+    color: var(--text);
+    font-size: 1.15rem;
+}
+
+.election-candidates,
+.election-pick-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.election-candidates li {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    background: var(--surface-muted);
+}
+
+.election-pick-list li {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* The election card inside the club group chat. */
+.msg-election {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin: 10px auto;
+    width: min(360px, 100%);
+}
+
+.msg-election .election-summary {
+    width: 100%;
+}
+
+@media (max-width: 560px) {
+    .election-grid {
+        grid-template-columns: 1fr;
+    }
+}

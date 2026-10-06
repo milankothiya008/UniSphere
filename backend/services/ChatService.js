@@ -139,6 +139,7 @@ const KIND_LABEL = { IMAGE: ["📷 Photo", "photos"], VIDEO: ["🎥 Video", "vid
 const previewOf = (message) => {
     if (message.deletedAt) return "Message unsent";
     if (message.type === MESSAGE_TYPES.SYSTEM) return message.text;
+    if (message.type === MESSAGE_TYPES.POLL) return `🗳️ ${message.text}`.slice(0, 120);
     if (message.text) return message.text.slice(0, 120);
     const [first] = message.attachments || [];
     if (!first) return "";
@@ -191,6 +192,7 @@ const serializeMessages = async (messages, actor) => {
             editedAt: message.editedAt,
             deleted: Boolean(message.deletedAt),
             system: message.system || null,
+            poll: message.poll || null,
             createdAt: message.createdAt
         };
     });
@@ -602,6 +604,7 @@ const broadcastUpdate = async (conversation, message, patch) => {
 const editMessage = async (actor, messageId, text) => {
     const { message, conversation } = await loadMessage(actor, messageId);
     if (idOf(message.sender) !== idOf(actor) || message.type === MESSAGE_TYPES.SYSTEM) throw fail("You can only edit your own messages", 403, ERROR_CODES.FORBIDDEN);
+    if (message.type === MESSAGE_TYPES.POLL) throw fail("Edit the election itself instead");
     if (message.deletedAt) throw fail("This message was unsent");
     if (Date.now() - message.createdAt.getTime() > env.chat.editMinutes * 60000) throw fail(`Messages can be edited for ${env.chat.editMinutes} minutes after sending`);
     const body = String(text || "").trim().slice(0, 4000);
@@ -662,7 +665,8 @@ const react = async (actor, messageId, emoji) => {
 
 const forward = async (actor, messageId, conversationIds = []) => {
     const { message } = await loadMessage(actor, messageId);
-    if (message.deletedAt || message.type === MESSAGE_TYPES.SYSTEM) throw fail("This message can't be forwarded");
+    // Election cards stay in their club: only its members can vote.
+    if (message.deletedAt || message.type === MESSAGE_TYPES.SYSTEM || message.type === MESSAGE_TYPES.POLL) throw fail("This message can't be forwarded");
     const targets = [...new Set((Array.isArray(conversationIds) ? conversationIds : []).map(String))].slice(0, 5);
     if (!targets.length) throw fail("Choose where to forward it");
     const sent = [];
@@ -710,6 +714,48 @@ const setPinned = async (actor, conversationId, messageId, pinned) => {
     realtime.emitToUsers(await recipientIds(conversation), "conversation:updated", { conversationId: String(conversation._id) });
     return getConversation(actor, conversation._id);
 };
+
+// ---------------------------------------------------------------- Club group posts from other features
+
+/** The club's group chat, created if nobody has opened it yet. */
+const clubConversation = async (clubId) => {
+    const found = await Conversation.findOne({ club: clubId });
+    if (found) return found;
+    const club = await Club.findById(clubId).select("name").lean();
+    if (!club) return null;
+    try {
+        return await Conversation.create({ type: TYPES.CLUB, club: clubId, name: club.name, lastMessageAt: null });
+    } catch (error) {
+        if (error.code !== 11000) throw error;
+        return Conversation.findOne({ club: clubId });
+    }
+};
+
+/** Posts an election card in the club group, from the organiser. */
+const postElectionCard = async (clubId, election, sender) => {
+    const conversation = await clubConversation(clubId);
+    if (!conversation) return null;
+    const message = await Message.create({ conversation: conversation._id, sender: sender._id, type: MESSAGE_TYPES.POLL, text: election.title, poll: election._id });
+    await touchConversation(conversation, message);
+    const recipients = await recipientIds(conversation);
+    realtime.emitToUsers(recipients, "message:new", {
+        conversationId: String(conversation._id),
+        message: { ...(await serializeOne(message, sender)), mine: undefined },
+        conversation: { _id: conversation._id, type: conversation.type, title: conversation.name, avatar: null },
+        mutedFor: mutedIn(conversation)
+    });
+    return message;
+};
+
+/** A grey notice line in the club group ("Voting has closed …"). */
+const postClubNotice = async (clubId, text, action) => {
+    const conversation = await clubConversation(clubId);
+    if (!conversation) return null;
+    return systemMessage(conversation, { _id: null, name: "CampusConnect" }, text, action);
+};
+
+/** Tells the club's members that something about an election changed (cards refresh themselves). */
+const clubSignal = async (clubId, event, payload) => realtime.emitToUsers(await clubMemberIds(clubId), event, payload);
 
 // ---------------------------------------------------------------- Read / delivered / typing
 
@@ -1016,6 +1062,9 @@ const resolveReport = async (actor, reportId, { note = "" } = {}) => {
 module.exports = {
     listConversations,
     unreadSummary,
+    postElectionCard,
+    postClubNotice,
+    clubSignal,
     openDirect,
     createGroup,
     getConversation,

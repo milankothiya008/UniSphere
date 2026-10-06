@@ -12,6 +12,7 @@ import { AvatarUpload } from "../components/profile/AvatarUpload";
 import { PushSetting } from "../components/layout/PushPrompt";
 import { useTheme } from "../lib/theme";
 import { useChat } from "../context/ChatContext";
+import { CalendarSync } from "../components/calendar/CalendarSync";
 
 // Chat privacy: "Active now" status (shown only if you show yours, like Instagram) and blocked accounts.
 const ChatPrivacy = () => {
@@ -222,6 +223,9 @@ const SettingsPage = () => {
                     </Card>
                     <Card title="Messages">
                         <ChatPrivacy />
+                    </Card>
+                    <Card title="Calendar sync">
+                        <CalendarSync />
                     </Card>
                     <Card title="Change password">
                         <form className="stack" onSubmit={changePassword}>

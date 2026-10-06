@@ -15,7 +15,7 @@ const { CLUB_PERMISSIONS } = require("../constants/Permissions");
 const { parsePagination, paginationMeta, searchRegex } = require("../utils/Query");
 const { getClubContext, contextHas, assertClubPermission } = require("./AuthorizationService");
 const { recordAudit } = require("./AuditService");
-const { notify, notifyAllUsers } = require("./NotificationService");
+const { notify } = require("./NotificationService");
 const { sendResultEmails, sendRoundResultEmails } = require("./CampusMailer");
 
 // Results work like a real competition board:
@@ -426,13 +426,19 @@ const publishResult = async (actor, eventId) => {
         .map((award) => `${award.title}: ${award.teamName || award.recipientName}`)
         .join(" · ");
 
-    // Everyone on campus is notified in-app; winners, participants and club members are emailed.
-    await notifyAllUsers({
+    // The participants, the club's followers and members, and its mentor are notified in-app (the results page is open to
+    // everyone); winners, participants and club members are emailed.
+    const { eventParticipantIds } = require("./AudienceService");
+    const { clubFollowerIds } = require("./SubscriptionService");
+    const { approvedMemberIds } = require("./MembershipService");
+    const [participants, followers, members] = await Promise.all([eventParticipantIds(event._id), clubFollowerIds(context.club._id), approvedMemberIds(context.club._id)]);
+    await notify([...participants, ...followers, ...members, context.club.mentor], {
         type: NOTIFICATION_TYPES.RESULT_PUBLISHED,
         title: `Results are out for ${event.title}`,
         message: winners || result.summary.slice(0, 200),
         link: RESULTS_LINK(event._id),
-        exclude: [actor._id]
+        exclude: [actor._id],
+        push: false
     });
     await sendResultEmails(event, result, context.club, actor);
     await require("./CertificateService").announceMerit(event, result);

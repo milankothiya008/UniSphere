@@ -45,7 +45,8 @@ const uniqueIds = (ids) => [...new Set((Array.isArray(ids) ? ids : [ids]).filter
 
 // Notifications are a side effect of a state change; a failure here must never undo the change itself.
 // email: true also queues an email; emailCategory decides whether the person's email settings can mute it.
-const notify = async (userIds, { type, title, message = "", link = null, email = false, emailCategory = EMAIL_CATEGORIES.ACCOUNT, exclude = [] }) => {
+// push: true (everyone notified), false (in-app only) or a list of the few who should also get it on their phone.
+const notify = async (userIds, { type, title, message = "", link = null, email = false, emailCategory = EMAIL_CATEGORIES.ACCOUNT, exclude = [], push = true }) => {
     const excluded = uniqueIds(exclude);
     const recipients = uniqueIds(userIds).filter((id) => !excluded.includes(id));
 
@@ -57,7 +58,8 @@ const notify = async (userIds, { type, title, message = "", link = null, email =
         await Notification.insertMany(
             recipients.map((user) => ({ user, type, title, message, link }))
         );
-        require("./PushService").pushToUsers(recipients, { title, body: message, url: link, tag: type });
+        const pushed = push === true ? recipients : Array.isArray(push) ? uniqueIds(push).filter((id) => recipients.includes(id)) : [];
+        if (pushed.length) require("./PushService").pushToUsers(pushed, { title, body: message, url: link, tag: type });
 
         if (email) {
             await emailUsers(recipients, {

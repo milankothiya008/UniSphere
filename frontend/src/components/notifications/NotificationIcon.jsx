@@ -1,4 +1,4 @@
-import { AlarmClock, BadgeCheck, Bell, Building2, CalendarCheck2, CalendarClock, CalendarX2, ClipboardCheck, FilePenLine, FileSignature, FileText, Hourglass, ImageOff, Images, MailPlus, Megaphone, ScanLine, Sparkles, Trophy, UserRoundPlus, Users, UsersRound } from "lucide-react";
+import { AlarmClock, BadgeCheck, Bell, Building2, CalendarCheck2, CalendarClock, CalendarX2, ClipboardCheck, FilePenLine, FileSignature, FileText, Hourglass, ImageOff, Images, MailPlus, Megaphone, ScanLine, Sparkles, Trophy, UserRoundPlus, Users, UsersRound, Vote } from "lucide-react";
 
 // Icon and colour per notification type, so notification lists scan at a glance.
 const STYLE = {
@@ -35,7 +35,8 @@ const STYLE = {
     CLUB_ROLE_CHANGED: [Users, "violet"],
     CLUB_REQUEST_UPDATE: [FileText, "info"],
     CLUB_UPDATE: [Building2, "info"],
-    NEW_CLUB: [Building2, "success"]
+    NEW_CLUB: [Building2, "success"],
+    ELECTION: [Vote, "violet"]
 };
 
 export const NotificationIcon = ({ type, size = 14 }) => {

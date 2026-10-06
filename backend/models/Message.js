@@ -2,7 +2,8 @@ const mongoose = require("mongoose");
 
 // One chat message. Attachments keep only storage details (see ChatMediaService); URLs are built on read.
 
-const MESSAGE_TYPES = Object.freeze({ TEXT: "TEXT", MEDIA: "MEDIA", FILE: "FILE", VOICE: "VOICE", SYSTEM: "SYSTEM" });
+// POLL: a club election card in the club group (the election itself lives in ClubElection).
+const MESSAGE_TYPES = Object.freeze({ TEXT: "TEXT", MEDIA: "MEDIA", FILE: "FILE", VOICE: "VOICE", SYSTEM: "SYSTEM", POLL: "POLL" });
 
 const attachmentSchema = new mongoose.Schema(
     {
@@ -36,6 +37,8 @@ const messageSchema = new mongoose.Schema(
             default: null
         },
         replyTo: { type: mongoose.Schema.Types.ObjectId, ref: "Message", default: null },
+        // POLL messages: the election shown as a card.
+        poll: { type: mongoose.Schema.Types.ObjectId, ref: "ClubElection", default: null },
         forwarded: { type: Boolean, default: false },
         reactions: { type: [new mongoose.Schema({ user: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, emoji: String }, { _id: false })], default: [] },
         // The sender's own id for this message, so a resend after a dropped connection isn't stored twice.

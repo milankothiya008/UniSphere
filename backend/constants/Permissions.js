@@ -21,7 +21,9 @@ const CLUB_PERMISSIONS = Object.freeze({
     // Sending reminder emails about an event (registration closing, event starting). Grantable.
     SEND_REMINDERS: "SEND_REMINDERS",
     // The club group chat: announce-only mode and pinned messages. Grantable.
-    MANAGE_CHAT: "MANAGE_CHAT"
+    MANAGE_CHAT: "MANAGE_CHAT",
+    // Holding anonymous elections for club roles (e.g. when a leader leaves or the year ends). Grantable.
+    RUN_ELECTIONS: "RUN_ELECTIONS"
 });
 
 // Which roles hold which authorities is decided per club: see utils/ClubRoles.js and Club.roles.

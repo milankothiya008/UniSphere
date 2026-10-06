@@ -131,7 +131,9 @@ const userSchema = new mongoose.Schema(
         showActivityStatus: { type: Boolean, default: true },
         // Phone / computer notifications for new messages (individual chats can also be muted).
         chatNotifications: { type: Boolean, default: true },
-        blockedUsers: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], default: [] }
+        blockedUsers: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], default: [] },
+        // Version of the private calendar-feed link (utils/CalendarToken); resetting the link bumps it.
+        calendarKeyVersion: { type: Number, default: 0, select: false }
     },
     { timestamps: true }
 );

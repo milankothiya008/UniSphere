@@ -131,7 +131,11 @@ export const ChatProvider = ({ children }) => {
             const listShowing = pathRef.current === "/messages";
             const visible = document.visibilityState === "visible";
             if (open || muted || listShowing || !visible || message.type === "SYSTEM" || prefs.current.settings?.chatNotifications === false) return;
-            const preview = message.deleted ? "Message unsent" : message.text || ATTACHMENT_TEXT[message.attachments?.[0]?.kind] || "New message";
+            const preview = message.deleted
+                ? "Message unsent"
+                : message.type === "POLL"
+                  ? `🗳️ ${message.text}`
+                  : message.text || ATTACHMENT_TEXT[message.attachments?.[0]?.kind] || "New message";
             const direct = !conversation || conversation.type === "DIRECT";
             setBanners((current) =>
                 [

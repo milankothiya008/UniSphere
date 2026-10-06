@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { FEED_POST_TYPES, FEED_VISIBILITY } = require("../constants/Statuses");
+const { FEED_POST_TYPES, FEED_VISIBILITY, ANNOUNCEMENT_AUDIENCE } = require("../constants/Statuses");
 
 const feedPostSchema = new mongoose.Schema(
     {
@@ -52,12 +52,32 @@ const feedPostSchema = new mongoose.Schema(
         isSystem: {
             type: Boolean,
             default: false
-        }
+        },
+        // Who the announcement was sent to (services/AudienceService). Chosen people are kept only as a count.
+        audience: {
+            type: new mongoose.Schema(
+                {
+                    mode: { type: String, enum: Object.values(ANNOUNCEMENT_AUDIENCE), default: ANNOUNCEMENT_AUDIENCE.EVERYONE },
+                    roles: { type: [String], default: [] },
+                    departments: { type: [String], default: [] },
+                    batches: { type: [String], default: [] },
+                    people: { type: Number, default: 0 },
+                    includeMentor: { type: Boolean, default: false },
+                    label: { type: String, default: null }
+                },
+                { _id: false }
+            ),
+            default: null
+        },
+        // AUDIENCE posts: everyone it was sent to, so only they (and the club's team) can see it.
+        recipients: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], default: undefined, select: false },
+        recipientCount: { type: Number, default: null }
     },
     { timestamps: true }
 );
 
 feedPostSchema.index({ createdAt: -1 });
+feedPostSchema.index({ recipients: 1, createdAt: -1 }, { sparse: true });
 feedPostSchema.index({ club: 1, createdAt: -1 });
 feedPostSchema.index({ type: 1, createdAt: -1 });
 

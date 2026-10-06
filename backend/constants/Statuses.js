@@ -164,7 +164,24 @@ const FEED_POST_TYPES = Object.freeze({
 
 const FEED_VISIBILITY = Object.freeze({
     PUBLIC: "PUBLIC",
-    MEMBERS: "MEMBERS"
+    MEMBERS: "MEMBERS",
+    // Sent to a chosen audience (roles, people, departments/batches): only they and the club's team see it.
+    AUDIENCE: "AUDIENCE"
+});
+
+// Who an announcement is sent to (see FeedService.createPost).
+const ANNOUNCEMENT_AUDIENCE = Object.freeze({
+    EVERYONE: "EVERYONE",
+    FOLLOWERS: "FOLLOWERS",
+    MEMBERS: "MEMBERS",
+    CUSTOM: "CUSTOM"
+});
+
+const ELECTION_STATUS = Object.freeze({
+    SCHEDULED: "SCHEDULED",
+    OPEN: "OPEN",
+    CLOSED: "CLOSED",
+    CANCELLED: "CANCELLED"
 });
 
 const NOTIFICATION_TYPES = Object.freeze({
@@ -208,7 +225,8 @@ const NOTIFICATION_TYPES = Object.freeze({
     JUDGE_INVITE: "JUDGE_INVITE",
     CERTIFICATE_READY: "CERTIFICATE_READY",
     FEEDBACK_REQUEST: "FEEDBACK_REQUEST",
-    CHAT_REPORT: "CHAT_REPORT"
+    CHAT_REPORT: "CHAT_REPORT",
+    ELECTION: "ELECTION"
 });
 
 const AUDIT_ACTIONS = Object.freeze({
@@ -311,7 +329,11 @@ const AUDIT_ACTIONS = Object.freeze({
     HACKATHON_JUDGES_UPDATED: "HACKATHON_JUDGES_UPDATED",
     HACKATHON_SUBMITTED: "HACKATHON_SUBMITTED",
     HACKATHON_SCORED: "HACKATHON_SCORED",
-    HACKATHON_RESULTS_DRAFTED: "HACKATHON_RESULTS_DRAFTED"
+    HACKATHON_RESULTS_DRAFTED: "HACKATHON_RESULTS_DRAFTED",
+    ELECTION_CREATED: "ELECTION_CREATED",
+    ELECTION_UPDATED: "ELECTION_UPDATED",
+    ELECTION_CLOSED: "ELECTION_CLOSED",
+    ELECTION_CANCELLED: "ELECTION_CANCELLED"
 });
 
 // Only events that have cleared faculty review hold a venue slot; drafts and
@@ -349,6 +371,8 @@ module.exports = {
     VENUE_TYPES,
     FEED_POST_TYPES,
     FEED_VISIBILITY,
+    ANNOUNCEMENT_AUDIENCE,
+    ELECTION_STATUS,
     NOTIFICATION_TYPES,
     AUDIT_ACTIONS,
     EVENT_STATUSES_HOLDING_VENUE,

@@ -26,6 +26,7 @@ import "./styles/social.css";
 import "./styles/extras.css";
 import "./styles/forms.css";
 import "./styles/chat.css";
+import "./styles/elections.css";
 import "./styles/dark.css";
 import { registerServiceWorker } from "./lib/push";
 import { initTheme } from "./lib/theme";

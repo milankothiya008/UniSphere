@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, Outlet, useParams } from "react-router-dom";
-import { CalendarDays, Clock, Gift, Info, Link2, Lock, LogOut, Megaphone, Settings, UserPlus, Users } from "lucide-react";
+import { CalendarDays, Clock, Gift, Info, Link2, Lock, LogOut, Megaphone, Settings, UserPlus, Users, Vote } from "lucide-react";
 import { clubApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { useAuth } from "../../context/AuthContext";
@@ -43,6 +43,7 @@ const ClubLayout = () => {
         { to: `/clubs/${id}`, label: "Events", icon: CalendarDays, count: club?.upcomingEvents || null, end: true },
         ...(club?.status === "ACTIVE" ? [{ to: `/clubs/${id}/recruitment`, label: club?.recruiting ? "Recruitment · open" : "Recruitment", icon: Megaphone }] : []),
         ...(canSeeMembers ? [{ to: `/clubs/${id}/members`, label: "Members", icon: Users, count: club?.memberCount }] : []),
+        ...(viewer.isMember || viewer.isMentor ? [{ to: `/clubs/${id}/elections`, label: "Elections", icon: Vote }] : []),
         { to: `/clubs/${id}/about`, label: "About", icon: Info },
         ...(canSettings ? [{ to: `/clubs/${id}/settings`, label: viewer.isAdmin && !viewer.isMember ? "Administration" : "Manage", icon: Settings }] : [])
     ];

@@ -54,3 +54,33 @@ export const downloadIcs = (event) => {
     link.click();
     URL.revokeObjectURL(href);
 };
+
+/** Opens Google Calendar with the event filled in. */
+export const googleCalendarUrl = ({ title, start, end, details = "", location = "" }) => {
+    const params = new URLSearchParams({ action: "TEMPLATE", text: title, dates: `${stamp(start)}/${stamp(end)}`, details, location });
+    return `https://calendar.google.com/calendar/render?${params.toString()}`;
+};
+
+/** An .ics file as a data: link, for items that need signing in (like interview slots). */
+export const icsDataUrl = ({ uid, title, start, end, details = "", location = "", alarmMinutes = 60 }) => {
+    const lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//CampusConnect//Calendar//EN",
+        "METHOD:PUBLISH",
+        "BEGIN:VEVENT",
+        `UID:${uid}`,
+        `DTSTAMP:${stamp(Date.now())}`,
+        `DTSTART:${stamp(start)}`,
+        `DTEND:${stamp(end)}`,
+        `SUMMARY:${escapeText(title)}`,
+        location ? `LOCATION:${escapeText(location)}` : null,
+        details ? `DESCRIPTION:${escapeText(details)}` : null,
+        ...(alarmMinutes ? ["BEGIN:VALARM", `TRIGGER:-PT${alarmMinutes}M`, "ACTION:DISPLAY", `DESCRIPTION:${escapeText(title)}`, "END:VALARM"] : []),
+        "END:VEVENT",
+        "END:VCALENDAR"
+    ].filter(Boolean);
+    return `data:text/calendar;charset=utf-8,${encodeURIComponent(lines.map(fold).join("\r\n"))}`;
+};
+
+export const safeFileName = (name) => `${String(name || "event").replace(/[^\w\- ]+/g, "").trim().slice(0, 60) || "event"}.ics`;

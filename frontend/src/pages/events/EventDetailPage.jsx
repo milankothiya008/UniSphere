@@ -16,12 +16,13 @@ import {
     User,
     Users
 } from "lucide-react";
-import { eventApi, feedApi } from "../../api/endpoints";
+import { eventApi, feedApi, calendarApi } from "../../api/endpoints";
 import { useApi } from "../../hooks/useApi";
 import { Alert, AsyncContent, Badge, ButtonLink, Card, PageHeader, StatusBadge, ZoomableMedia } from "../../components/ui";
 import { EventActions } from "../../components/events/EventActions";
 import { EventChanges } from "../../components/events/EventChanges";
 import { RegistrationPanel } from "../../components/events/RegistrationPanel";
+import { AddToCalendar } from "../../components/calendar/AddToCalendar";
 import { BudgetCard } from "../../components/events/BudgetCard";
 import { LikeButton, LikeCount, useLike } from "../../components/social/Likes";
 import { ScheduleCheck } from "../../components/events/ScheduleCheck";
@@ -350,6 +351,20 @@ const EventDetailPage = () => {
                                         </span>
                                     </div>
                                 </dl>
+                                {event.status === "PUBLISHED" && new Date(event.endAt) > new Date() && (
+                                    <div className="cal-add-row">
+                                        <AddToCalendar
+                                            icsUrl={calendarApi.eventFileUrl(event._id)}
+                                            item={{
+                                                title: event.title,
+                                                start: event.startAt,
+                                                end: event.endAt,
+                                                details: [event.shortDescription, `${window.location.origin}/events/${event._id}`].filter(Boolean).join("\n\n"),
+                                                location: [event.venue?.name, event.venue?.location].filter(Boolean).join(", ")
+                                            }}
+                                        />
+                                    </div>
+                                )}
                             </Card>
 
                             <RegistrationPanel event={event} onChange={() => reload({ silent: true })} />

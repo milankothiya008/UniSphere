@@ -39,6 +39,9 @@ const ClubLayout = lazy(() => import("./pages/clubs/ClubLayout"));
 const ClubAboutTab = lazy(() => import("./pages/clubs/ClubAboutTab"));
 const ClubEventsTab = lazy(() => import("./pages/clubs/ClubEventsTab"));
 const ClubMembersTab = lazy(() => import("./pages/clubs/ClubMembersTab"));
+const ClubElectionsTab = lazy(() => import("./pages/clubs/ClubElectionsTab"));
+const ElectionPage = lazy(() => import("./pages/clubs/ElectionPage"));
+const ElectionFormPage = lazy(() => import("./pages/clubs/ElectionFormPage"));
 const ClubSettingsTab = lazy(() => import("./pages/clubs/ClubSettingsTab"));
 
 const ClubRequestsPage = lazy(() => import("./pages/clubRequests/ClubRequestsPage"));
@@ -137,10 +140,13 @@ const App = () => (
                     <Route path="events" element={<Navigate to=".." replace />} />
                     <Route path="recruitment" element={<ClubRecruitmentTab />} />
                     <Route path="members" element={<ClubMembersTab />} />
+                    <Route path="elections" element={<ClubElectionsTab />} />
+                    <Route path="elections/:electionId" element={<ElectionPage />} />
                     <Route path="settings" element={<ClubSettingsTab />} />
                 </Route>
 
                 <Route path="/clubs/:id/recruitment/new" element={<ProtectedRoute roles={[STUDENT]}><DriveFormPage /></ProtectedRoute>} />
+                <Route path="/clubs/:id/elections/new" element={<ProtectedRoute roles={[STUDENT]}><ElectionFormPage /></ProtectedRoute>} />
                 <Route path="/recruitment/:id" element={<DrivePage />} />
                 <Route path="/recruitment/:driveId/edit" element={<ProtectedRoute roles={[STUDENT]}><DriveFormPage /></ProtectedRoute>} />
                 <Route path="/recruitment/:id/apply" element={<ProtectedRoute roles={[STUDENT]}><ApplyPage /></ProtectedRoute>} />

@@ -236,7 +236,7 @@ describe("results", () => {
         expect((await api(mentor).get(`/api/events/${eventId}/results`)).status).toBe(200);
     });
 
-    test("publishing makes results public, shows them on the completed event and notifies everyone", async () => {
+    test("publishing makes results public, shows them on the completed event and notifies the people involved", async () => {
         const res = await api(president).post(`/api/events/${eventId}/results/publish`);
         expect(res.status).toBe(200);
         expect(res.body.data.status).toBe("PUBLISHED");
@@ -251,9 +251,11 @@ describe("results", () => {
         const card = past.body.data.find((e) => e._id === String(eventId));
         expect(card.result.awards.map((a) => a.recipientName)).toEqual(["Winner", "Runner Up"]);
 
-        // Everyone on campus is notified — participants and students who never registered alike.
+        // Participants, the club's members and its mentor are notified; students with no link to the event or
+        // the club aren't (the results are still public for them to see).
         const notified = await Notification.find({ type: "RESULT_PUBLISHED", link: `/results/${eventId}` }).distinct("user");
-        expect(notified.map(String)).toEqual(expect.arrayContaining([String(winner._id), String(notParticipant._id), String(mentor._id)]));
+        expect(notified.map(String)).toEqual(expect.arrayContaining([String(winner._id), String(member._id), String(mentor._id)]));
+        expect(notified.map(String)).not.toContain(String(notParticipant._id));
         expect(notified.map(String)).not.toContain(String(president._id));
 
         const list = await api(null).get("/api/results");
